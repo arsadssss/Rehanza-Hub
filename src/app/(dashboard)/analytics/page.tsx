@@ -316,7 +316,7 @@ export default function AnalyticsPage() {
                                 />
                                 <YAxis
                                     tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }}
-                                    stroke="hsl(var(--muted-foreground))'
+                                    stroke="hsl(var(--muted-foreground))"
                                     tickFormatter={(value) => `₹${value}`}
                                 />
                                 <Tooltip
@@ -390,5 +390,3 @@ export default function AnalyticsPage() {
     </div>
   );
 }
-
-    
