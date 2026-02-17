@@ -13,8 +13,6 @@ import {
 } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
-  AreaChart,
-  Area,
   PieChart,
   Pie,
   XAxis,
@@ -23,6 +21,8 @@ import {
   ResponsiveContainer,
   CartesianGrid,
   Cell,
+  LineChart,
+  Line,
 } from 'recharts';
 import {
   ChartContainer,
@@ -227,13 +227,6 @@ export default function AnalyticsPage() {
     };
   }, [summaryData, returnsData]);
 
-  const salesChartConfig = {
-    total_sales: {
-      label: "Sales",
-      color: "hsl(var(--primary))",
-    },
-  };
-
   const platformChartConfig = {
     value: { label: "Orders" },
     Meesho: { label: "Meesho", color: "#FF4FA3" },
@@ -315,31 +308,38 @@ export default function AnalyticsPage() {
                         </Button>
                       </div>
                 </div>
-                <div className="h-[350px] w-full mt-4 -ml-2">
+                <div className="h-[350px] w-full">
                     {loadingSales ? <Skeleton className="h-full w-full bg-black/10 dark:bg-white/10" /> : (
-                         <ChartContainer
-                          config={salesChartConfig}
-                          className="h-full w-full [&_.recharts-cartesian-axis-tick_text]:fill-current"
+                         <LineChart
+                            width={800}
+                            height={350}
+                            data={salesData}
+                            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
                         >
-                          <ResponsiveContainer>
-                             <AreaChart data={salesData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-                                  <defs>
-                                      <linearGradient id="fillSales" x1="0" y1="0" x2="0" y2="1">
-                                          <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.8} />
-                                          <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0.1} />
-                                      </linearGradient>
-                                  </defs>
-                                  <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border/20" />
-                                  <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} tickFormatter={formatXAxis} />
-                                  <YAxis tickLine={false} axisLine={false} tickMargin={8} tickFormatter={(value) => `₹${Number(value) / 1000}k`} />
-                                  <Tooltip
-                                    cursor={{ stroke: "hsl(var(--primary))", strokeWidth: 1, strokeDasharray: "3 3" }}
-                                    content={<SalesTooltip />}
-                                  />
-                                  <Area dataKey="total_sales" type="monotone" stroke="hsl(var(--primary))" fill="url(#fillSales)" strokeWidth={2} dot={false} />
-                              </AreaChart>
-                          </ResponsiveContainer>
-                        </ChartContainer>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
+                            <XAxis
+                                dataKey="label"
+                                tick={{ fontSize: 12 }}
+                                stroke="#9ca3af"
+                                tickFormatter={formatXAxis}
+                            />
+                            <YAxis
+                                tick={{ fontSize: 12 }}
+                                stroke="#9ca3af"
+                                tickFormatter={(value) => `₹${value}`}
+                            />
+                            <Tooltip
+                                content={<SalesTooltip />}
+                            />
+                            <Line
+                                type="monotone"
+                                dataKey="total_sales"
+                                stroke="#4f46e5"
+                                strokeWidth={3}
+                                dot={{ r: 4 }}
+                                activeDot={{ r: 6 }}
+                            />
+                        </LineChart>
                     )}
                 </div>
             </div>
