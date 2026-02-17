@@ -14,6 +14,8 @@ import {
 } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
+  AreaChart,
+  Area,
   BarChart,
   Bar,
   PieChart,
@@ -30,6 +32,7 @@ import {
   ChartContainer,
   ChartTooltipContent,
 } from '@/components/ui/chart';
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DollarSign, ShoppingCart, Undo2, TrendingUp, ArrowUpRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -45,6 +48,12 @@ type ReturnsSummary = {
   total_returns: number;
   total_loss: number;
 };
+
+type SalesData = {
+  period: string;
+  total_revenue: number;
+  total_orders: number;
+}
 
 const KpiCard = ({ title, value, icon: Icon, loading, gradient }: { title: string, value: string, icon: React.ElementType, loading: boolean, gradient: string }) => {
     return (
@@ -64,19 +73,40 @@ const KpiCard = ({ title, value, icon: Icon, loading, gradient }: { title: strin
     );
 };
 
+const SalesTooltip = ({ active, payload, label }: any) => {
+    if (active && payload && payload.length) {
+        return (
+            <div className="rounded-lg bg-primary text-primary-foreground p-3 shadow-lg">
+                <p className="text-sm font-medium mb-1">{label}</p>
+                <p className="text-xs">
+                    <span className="font-bold">Revenue:</span> {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(payload[0].value)}
+                </p>
+                <p className="text-xs">
+                    <span className="font-bold">Orders:</span> {payload[0].payload.total_orders}
+                </p>
+            </div>
+        );
+    }
+    return null;
+};
+
 
 export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
-  const [analyticsData, setAnalyticsData] = useState<AnalyticsSummary[]>([]);
+  const [summaryData, setSummaryData] = useState<AnalyticsSummary[]>([]);
   const [returnsData, setReturnsData] = useState<ReturnsSummary[]>([]);
   const [platformOrders, setPlatformOrders] = useState<{ name: string; value: number }[]>([]);
   const [totalPlatformOrders, setTotalPlatformOrders] = useState(0);
   const [isMounted, setIsMounted] = useState(false);
   const { toast } = useToast();
 
+  const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
+  const [salesData, setSalesData] = useState<SalesData[]>([]);
+  const [loadingSales, setLoadingSales] = useState(true);
+
   useEffect(() => {
     setIsMounted(true);
-    async function fetchData() {
+    async function fetchSummaryData() {
       setLoading(true);
       const endDate = new Date();
       const startDate = subDays(endDate, 6); // Last 7 days including today
@@ -91,7 +121,7 @@ export default function AnalyticsPage() {
       if (analyticsError) {
         toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch analytics summary.' });
       } else {
-        setAnalyticsData(analytics || []);
+        setSummaryData(analytics || []);
       }
 
       // Fetch returns summary
@@ -131,39 +161,42 @@ export default function AnalyticsPage() {
 
       setLoading(false);
     }
-    fetchData();
+    fetchSummaryData();
   }, [toast]);
 
-  const { kpiStats, barChartData } = useMemo(() => {
-    const totalRevenue = analyticsData.reduce((acc, item) => acc + item.total_revenue, 0);
-    const totalOrders = analyticsData.reduce((acc, item) => acc + item.total_orders, 0);
+  useEffect(() => {
+    async function fetchSalesData() {
+        setLoadingSales(true);
+        const { data, error } = await supabase.rpc('get_order_analytics', {
+            period_type: period,
+        });
+
+        if (error) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch sales data.' });
+            setSalesData([]);
+        } else {
+            setSalesData(data);
+        }
+        setLoadingSales(false);
+    }
+    fetchSalesData();
+  }, [period, toast]);
+
+
+  const { kpiStats } = useMemo(() => {
+    const totalRevenue = summaryData.reduce((acc, item) => acc + item.total_revenue, 0);
+    const totalOrders = summaryData.reduce((acc, item) => acc + item.total_orders, 0);
     const totalReturns = returnsData.reduce((acc, item) => acc + item.total_returns, 0);
     const totalLoss = returnsData.reduce((acc, item) => acc + item.total_loss, 0);
     const netProfit = totalRevenue - totalLoss;
-
-    const endDate = new Date();
-    const startDate = subDays(endDate, 6);
-    const dateInterval = eachDayOfInterval({ start: startDate, end: endDate });
-
-    const dailyRevenueMap = analyticsData.reduce((acc, item) => {
-      const date = format(parseISO(item.order_date), 'yyyy-MM-dd');
-      acc[date] = (acc[date] || 0) + item.total_revenue;
-      return acc;
-    }, {} as Record<string, number>);
-
-    const barChartData = dateInterval.map(day => ({
-        date: format(day, 'MMM dd'),
-        revenue: dailyRevenueMap[format(day, 'yyyy-MM-dd')] || 0,
-    }));
     
     return { 
       kpiStats: { totalRevenue, totalOrders, totalReturns, netProfit },
-      barChartData,
     };
-  }, [analyticsData, returnsData]);
+  }, [summaryData, returnsData]);
 
-  const revenueChartConfig = {
-    revenue: {
+  const salesChartConfig = {
+    total_revenue: {
       label: "Revenue",
       color: "hsl(var(--primary))",
     },
@@ -192,19 +225,33 @@ export default function AnalyticsPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
             <div className="lg:col-span-3 bg-white/40 dark:bg-black/20 backdrop-blur-lg rounded-3xl p-6 shadow-xl border border-white/30 dark:border-white/10 text-black dark:text-white">
-                <h3 className="font-bold text-xl">Customer Habits</h3>
-                <p className="text-sm opacity-70">Track your customer habits</p>
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-bold text-xl">Sales</h3>
+                     <Tabs defaultValue="weekly" onValueChange={(p) => setPeriod(p as any)} className="w-auto">
+                        <TabsList className="bg-muted/50 dark:bg-muted/20">
+                            <TabsTrigger value="daily">Daily</TabsTrigger>
+                            <TabsTrigger value="weekly">Weekly</TabsTrigger>
+                            <TabsTrigger value="monthly">Monthly</TabsTrigger>
+                        </TabsList>
+                    </Tabs>
+                </div>
                 <div className="h-[350px] w-full mt-4 -ml-2">
-                    {loading ? <Skeleton className="h-full w-full bg-black/10 dark:bg-white/10" /> : (
-                        <ChartContainer config={revenueChartConfig} className="h-full w-full">
+                    {loadingSales ? <Skeleton className="h-full w-full bg-black/10 dark:bg-white/10" /> : (
+                        <ChartContainer config={salesChartConfig} className="h-full w-full">
                             <ResponsiveContainer>
-                                <BarChart data={barChartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                                <AreaChart data={salesData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                                     <defs>
+                                        <linearGradient id="fillRevenue" x1="0" y1="0" x2="0" y2="1">
+                                            <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.8} />
+                                            <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                                        </linearGradient>
+                                    </defs>
                                     <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-black/20 dark:stroke-white/20" />
-                                    <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} stroke="currentColor" className="opacity-70" />
+                                    <XAxis dataKey="period" tickLine={false} axisLine={false} tickMargin={8} stroke="currentColor" className="opacity-70" />
                                     <YAxis tickLine={false} axisLine={false} tickMargin={8} tickFormatter={(value) => `₹${value / 1000}k`} stroke="currentColor" className="opacity-70" />
-                                    <Tooltip cursor={{ fill: 'hsl(var(--primary) / 0.1)' }} content={<ChartTooltipContent indicator="dot" formatter={(value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value as number)} />} />
-                                    <Bar dataKey="revenue" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} />
-                                </BarChart>
+                                    <Tooltip cursor={{ fill: 'hsl(var(--primary) / 0.1)' }} content={<SalesTooltip />} />
+                                    <Area dataKey="total_revenue" type="monotone" stroke="hsl(var(--primary))" fill="url(#fillRevenue)" strokeWidth={2} />
+                                </AreaChart>
                             </ResponsiveContainer>
                         </ChartContainer>
                     )}
