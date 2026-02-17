@@ -4,7 +4,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
-import { subDays, format, parseISO } from 'date-fns';
+import { subDays, format, parseISO, addDays } from 'date-fns';
 import {
   Card,
   CardContent,
@@ -162,7 +162,7 @@ export default function AnalyticsPage() {
   useEffect(() => {
     async function fetchSalesData() {
         setLoadingSales(true);
-        const { data, error } = await supabase.rpc('get_order_analytics', {
+        const { data: rawData, error } = await supabase.rpc('get_order_analytics', {
             period_type: period,
         });
 
@@ -170,9 +170,45 @@ export default function AnalyticsPage() {
             console.error("Error fetching sales data:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch sales data.' });
             setSalesData([]);
-        } else {
-            setSalesData(data as SalesAnalyticsData[]);
+            setLoadingSales(false);
+            return;
+        } 
+        
+        let processedData = (rawData || []) as SalesAnalyticsData[];
+
+        if (period === 'daily') {
+            const endDate = new Date();
+            const startDate = subDays(endDate, 6);
+            
+            const dataMap = new Map(
+              processedData.map(d => [d.label, d])
+            );
+
+            const fullRangeData: SalesAnalyticsData[] = [];
+            for (let i = 0; i < 7; i++) {
+                const currentDay = addDays(startDate, i);
+                const dateString = format(currentDay, 'yyyy-MM-dd');
+                
+                const existingData = dataMap.get(dateString);
+                if (existingData) {
+                    fullRangeData.push(existingData);
+                } else {
+                    fullRangeData.push({
+                        label: dateString,
+                        total_sales: 0,
+                        total_orders: 0,
+                    });
+                }
+            }
+            processedData = fullRangeData;
         }
+        
+        if (processedData.length === 1) {
+            processedData.push({ ...processedData[0] });
+        }
+        
+        console.log("Chart Data:", processedData);
+        setSalesData(processedData);
         setLoadingSales(false);
     }
     fetchSalesData();
