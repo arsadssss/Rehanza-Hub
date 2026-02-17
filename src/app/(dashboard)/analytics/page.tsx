@@ -154,16 +154,64 @@ export default function AnalyticsPage() {
         setTotalPlatformOrders(meesho + flipkart + amazon);
       }
       
-      const { data: netProfitData, error: netProfitError } = await supabase
-        .from("analytics_net_profit")
-        .select("*")
-        .single();
-      
-      if (netProfitError) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch net profit.' });
-      } else if (netProfitData) {
-        setNetProfit(netProfitData.net_profit || 0);
+      // Calculate Net Profit
+      try {
+        // Calculate Gross Margin from all orders
+        const { data: ordersWithMargin, error: ordersMarginError } = await supabase
+            .from('orders')
+            .select(`
+                quantity,
+                product_variants (
+                    allproducts (
+                        margin
+                    )
+                )
+            `);
+
+        if (ordersMarginError) throw ordersMarginError;
+
+        const grossMargin = (ordersWithMargin || []).reduce((acc, order) => {
+            const margin = order.product_variants?.allproducts?.margin || 0;
+            return acc + (order.quantity * margin);
+        }, 0);
+
+        // Calculate Return Impact from all returns
+        const { data: returnsWithMargin, error: returnsMarginError } = await supabase
+            .from('returns')
+            .select(`
+                quantity,
+                restockable,
+                product_variants (
+                    allproducts (
+                        margin
+                    )
+                )
+            `);
+
+        if (returnsMarginError) throw returnsMarginError;
+
+        const returnImpact = (returnsWithMargin || []).reduce((acc, ret) => {
+            if (ret.restockable) {
+                // If restockable, the loss is a fixed cost (e.g., shipping/handling)
+                return acc + (ret.quantity * 45);
+            } else {
+                // If not restockable, the loss is the entire margin of the product
+                const margin = ret.product_variants?.allproducts?.margin || 0;
+                return acc + (ret.quantity * margin);
+            }
+        }, 0);
+
+        setNetProfit(grossMargin - returnImpact);
+
+      } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Error calculating Net Profit',
+            description: error.message,
+        });
+        setNetProfit(0);
       }
+
 
       setLoading(false);
     }
@@ -180,24 +228,22 @@ export default function AnalyticsPage() {
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch sales data.' });
             setSalesData([]);
         } else if (data) {
-            let chartData = data.map(item => ({
-                label: format(parseISO(item.label), 'dd MMM'),
-                total_sales: Number(item.total_sales),
-                total_orders: Number(item.total_orders),
-            }));
+            const today = new Date();
+            const last7Days = Array.from({ length: 7 }, (_, i) => {
+                const d = subDays(today, i);
+                return format(d, 'yyyy-MM-dd');
+            }).reverse();
 
-            if (chartData.length === 1) {
-                const firstPoint = chartData[0];
-                const dayBefore = subDays(parseISO(data[0].label), 1);
-                const dummyPoint = {
-                    label: format(dayBefore, 'dd MMM'),
-                    total_sales: 0,
-                    total_orders: 0
+            const processedData = last7Days.map(dateStr => {
+                const dayData = data.find(d => d.label === dateStr);
+                return {
+                    label: format(parseISO(dateStr), 'dd MMM'),
+                    total_sales: dayData ? Number(dayData.total_sales) : 0,
+                    total_orders: dayData ? Number(dayData.total_orders) : 0,
                 };
-                 chartData = [dummyPoint, firstPoint];
-            }
-            console.log("Chart Data:", chartData)
-            setSalesData(chartData);
+            });
+            
+            setSalesData(processedData);
         }
         
         setLoadingSales(false);
