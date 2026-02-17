@@ -57,7 +57,7 @@ const KpiCard = ({ title, value, icon: Icon, loading, gradient }: { title: strin
                     )}
                 </div>
                 <div className={`p-3 rounded-lg bg-gradient-to-br ${gradient}`}>
-                    <Icon className="h-8 w-8 text-white" />
+                    <Icon className="h-6 w-6 text-white" />
                 </div>
             </div>
         </div>
