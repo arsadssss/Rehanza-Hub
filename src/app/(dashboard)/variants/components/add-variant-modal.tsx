@@ -85,9 +85,24 @@ export function AddVariantModal({ isOpen, onClose, onVariantAdded }: AddVariantM
   async function onSubmit(values: VariantFormValues) {
     setIsSubmitting(true)
     try {
+      const product = products.find(p => p.id === values.product_id);
+      if (!product) {
+        throw new Error("Selected product not found.");
+      }
+
+      const variantSku = [product.sku, values.color, values.size]
+        .filter(Boolean)
+        .join('-')
+        .toUpperCase();
+        
+      const newVariantData = {
+        ...values,
+        variant_sku: variantSku,
+      };
+
       const { data, error } = await supabase
         .from("product_variants")
-        .insert([values])
+        .insert([newVariantData])
         .select(`
           *,
           allproducts (
@@ -98,6 +113,14 @@ export function AddVariantModal({ isOpen, onClose, onVariantAdded }: AddVariantM
         .single()
 
       if (error) {
+         if (error.code === '23505') {
+             toast({
+                variant: "destructive",
+                title: "Error: Duplicate SKU",
+                description: `Variant with SKU '${variantSku}' already exists. Please choose a different color or size combination.`,
+            })
+            return;
+        }
         throw error
       }
 
