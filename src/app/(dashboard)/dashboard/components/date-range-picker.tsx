@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -13,6 +14,7 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover"
+import { Skeleton } from "@/components/ui/skeleton"
 
 export function DateRangePicker({
   className,
@@ -21,6 +23,19 @@ export function DateRangePicker({
     from: new Date(2024, 0, 20),
     to: addDays(new Date(2024, 0, 20), 20),
   })
+  const [isMounted, setIsMounted] = React.useState(false)
+
+  React.useEffect(() => {
+    setIsMounted(true)
+  }, [])
+
+  if (!isMounted) {
+    return (
+      <div className={cn("grid gap-2", className)}>
+        <Skeleton className="w-[300px] h-10" />
+      </div>
+    )
+  }
 
   return (
     <div className={cn("grid gap-2", className)}>
