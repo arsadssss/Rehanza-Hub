@@ -153,21 +153,36 @@ export default function AnalyticsPage() {
       }
       
       // Calculate Net Profit
-      try {
-        const { data, error } = await supabase.from("analytics_net_profit").select("*").single()
+      const { data: ordersWithMargin, error: ordersMarginError } = await supabase
+        .from('orders')
+        .select('quantity, product_variants(allproducts(margin))');
 
-        if (error) {
-            throw error
-        }
-        setNetProfit(data.net_profit || 0)
+      const { data: returnsWithMargin, error: returnsMarginError } = await supabase
+        .from('returns')
+        .select('quantity, restockable, product_variants(allproducts(margin))');
 
-      } catch (error: any) {
+      if (ordersMarginError || returnsMarginError) {
         toast({
-            variant: 'destructive',
-            title: 'Error calculating Net Profit',
-            description: error.message,
+          variant: 'destructive',
+          title: 'Error calculating Net Profit',
+          description: ordersMarginError?.message || returnsMarginError?.message,
         });
         setNetProfit(0);
+      } else {
+        const grossMargin = (ordersWithMargin || []).reduce((acc: number, order: any) => {
+          const margin = order.product_variants?.allproducts?.margin || 0;
+          return acc + (order.quantity * margin);
+        }, 0);
+
+        const returnImpact = (returnsWithMargin || []).reduce((acc: number, ret: any) => {
+          if (ret.restockable) {
+            return acc + (ret.quantity * 45); // Fixed loss for restockable
+          }
+          const margin = ret.product_variants?.allproducts?.margin || 0;
+          return acc + (ret.quantity * margin); // Loss of margin for non-restockable
+        }, 0);
+
+        setNetProfit(grossMargin - returnImpact);
       }
 
 
