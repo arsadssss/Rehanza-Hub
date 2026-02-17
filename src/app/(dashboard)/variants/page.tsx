@@ -25,7 +25,8 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { AddVariantModal } from './components/add-variant-modal';
-import { PlusCircle, Search, Trash2 } from 'lucide-react';
+import { EditVariantModal } from './components/edit-variant-modal';
+import { PlusCircle, Search, Trash2, Pencil } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export type Variant = {
@@ -46,7 +47,8 @@ export default function VariantsPage() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRows, setSelectedRows] = useState<string[]>([]);
-  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingVariant, setEditingVariant] = useState<Variant | null>(null);
   const { toast } = useToast();
 
   async function fetchVariants() {
@@ -87,6 +89,13 @@ export default function VariantsPage() {
   const handleVariantAdded = (newVariant: Variant) => {
     setVariants(prevVariants => [newVariant, ...prevVariants]);
   };
+  
+  const handleVariantUpdated = (updatedVariant: Variant) => {
+    setVariants(prevVariants =>
+      prevVariants.map(v => (v.id === updatedVariant.id ? updatedVariant : v))
+    );
+  };
+
 
   const handleDeleteSelected = async () => {
     if (selectedRows.length === 0) return;
@@ -137,9 +146,15 @@ export default function VariantsPage() {
   return (
     <div className="p-6">
       <AddVariantModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
+        isOpen={isAddModalOpen}
+        onClose={() => setIsAddModalOpen(false)}
         onVariantAdded={handleVariantAdded}
+      />
+      <EditVariantModal
+        isOpen={!!editingVariant}
+        onClose={() => setEditingVariant(null)}
+        onVariantUpdated={handleVariantUpdated}
+        variant={editingVariant}
       />
       <Card>
         <CardHeader>
@@ -163,7 +178,7 @@ export default function VariantsPage() {
                   <Trash2 className="h-4 w-4" />
                 </Button>
               )}
-              <Button onClick={() => setIsModalOpen(true)}>
+              <Button onClick={() => setIsAddModalOpen(true)}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Variant
               </Button>
             </div>
@@ -188,13 +203,14 @@ export default function VariantsPage() {
                   <TableHead>Color</TableHead>
                   <TableHead>Size</TableHead>
                   <TableHead>Stock</TableHead>
+                  <TableHead>Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <TableRow key={i}>
-                      <TableCell colSpan={6}>
+                      <TableCell colSpan={7}>
                         <Skeleton className="h-8 w-full" />
                       </TableCell>
                     </TableRow>
@@ -216,11 +232,16 @@ export default function VariantsPage() {
                         <TableCell>{variant.color}</TableCell>
                         <TableCell>{variant.size}</TableCell>
                         <TableCell>{variant.stock}</TableCell>
+                        <TableCell>
+                          <Button variant="ghost" size="icon" onClick={() => setEditingVariant(variant)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
                       </TableRow>
                     ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center">
+                    <TableCell colSpan={7} className="h-24 text-center">
                       No variants found.
                     </TableCell>
                   </TableRow>
