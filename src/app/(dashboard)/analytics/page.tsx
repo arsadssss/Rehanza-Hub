@@ -205,12 +205,8 @@ export default function AnalyticsPage() {
                         <ChartContainer config={platformChartConfig} className="h-full w-full">
                             <ResponsiveContainer>
                                 <PieChart>
-                                    <Tooltip content={<ChartTooltipContent hideLabel nameKey="value" formatter={(value, name) => [new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value as number), (name as string)]} />} />
-                                    <Pie data={pieChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={90} strokeWidth={3} paddingAngle={5}>
-                                        {pieChartData.map((entry, index) => (
-                                            <Cell key={`cell-${index}`} fill={entry.fill} />
-                                        ))}
-                                    </Pie>
+                                    <Tooltip content={<ChartTooltipContent nameKey="name" formatter={(value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value as number)} />} />
+                                    <Pie data={pieChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={90} strokeWidth={3} paddingAngle={5} />
                                     <Legend verticalAlign="bottom" iconType="circle" content={({ payload }) => (
                                         <ul className="flex flex-col gap-2 pt-4">
                                             {payload?.map((entry, index) => {
