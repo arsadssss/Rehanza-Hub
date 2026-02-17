@@ -212,13 +212,13 @@ export default function AnalyticsPage() {
             </div>
 
             <div className="lg:col-span-2 bg-white/40 dark:bg-black/20 backdrop-blur-lg rounded-3xl p-6 shadow-xl border border-white/30 dark:border-white/10 text-black dark:text-white">
-                <div className="flex justify-between items-center mb-4">
+                <div className="flex justify-between items-center">
                     <h3 className="font-bold text-xl">Platform Orders</h3>
                     <a href="#" className="text-sm opacity-70 flex items-center gap-1">See All <ArrowUpRight className="h-4 w-4" /></a>
                 </div>
-                {loading ? <Skeleton className="h-[300px] w-full bg-black/10 dark:bg-white/10" /> : (
-                    <div className="flex items-center h-[300px]">
-                        <div className="w-1/2 h-full relative">
+                {loading ? <Skeleton className="h-[350px] w-full bg-black/10 dark:bg-white/10 mt-4" /> : (
+                    <div className="flex flex-col items-center gap-4 mt-4">
+                        <div className="w-full h-[250px] relative">
                             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
                                 <p className="text-3xl font-bold">{totalPlatformOrders}</p>
                                 <p className="text-xs opacity-70">Total Orders</p>
@@ -233,8 +233,8 @@ export default function AnalyticsPage() {
                                             nameKey="name" 
                                             cx="50%" 
                                             cy="50%" 
-                                            innerRadius={80} 
-                                            outerRadius={100} 
+                                            innerRadius={90} 
+                                            outerRadius={115} 
                                             strokeWidth={2}
                                             paddingAngle={5}
                                         >
@@ -246,8 +246,8 @@ export default function AnalyticsPage() {
                                 </ResponsiveContainer>
                             </ChartContainer>
                         </div>
-                        <div className="w-1/2 pl-8">
-                            <ul className="flex flex-col gap-3">
+                        <div className="w-full">
+                            <ul className="flex flex-wrap justify-center items-center gap-x-6 gap-y-2">
                                 {platformOrders.map((platform) => (
                                     <li key={platform.name} className="flex items-center justify-start text-sm">
                                       <div className="flex items-center gap-2">
