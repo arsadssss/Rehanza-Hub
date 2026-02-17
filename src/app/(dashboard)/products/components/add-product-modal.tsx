@@ -41,12 +41,6 @@ const formSchema = z.object({
   size: z.string().optional(),
   cost_price: z.coerce.number().positive("Cost Price must be positive"),
   margin: z.coerce.number().positive("Margin is required"),
-  total_stock: z.coerce.number().int().min(0, "Stock cannot be negative"),
-  low_stock_threshold: z.coerce
-    .number()
-    .int()
-    .min(0, "Threshold cannot be negative")
-    .default(5),
 })
 
 type ProductFormValues = z.infer<typeof formSchema>
@@ -78,8 +72,6 @@ export function AddProductModal({ isOpen, onClose, onProductAdded }: AddProductM
       category: "",
       size: "",
       cost_price: 0,
-      total_stock: 0,
-      low_stock_threshold: 5,
     },
   })
 
@@ -221,7 +213,7 @@ export function AddProductModal({ isOpen, onClose, onProductAdded }: AddProductM
                 render={({ field }) => (
                     <FormItem>
                     <FormLabel>Margin</FormLabel>
-                     <Select onValueChange={field.onChange} defaultValue={String(field.value)}>
+                     <Select onValueChange={(value) => field.onChange(Number(value))} defaultValue={String(field.value)}>
                         <FormControl>
                         <SelectTrigger>
                             <SelectValue placeholder="Select margin" />
@@ -237,34 +229,6 @@ export function AddProductModal({ isOpen, onClose, onProductAdded }: AddProductM
                     </FormItem>
                 )}
                 />
-            </div>
-             <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="total_stock"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Total Stock</FormLabel>
-                    <FormControl>
-                      <Input type="number" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="low_stock_threshold"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Low Stock Threshold</FormLabel>
-                    <FormControl>
-                      <Input type="number" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={handleClose}>

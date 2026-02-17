@@ -172,7 +172,6 @@ export default function ProductsPage() {
                   </TableHead>
                   <TableHead>SKU</TableHead>
                   <TableHead>Product Name</TableHead>
-                  <TableHead>Size</TableHead>
                   <TableHead>Cost</TableHead>
                   <TableHead>Margin</TableHead>
                   <TableHead>Meesho</TableHead>
@@ -186,14 +185,29 @@ export default function ProductsPage() {
                 {loading ? (
                   Array.from({ length: 5 }).map((_, i) => (
                     <TableRow key={i}>
-                      <TableCell colSpan={11}>
+                      <TableCell colSpan={10}>
                         <Skeleton className="h-8 w-full" />
                       </TableCell>
                     </TableRow>
                   ))
                 ) : filteredProducts.length > 0 ? (
                   filteredProducts.map(product => {
-                    const isLowStock = product.total_stock <= product.low_stock_threshold;
+                    const stock = product.total_stock;
+                    let statusText: string;
+                    let badgeVariant: 'destructive' | 'default' = 'default';
+                    let badgeClassName = '';
+
+                    if (stock === 0) {
+                        statusText = 'Out of Stock';
+                        badgeVariant = 'destructive';
+                    } else if (stock <= 5) {
+                        statusText = 'Low Stock';
+                        badgeVariant = 'destructive';
+                    } else {
+                        statusText = 'In Stock';
+                        badgeClassName = 'bg-green-500';
+                    }
+
                     return (
                       <TableRow
                         key={product.id}
@@ -207,7 +221,6 @@ export default function ProductsPage() {
                         </TableCell>
                         <TableCell className="font-medium">{product.sku}</TableCell>
                         <TableCell>{product.product_name}</TableCell>
-                        <TableCell>{product.size || 'N/A'}</TableCell>
                         <TableCell>₹{product.cost_price.toFixed(2)}</TableCell>
                         <TableCell>₹{product.margin.toFixed(2)}</TableCell>
                         <TableCell>₹{product.meesho_price.toFixed(2)}</TableCell>
@@ -216,10 +229,10 @@ export default function ProductsPage() {
                         <TableCell>{product.total_stock}</TableCell>
                         <TableCell>
                           <Badge
-                             variant={isLowStock ? 'destructive' : 'default'}
-                             className={!isLowStock ? 'bg-green-500' : ''}
+                             variant={badgeVariant}
+                             className={badgeClassName}
                           >
-                            {isLowStock ? 'Low Stock' : 'In Stock'}
+                            {statusText}
                           </Badge>
                         </TableCell>
                       </TableRow>
@@ -227,7 +240,7 @@ export default function ProductsPage() {
                   })
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={11} className="h-24 text-center">
+                    <TableCell colSpan={10} className="h-24 text-center">
                       No products found.
                     </TableCell>
                   </TableRow>
