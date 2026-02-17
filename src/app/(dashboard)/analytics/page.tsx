@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useEffect, useState, useMemo } from 'react';
@@ -153,52 +152,12 @@ export default function AnalyticsPage() {
       
       // Calculate Net Profit
       try {
-        // Calculate Gross Margin from all orders
-        const { data: ordersWithMargin, error: ordersMarginError } = await supabase
-            .from('orders')
-            .select(`
-                quantity,
-                product_variants (
-                    allproducts (
-                        margin
-                    )
-                )
-            `);
+        const { data, error } = await supabase.from("analytics_net_profit").select("*").single()
 
-        if (ordersMarginError) throw ordersMarginError;
-
-        const grossMargin = (ordersWithMargin || []).reduce((acc, order) => {
-            const margin = order.product_variants?.allproducts?.margin || 0;
-            return acc + (order.quantity * margin);
-        }, 0);
-
-        // Calculate Return Impact from all returns
-        const { data: returnsWithMargin, error: returnsMarginError } = await supabase
-            .from('returns')
-            .select(`
-                quantity,
-                restockable,
-                product_variants (
-                    allproducts (
-                        margin
-                    )
-                )
-            `);
-
-        if (returnsMarginError) throw returnsMarginError;
-
-        const returnImpact = (returnsWithMargin || []).reduce((acc, ret) => {
-            if (ret.restockable) {
-                // If restockable, the loss is a fixed cost (e.g., shipping/handling)
-                return acc + (ret.quantity * 45);
-            } else {
-                // If not restockable, the loss is the entire margin of the product
-                const margin = ret.product_variants?.allproducts?.margin || 0;
-                return acc + (ret.quantity * margin);
-            }
-        }, 0);
-
-        setNetProfit(grossMargin - returnImpact);
+        if (error) {
+            throw error
+        }
+        setNetProfit(data.net_profit || 0)
 
       } catch (error: any) {
         toast({
@@ -225,18 +184,12 @@ export default function AnalyticsPage() {
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch sales data.' });
             setSalesData([]);
         } else if (data) {
-            const today = new Date();
-            const last7Days = Array.from({ length: 7 }, (_, i) => {
-                const d = subDays(today, i);
-                return format(d, 'yyyy-MM-dd');
-            }).reverse();
-
-            const processedData = last7Days.map(dateStr => {
-                const dayData = data.find(d => d.label === dateStr);
+            
+            const processedData = data.map(d => {
                 return {
-                    label: format(parseISO(dateStr), 'dd MMM'),
-                    total_sales: dayData ? Number(dayData.total_sales) : 0,
-                    total_orders: dayData ? Number(dayData.total_orders) : 0,
+                    label: format(parseISO(d.label), 'dd MMM'),
+                    total_sales: Number(d.total_sales) || 0,
+                    total_orders: Number(d.total_orders) || 0,
                 };
             });
             
@@ -291,15 +244,15 @@ export default function AnalyticsPage() {
                                 data={salesData}
                                 margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
                             >
-                                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                                <CartesianGrid strokeDasharray="3 3" stroke={"hsl(var(--border))"} />
                                 <XAxis
                                     dataKey="label"
-                                    tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }}
+                                    tick={{ fontSize: 12, fill: "hsl(var(--foreground))" }}
                                     stroke={"hsl(var(--muted-foreground))"}
                                 />
                                 <YAxis
-                                    tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }}
-                                    stroke="hsl(var(--muted-foreground))"
+                                    tick={{ fontSize: 12, fill: "hsl(var(--foreground))" }}
+                                    stroke={"hsl(var(--muted-foreground))"}
                                     tickFormatter={(value) => new Intl.NumberFormat('en-IN', {
                                         style: 'currency',
                                         currency: 'INR',
