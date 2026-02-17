@@ -119,9 +119,9 @@ export default function AnalyticsPage() {
     }, {} as Record<string, number>);
 
     const platformRevenueData = [
-      { platform: 'Meesho', revenue: platformRevenueMap['Meesho'] || 0 },
-      { platform: 'Flipkart', revenue: platformRevenueMap['Flipkart'] || 0 },
-      { platform: 'Amazon', revenue: platformRevenueMap['Amazon'] || 0 },
+      { platform: 'Meesho', revenue: platformRevenueMap['Meesho'] || 0, fill: "var(--color-Meesho)" },
+      { platform: 'Flipkart', revenue: platformRevenueMap['Flipkart'] || 0, fill: "var(--color-Flipkart)" },
+      { platform: 'Amazon', revenue: platformRevenueMap['Amazon'] || 0, fill: "var(--color-Amazon)" },
     ];
     
     return { 
@@ -145,11 +145,30 @@ export default function AnalyticsPage() {
     </Card>
   );
 
-  const chartColors = [
-    'hsl(var(--chart-1))',
-    'hsl(var(--chart-2))',
-    'hsl(var(--chart-3))',
-  ];
+  const revenueChartConfig = {
+    revenue: {
+      label: "Revenue",
+      color: "hsl(var(--primary))",
+    },
+  };
+
+  const platformChartConfig = {
+    revenue: {
+      label: "Revenue",
+    },
+    Meesho: {
+      label: "Meesho",
+      color: "hsl(var(--chart-1))",
+    },
+    Flipkart: {
+      label: "Flipkart",
+      color: "hsl(var(--chart-2))",
+    },
+    Amazon: {
+      label: "Amazon",
+      color: "hsl(var(--chart-3))",
+    },
+  };
 
   return (
     <div className="p-6 space-y-6">
@@ -179,15 +198,17 @@ export default function AnalyticsPage() {
             <CardContent>
                 {loading ? <Skeleton className="h-[350px] w-full" /> : (
                     <div className="h-[350px]">
+                      <ChartContainer config={revenueChartConfig} className="h-full w-full">
                         <ResponsiveContainer width="100%" height="100%">
                             <LineChart data={lineChartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
                                 <CartesianGrid strokeDasharray="3 3" />
                                 <XAxis dataKey="date" tickFormatter={(value) => format(parseISO(value), 'dd MMM')} />
                                 <YAxis tickFormatter={(value) => `₹${Math.round(value / 1000)}k`} />
                                 <Tooltip content={<ChartTooltipContent indicator="dot" formatter={(value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value as number)} />} />
-                                <Line type="monotone" dataKey="revenue" stroke="hsl(var(--primary))" strokeWidth={2} dot={{ r: 4, fill: "hsl(var(--primary))" }} />
+                                <Line type="monotone" dataKey="revenue" stroke="var(--color-revenue)" strokeWidth={2} dot={{ r: 4, fill: "var(--color-revenue)" }} />
                             </LineChart>
                         </ResponsiveContainer>
+                      </ChartContainer>
                     </div>
                 )}
             </CardContent>
@@ -200,6 +221,7 @@ export default function AnalyticsPage() {
             <CardContent>
                  {loading ? <Skeleton className="h-[350px] w-full" /> : (
                     <div className="h-[350px]">
+                      <ChartContainer config={platformChartConfig} className="h-full w-full">
                         <ResponsiveContainer width="100%" height="100%">
                              <BarChart data={platformRevenueData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
                                 <CartesianGrid strokeDasharray="3 3" />
@@ -207,12 +229,13 @@ export default function AnalyticsPage() {
                                 <YAxis tickFormatter={(value) => `₹${Math.round(value / 1000)}k`} />
                                 <Tooltip content={<ChartTooltipContent indicator="dot" formatter={(value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value as number)} />} />
                                 <Bar dataKey="revenue" radius={[4, 4, 0, 0]}>
-                                    {platformRevenueData.map((entry, index) => (
-                                        <Cell key={`cell-${index}`} fill={chartColors[index % chartColors.length]} />
+                                    {platformRevenueData.map((entry) => (
+                                        <Cell key={`cell-${entry.platform}`} fill={entry.fill} />
                                     ))}
                                 </Bar>
                             </BarChart>
                         </ResponsiveContainer>
+                      </ChartContainer>
                     </div>
                 )}
             </CardContent>
