@@ -43,35 +43,35 @@ export default function InventoryPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const { toast } = useToast();
-
-  async function fetchInventory() {
-    setLoading(true);
-    // The view should ideally join with allproducts to get low_stock_threshold
-    const { data, error } = await supabase.from('inventory_summary').select('*');
-
-    if (error) {
-      console.error('Error fetching inventory summary:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to fetch inventory summary.',
-      });
-      setInventory([]);
-    } else {
-      // Temporary fix: If low_stock_threshold is not in the view, add it with a default
-      const dataWithFormatting = data.map(item => ({
-          ...item,
-          low_stock_threshold: item.low_stock_threshold || 5,
-          formatted_revenue: new Intl.NumberFormat('en-IN').format(item.total_revenue)
-      }));
-      setInventory(dataWithFormatting as InventoryItem[]);
-    }
-    setLoading(false);
-  }
+  const [isMounted, setIsMounted] = useState(false);
 
   useEffect(() => {
+    setIsMounted(true);
+    async function fetchInventory() {
+      setLoading(true);
+      // The view should ideally join with allproducts to get low_stock_threshold
+      const { data, error } = await supabase.from('inventory_summary').select('*');
+  
+      if (error) {
+        console.error('Error fetching inventory summary:', error);
+        toast({
+          variant: 'destructive',
+          title: 'Error',
+          description: 'Failed to fetch inventory summary.',
+        });
+        setInventory([]);
+      } else {
+        // Temporary fix: If low_stock_threshold is not in the view, add it with a default
+        const dataWithFormatting = data.map(item => ({
+            ...item,
+            low_stock_threshold: item.low_stock_threshold || 5,
+        }));
+        setInventory(dataWithFormatting as InventoryItem[]);
+      }
+      setLoading(false);
+    }
     fetchInventory();
-  }, []);
+  }, [toast]);
 
   const filteredInventory = useMemo(() => {
     let filtered = inventory;
@@ -97,7 +97,10 @@ export default function InventoryPage() {
       });
     }
 
-    return filtered;
+    return filtered.map(item => ({
+        ...item,
+        formatted_revenue: new Intl.NumberFormat('en-IN').format(item.total_revenue)
+    }));
   }, [inventory, searchTerm, statusFilter]);
 
   const getStatus = (stock: number, threshold: number) => {
@@ -148,13 +151,13 @@ export default function InventoryPage() {
       </Card>
       
       {loading ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {Array.from({ length: 4 }).map((_, i) => (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+          {Array.from({ length: 6 }).map((_, i) => (
             <Skeleton key={i} className="h-80 w-full rounded-3xl" />
           ))}
         </div>
       ) : filteredInventory.length > 0 ? (
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
           {filteredInventory.map(item => {
             const status = getStatus(item.total_stock, item.low_stock_threshold);
             return (
@@ -163,7 +166,7 @@ export default function InventoryPage() {
                   {/* Left Side */}
                   <div>
                     <p className="font-bold text-lg">SKU: {item.sku}</p>
-                    <p className="font-headline text-5xl font-bold mt-2">₹{item.formatted_revenue}</p>
+                    <p className="font-headline text-5xl font-bold mt-2">₹{isMounted ? item.formatted_revenue : '...'}</p>
                     <p className="text-sm opacity-70 mt-1">{item.product_name}</p>
                   </div>
                   {/* Right Side */}
