@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { useEffect, useState, useMemo } from 'react';
@@ -218,8 +219,8 @@ export default function OrdersPage() {
                             <TableCell className="font-medium">{order.product_variants?.variant_sku}</TableCell>
                             <TableCell>{order.product_variants?.allproducts?.product_name}</TableCell>
                             <TableCell>{order.quantity}</TableCell>
-                            <TableCell>₹{order.selling_price.toFixed(2)}</TableCell>
-                            <TableCell>₹{order.total_amount.toFixed(2)}</TableCell>
+                            <TableCell>{order.selling_price.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}</TableCell>
+                            <TableCell>{order.total_amount.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}</TableCell>
                           </TableRow>
                         ))
                     ) : (
@@ -286,7 +287,7 @@ export default function OrdersPage() {
                                 {item.restockable ? 'Yes' : 'No'}
                               </Badge>
                             </TableCell>
-                            <TableCell>₹{item.total_loss.toFixed(2)}</TableCell>
+                            <TableCell>{item.total_loss.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}</TableCell>
                           </TableRow>
                         ))
                     ) : (

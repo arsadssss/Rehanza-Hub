@@ -406,11 +406,11 @@ export default function ProductsPage() {
                             </TableCell>
                             <TableCell className="font-medium">{product.sku}</TableCell>
                             <TableCell>{product.product_name}</TableCell>
-                            <TableCell>₹{product.cost_price.toFixed(2)}</TableCell>
-                            <TableCell>₹{product.margin.toFixed(2)}</TableCell>
-                            <TableCell>₹{product.meesho_price.toFixed(2)}</TableCell>
-                            <TableCell>₹{product.flipkart_price.toFixed(2)}</TableCell>
-                            <TableCell>₹{product.amazon_price.toFixed(2)}</TableCell>
+                            <TableCell>{product.cost_price.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}</TableCell>
+                            <TableCell>{product.margin.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}</TableCell>
+                            <TableCell>{product.meesho_price.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}</TableCell>
+                            <TableCell>{product.flipkart_price.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}</TableCell>
+                            <TableCell>{product.amazon_price.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}</TableCell>
                             <TableCell>{stock}</TableCell>
                             <TableCell>
                               <Badge
@@ -537,5 +537,6 @@ export default function ProductsPage() {
     </div>
   );
 }
+
 
 

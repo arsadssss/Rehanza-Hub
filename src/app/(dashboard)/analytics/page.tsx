@@ -91,7 +91,6 @@ const SalesTooltip = ({ active, payload, label }: any) => {
 
 export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
-  const [summaryData, setSummaryData] = useState<AnalyticsSummary[]>([]);
   const [returnsData, setReturnsData] = useState<ReturnsSummary[]>([]);
   const [platformOrders, setPlatformOrders] = useState<{ name: string; value: number }[]>([]);
   const [totalPlatformOrders, setTotalPlatformOrders] = useState(0);
@@ -107,20 +106,6 @@ export default function AnalyticsPage() {
     setIsMounted(true);
     async function fetchSummaryData() {
       setLoading(true);
-      const endDate = new Date();
-      const startDate = subDays(endDate, 6);
-
-      const { data: analytics, error: analyticsError } = await supabase
-        .from('analytics_summary')
-        .select('*')
-        .gte('order_date', format(startDate, 'yyyy-MM-dd'))
-        .lte('order_date', format(endDate, 'yyyy-MM-dd'));
-
-      if (analyticsError) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch analytics summary.' });
-      } else {
-        setSummaryData(analytics || []);
-      }
       
       const { data: ordersForSales, error: ordersForSalesError } = await supabase
         .from('orders')
@@ -134,12 +119,10 @@ export default function AnalyticsPage() {
         setTotalSales(total);
       }
 
-
       const { data: returns, error: returnsError } = await supabase
         .from('returns_summary')
         .select('*')
-        .gte('return_date', format(startDate, 'yyyy-MM-dd'))
-        .lte('return_date', format(endDate, 'yyyy-MM-dd'));
+        .gte('return_date', format(subDays(new Date(), 6), 'yyyy-MM-dd'));
       
       if (returnsError) {
          toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch returns summary.' });
@@ -267,13 +250,13 @@ export default function AnalyticsPage() {
 
 
   const kpiStats = useMemo(() => {
-    const totalOrders = summaryData.reduce((acc, item) => acc + item.total_orders, 0);
+    const totalOrders = salesData.reduce((acc, item) => acc + item.total_orders, 0);
     const totalReturns = returnsData.reduce((acc, item) => acc + item.total_returns, 0);
     
     return { 
       totalOrders, totalReturns
     };
-  }, [summaryData, returnsData]);
+  }, [salesData, returnsData]);
 
   const platformChartConfig = {
     value: { label: "Orders" },
@@ -290,10 +273,10 @@ export default function AnalyticsPage() {
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            <KpiCard title="Total Sales" value={isMounted ? `₹${new Intl.NumberFormat('en-IN').format(totalSales)}` : '...'} icon={DollarSign} loading={loading} gradient="from-purple-400 to-indigo-500" />
+            <KpiCard title="Total Sales" value={isMounted ? totalSales.toLocaleString('en-IN', { style: 'currency', currency: 'INR' }) : '...'} icon={DollarSign} loading={loading} gradient="from-purple-400 to-indigo-500" />
             <KpiCard title="Total Orders" value={kpiStats.totalOrders.toLocaleString('en-IN')} icon={ShoppingCart} loading={loading} gradient="from-cyan-400 to-blue-500" />
             <KpiCard title="Total Returns" value={kpiStats.totalReturns.toLocaleString('en-IN')} icon={Undo2} loading={loading} gradient="from-amber-500 to-orange-500" />
-            <KpiCard title="Net Profit" value={isMounted ? `₹${new Intl.NumberFormat('en-IN').format(netProfit)}` : '...'} icon={TrendingUp} loading={loading} gradient="from-emerald-500 to-green-500" />
+            <KpiCard title="Net Profit" value={isMounted ? netProfit.toLocaleString('en-IN', { style: 'currency', currency: 'INR' }) : '...'} icon={TrendingUp} loading={loading} gradient="from-emerald-500 to-green-500" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
@@ -312,12 +295,17 @@ export default function AnalyticsPage() {
                                 <XAxis
                                     dataKey="label"
                                     tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }}
-                                    stroke="hsl(var(--muted-foreground))"
+                                    stroke={"hsl(var(--muted-foreground))"}
                                 />
                                 <YAxis
                                     tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }}
                                     stroke="hsl(var(--muted-foreground))"
-                                    tickFormatter={(value) => `₹${value}`}
+                                    tickFormatter={(value) => new Intl.NumberFormat('en-IN', {
+                                        style: 'currency',
+                                        currency: 'INR',
+                                        notation: 'compact',
+                                        compactDisplay: 'short'
+                                    }).format(value as number)}
                                 />
                                 <Tooltip
                                     content={<SalesTooltip />}

@@ -145,7 +145,7 @@ export default function ReturnsPage() {
                             {item.restockable ? 'Yes' : 'No'}
                           </Badge>
                         </TableCell>
-                        <TableCell>₹{item.total_loss.toFixed(2)}</TableCell>
+                        <TableCell>{item.total_loss.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}</TableCell>
                       </TableRow>
                     ))
                 ) : (
