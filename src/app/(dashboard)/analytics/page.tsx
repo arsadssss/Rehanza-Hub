@@ -97,6 +97,7 @@ export default function AnalyticsPage() {
   const [totalPlatformOrders, setTotalPlatformOrders] = useState(0);
   const [isMounted, setIsMounted] = useState(false);
   const { toast } = useToast();
+  const [netProfit, setNetProfit] = useState(0);
 
   const [salesData, setSalesData] = useState<SalesAnalyticsData[]>([]);
   const [loadingSales, setLoadingSales] = useState(true);
@@ -152,6 +153,17 @@ export default function AnalyticsPage() {
         setPlatformOrders(pieData);
         setTotalPlatformOrders(meesho + flipkart + amazon);
       }
+      
+      const { data: netProfitData, error: netProfitError } = await supabase
+        .from("analytics_net_profit")
+        .select("*")
+        .single();
+      
+      if (netProfitError) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch net profit.' });
+      } else if (netProfitData) {
+        setNetProfit(netProfitData.net_profit || 0);
+      }
 
       setLoading(false);
     }
@@ -168,11 +180,23 @@ export default function AnalyticsPage() {
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch sales data.' });
             setSalesData([]);
         } else if (data) {
-            const chartData = data.map(item => ({
+            let chartData = data.map(item => ({
                 label: format(parseISO(item.label), 'dd MMM'),
                 total_sales: Number(item.total_sales),
                 total_orders: Number(item.total_orders),
             }));
+
+            if (chartData.length === 1) {
+                const firstPoint = chartData[0];
+                const dayBefore = subDays(parseISO(data[0].label), 1);
+                const dummyPoint = {
+                    label: format(dayBefore, 'dd MMM'),
+                    total_sales: 0,
+                    total_orders: 0
+                };
+                 chartData = [dummyPoint, firstPoint];
+            }
+            console.log("Chart Data:", chartData)
             setSalesData(chartData);
         }
         
@@ -182,15 +206,13 @@ export default function AnalyticsPage() {
   }, [toast]);
 
 
-  const { kpiStats } = useMemo(() => {
+  const kpiStats = useMemo(() => {
     const totalRevenue = summaryData.reduce((acc, item) => acc + item.total_revenue, 0);
     const totalOrders = summaryData.reduce((acc, item) => acc + item.total_orders, 0);
     const totalReturns = returnsData.reduce((acc, item) => acc + item.total_returns, 0);
-    const totalLoss = returnsData.reduce((acc, item) => acc + item.total_loss, 0);
-    const netProfit = totalRevenue - totalLoss;
     
     return { 
-      kpiStats: { totalRevenue, totalOrders, totalReturns, netProfit },
+      totalRevenue, totalOrders, totalReturns
     };
   }, [summaryData, returnsData]);
 
@@ -212,7 +234,7 @@ export default function AnalyticsPage() {
             <KpiCard title="Total Sales" value={isMounted ? `₹${new Intl.NumberFormat('en-IN').format(kpiStats.totalRevenue)}` : '...'} icon={DollarSign} loading={loading} gradient="from-purple-400 to-indigo-500" />
             <KpiCard title="Total Orders" value={kpiStats.totalOrders.toLocaleString('en-IN')} icon={ShoppingCart} loading={loading} gradient="from-cyan-400 to-blue-500" />
             <KpiCard title="Total Returns" value={kpiStats.totalReturns.toLocaleString('en-IN')} icon={Undo2} loading={loading} gradient="from-amber-500 to-orange-500" />
-            <KpiCard title="Net Profit" value={isMounted ? `₹${new Intl.NumberFormat('en-IN').format(kpiStats.netProfit)}` : '...'} icon={TrendingUp} loading={loading} gradient="from-emerald-500 to-green-500" />
+            <KpiCard title="Net Profit" value={isMounted ? `₹${new Intl.NumberFormat('en-IN').format(netProfit)}` : '...'} icon={TrendingUp} loading={loading} gradient="from-emerald-500 to-green-500" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
