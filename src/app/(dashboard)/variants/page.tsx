@@ -22,7 +22,6 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { AddVariantModal } from './components/add-variant-modal';
 import { EditVariantModal } from './components/edit-variant-modal';
@@ -84,16 +83,22 @@ export default function VariantsPage() {
 
   useEffect(() => {
     fetchVariants();
+    const handleDataChange = () => fetchVariants();
+
+    window.addEventListener('data-changed', handleDataChange);
+
+    return () => {
+      window.removeEventListener('data-changed', handleDataChange);
+    };
   }, []);
 
-  const handleVariantAdded = (newVariant: Variant) => {
-    setVariants(prevVariants => [newVariant, ...prevVariants]);
+  const handleVariantAdded = () => {
+    fetchVariants();
   };
   
-  const handleVariantUpdated = (updatedVariant: Variant) => {
-    setVariants(prevVariants =>
-      prevVariants.map(v => (v.id === updatedVariant.id ? updatedVariant : v))
-    );
+  const handleVariantUpdated = () => {
+    fetchVariants();
+    window.dispatchEvent(new Event('data-changed'));
   };
 
 
@@ -115,6 +120,7 @@ export default function VariantsPage() {
         title: 'Success',
         description: `${selectedRows.length} variant(s) deleted successfully.`,
       });
+       window.dispatchEvent(new Event('data-changed'));
     }
   };
 

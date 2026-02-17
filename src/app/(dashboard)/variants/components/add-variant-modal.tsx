@@ -47,7 +47,7 @@ type VariantFormValues = z.infer<typeof formSchema>
 interface AddVariantModalProps {
   isOpen: boolean
   onClose: () => void
-  onVariantAdded: (newVariant: any) => void
+  onVariantAdded: () => void
 }
 
 export function AddVariantModal({ isOpen, onClose, onVariantAdded }: AddVariantModalProps) {
@@ -103,13 +103,7 @@ export function AddVariantModal({ isOpen, onClose, onVariantAdded }: AddVariantM
       const { data, error } = await supabase
         .from("product_variants")
         .insert([newVariantData])
-        .select(`
-          *,
-          allproducts (
-            sku,
-            product_name
-          )
-        `)
+        .select()
         .single()
 
       if (error) {
@@ -119,6 +113,7 @@ export function AddVariantModal({ isOpen, onClose, onVariantAdded }: AddVariantM
                 title: "Error: Duplicate SKU",
                 description: `Variant with SKU '${variantSku}' already exists. Please choose a different color or size combination.`,
             })
+            setIsSubmitting(false)
             return;
         }
         throw error
@@ -128,7 +123,7 @@ export function AddVariantModal({ isOpen, onClose, onVariantAdded }: AddVariantM
         title: "Success",
         description: "Product variant added successfully.",
       })
-      onVariantAdded(data)
+      onVariantAdded()
       handleClose()
     } catch (error: any) {
       toast({

@@ -71,11 +71,17 @@ export default function ProductsPage() {
 
   useEffect(() => {
     fetchProducts();
+    const handleDataChange = () => fetchProducts();
+
+    window.addEventListener('data-changed', handleDataChange);
+
+    return () => {
+      window.removeEventListener('data-changed', handleDataChange);
+    };
   }, []);
 
-  const handleProductAdded = (newProduct: Product) => {
-    setProducts(prevProducts => [newProduct, ...prevProducts]);
-    fetchProducts(); // Refetch to get the calculated stock
+  const handleProductAdded = () => {
+    fetchProducts(); // Refetch to get the latest list
   };
 
   const handleDeleteSelected = async () => {

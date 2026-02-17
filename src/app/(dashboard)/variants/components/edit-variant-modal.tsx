@@ -37,7 +37,7 @@ type VariantFormValues = z.infer<typeof formSchema>
 interface EditVariantModalProps {
   isOpen: boolean
   onClose: () => void
-  onVariantUpdated: (updatedVariant: Variant) => void
+  onVariantUpdated: () => void
   variant: Variant | null
 }
 
@@ -68,13 +68,7 @@ export function EditVariantModal({ isOpen, onClose, onVariantUpdated, variant }:
         .from("product_variants")
         .update({ stock: values.stock })
         .eq('id', variant.id)
-        .select(`
-          *,
-          allproducts (
-            sku,
-            product_name
-          )
-        `)
+        .select()
         .single()
 
       if (error) {
@@ -85,7 +79,7 @@ export function EditVariantModal({ isOpen, onClose, onVariantUpdated, variant }:
         title: "Success",
         description: "Variant stock updated successfully.",
       })
-      onVariantUpdated(data as Variant)
+      onVariantUpdated()
       onClose()
     } catch (error: any) {
       toast({

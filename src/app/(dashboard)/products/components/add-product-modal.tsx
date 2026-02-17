@@ -41,6 +41,7 @@ const formSchema = z.object({
   size: z.string().optional(),
   cost_price: z.coerce.number().positive("Cost Price must be positive"),
   margin: z.coerce.number().positive("Margin is required"),
+  low_stock_threshold: z.coerce.number().min(0, "Low stock threshold cannot be negative").default(5),
 })
 
 type ProductFormValues = z.infer<typeof formSchema>
@@ -57,7 +58,7 @@ const marginValues = [20, 30, 45, 50, 60, 80, 100, 150, 200, 300, 500]
 interface AddProductModalProps {
   isOpen: boolean
   onClose: () => void
-  onProductAdded: (newProduct: any) => void
+  onProductAdded: () => void
 }
 
 export function AddProductModal({ isOpen, onClose, onProductAdded }: AddProductModalProps) {
@@ -72,6 +73,7 @@ export function AddProductModal({ isOpen, onClose, onProductAdded }: AddProductM
       category: "",
       size: "",
       cost_price: 0,
+      low_stock_threshold: 5,
     },
   })
 
@@ -113,7 +115,7 @@ export function AddProductModal({ isOpen, onClose, onProductAdded }: AddProductM
         title: "Success",
         description: "Product added successfully.",
       })
-      onProductAdded(data)
+      onProductAdded()
       handleClose()
     } catch (error: any) {
       toast({
@@ -230,6 +232,19 @@ export function AddProductModal({ isOpen, onClose, onProductAdded }: AddProductM
                 )}
                 />
             </div>
+             <FormField
+                control={form.control}
+                name="low_stock_threshold"
+                render={({ field }) => (
+                    <FormItem>
+                    <FormLabel>Low Stock Threshold</FormLabel>
+                    <FormControl>
+                        <Input type="number" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                    </FormItem>
+                )}
+                />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={handleClose}>
                 Cancel
