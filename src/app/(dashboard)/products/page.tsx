@@ -87,6 +87,37 @@ export default function ProductsPage() {
   const handleDeleteSelected = async () => {
     if (selectedRows.length === 0) return;
 
+    // First, check if any of the selected products have existing variants
+    const { data: variants, error: variantError } = await supabase
+      .from('product_variants')
+      .select('product_id')
+      .in('product_id', selectedRows);
+
+    if (variantError) {
+      toast({
+        variant: 'destructive',
+        title: 'Error checking for variants',
+        description: variantError.message,
+      });
+      return;
+    }
+
+    if (variants && variants.length > 0) {
+      const productsWithVariants = products
+        .filter(p => variants.some(v => v.product_id === p.id))
+        .map(p => p.sku)
+        .join(', ');
+
+      toast({
+        variant: 'destructive',
+        title: 'Cannot delete product(s)',
+        description: `The following products have associated variants and cannot be deleted: ${productsWithVariants}. Please delete the variants first.`,
+        duration: 8000,
+      });
+      return;
+    }
+
+
     const { error } = await supabase.from('allproducts').delete().in('id', selectedRows);
 
     if (error) {
@@ -199,7 +230,7 @@ export default function ProductsPage() {
                   ))
                 ) : filteredProducts.length > 0 ? (
                   filteredProducts.map(product => {
-                    const stock = product.stock;
+                    const stock = product.stock || 0;
                     let statusText: string;
                     let badgeVariant: 'destructive' | 'default' = 'default';
                     let badgeClassName = '';
@@ -207,9 +238,10 @@ export default function ProductsPage() {
                     if (stock === 0) {
                         statusText = 'Out of Stock';
                         badgeVariant = 'destructive';
-                    } else if (stock <= 5) {
+                    } else if (stock <= product.low_stock_threshold) {
                         statusText = 'Low Stock';
                         badgeVariant = 'destructive';
+                        badgeClassName = 'bg-orange-500';
                     } else {
                         statusText = 'In Stock';
                         badgeClassName = 'bg-green-500';
@@ -260,3 +292,4 @@ export default function ProductsPage() {
     </div>
   );
 }
+
