@@ -28,7 +28,7 @@ const navItems = [
   { href: '/products', icon: Package, label: 'Products' },
   { href: '/inventory', icon: Warehouse, label: 'Inventory' },
   { href: '/orders', icon: ShoppingCart, label: 'Orders' },
-  { href: '/analytics', icon: BarChart2, label: 'Analytics' },
+  { href: '/analytics', icon: BarChart2, label: 'Report' },
   { href: '/settings', icon: Settings, label: 'Settings' },
 ];
 
