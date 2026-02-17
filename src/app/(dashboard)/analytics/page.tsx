@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { useEffect, useState, useMemo } from 'react';
@@ -30,6 +31,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { DollarSign, ShoppingCart, Undo2, TrendingUp, ArrowUpRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { formatCurrency } from '@/lib/format';
 
 type AnalyticsSummary = {
   order_date: string;
@@ -76,7 +78,7 @@ const SalesTooltip = ({ active, payload, label }: any) => {
                 <p className="text-sm font-medium mb-1">Date: {label}</p>
                 <p className="text-xs">
                     <span className="font-semibold">Total Sales:</span>{' '}
-                    {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(data.total_sales)}
+                    {formatCurrency(data.total_sales)}
                 </p>
                 <p className="text-xs">
                     <span className="font-semibold">Orders:</span> {data.total_orders}
@@ -226,10 +228,10 @@ export default function AnalyticsPage() {
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            <KpiCard title="Total Sales" value={isMounted ? totalSales.toLocaleString('en-IN', { style: 'currency', currency: 'INR' }) : '...'} icon={DollarSign} loading={loading} gradient="from-purple-400 to-indigo-500" />
+            <KpiCard title="Total Sales" value={isMounted ? formatCurrency(totalSales) : '...'} icon={DollarSign} loading={loading} gradient="from-purple-400 to-indigo-500" />
             <KpiCard title="Total Orders" value={kpiStats.totalOrders.toLocaleString('en-IN')} icon={ShoppingCart} loading={loading} gradient="from-cyan-400 to-blue-500" />
             <KpiCard title="Total Returns" value={kpiStats.totalReturns.toLocaleString('en-IN')} icon={Undo2} loading={loading} gradient="from-amber-500 to-orange-500" />
-            <KpiCard title="Net Profit" value={isMounted ? netProfit.toLocaleString('en-IN', { style: 'currency', currency: 'INR' }) : '...'} icon={TrendingUp} loading={loading} gradient="from-emerald-500 to-green-500" />
+            <KpiCard title="Net Profit" value={isMounted ? formatCurrency(netProfit) : '...'} icon={TrendingUp} loading={loading} gradient="from-emerald-500 to-green-500" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
@@ -253,12 +255,7 @@ export default function AnalyticsPage() {
                                 <YAxis
                                     tick={{ fontSize: 12, fill: "hsl(var(--foreground))" }}
                                     stroke={"hsl(var(--muted-foreground))"}
-                                    tickFormatter={(value) => new Intl.NumberFormat('en-IN', {
-                                        style: 'currency',
-                                        currency: 'INR',
-                                        notation: 'compact',
-                                        compactDisplay: 'short'
-                                    }).format(value as number)}
+                                    tickFormatter={(value) => formatCurrency(value as number)}
                                 />
                                 <Tooltip
                                     content={<SalesTooltip />}

@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
+import { formatCurrency } from '@/lib/format';
 
 import {
   Card,
@@ -33,7 +34,6 @@ type InventoryItem = {
   total_returns: number;
   total_revenue: number;
   low_stock_threshold: number;
-  formatted_revenue: string;
 };
 
 export default function InventoryPage() {
@@ -96,10 +96,7 @@ export default function InventoryPage() {
       });
     }
 
-    return filtered.map(item => ({
-        ...item,
-        formatted_revenue: new Intl.NumberFormat('en-IN').format(item.total_revenue)
-    }));
+    return filtered;
   }, [inventory, searchTerm, statusFilter]);
 
   const getStatus = (stock: number, threshold: number) => {
@@ -165,7 +162,7 @@ export default function InventoryPage() {
                   {/* Left Side */}
                   <div>
                     <p className="font-bold text-lg">SKU: {item.sku}</p>
-                    <p className="font-headline text-5xl font-bold mt-2">₹{isMounted ? item.formatted_revenue : '...'}</p>
+                    <p className="font-headline text-5xl font-bold mt-2">{isMounted ? formatCurrency(item.total_revenue) : '...'}</p>
                     <p className="text-sm opacity-70 mt-1">{item.product_name}</p>
                   </div>
                   {/* Right Side */}

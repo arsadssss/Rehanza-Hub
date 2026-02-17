@@ -4,6 +4,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { formatCurrency } from '@/lib/format';
 
 import {
   Card,
@@ -218,8 +219,8 @@ export default function OrdersPage() {
                             <TableCell className="font-medium">{order.product_variants?.variant_sku}</TableCell>
                             <TableCell>{order.product_variants?.allproducts?.product_name}</TableCell>
                             <TableCell>{order.quantity}</TableCell>
-                            <TableCell>{order.selling_price.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}</TableCell>
-                            <TableCell>{order.total_amount.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}</TableCell>
+                            <TableCell>{formatCurrency(order.selling_price)}</TableCell>
+                            <TableCell>{formatCurrency(order.total_amount)}</TableCell>
                           </TableRow>
                         ))
                     ) : (
@@ -286,7 +287,7 @@ export default function OrdersPage() {
                                 {item.restockable ? 'Yes' : 'No'}
                               </Badge>
                             </TableCell>
-                            <TableCell>{item.total_loss.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}</TableCell>
+                            <TableCell>{formatCurrency(item.total_loss)}</TableCell>
                           </TableRow>
                         ))
                     ) : (

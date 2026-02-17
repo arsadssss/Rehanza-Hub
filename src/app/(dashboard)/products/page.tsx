@@ -3,6 +3,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
+import { formatCurrency } from '@/lib/format';
 
 import {
   Card,
@@ -405,11 +406,11 @@ export default function ProductsPage() {
                             </TableCell>
                             <TableCell className="font-medium">{product.sku}</TableCell>
                             <TableCell>{product.product_name}</TableCell>
-                            <TableCell>{product.cost_price.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}</TableCell>
-                            <TableCell>{product.margin.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}</TableCell>
-                            <TableCell>{product.meesho_price.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}</TableCell>
-                            <TableCell>{product.flipkart_price.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}</TableCell>
-                            <TableCell>{product.amazon_price.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}</TableCell>
+                            <TableCell>{formatCurrency(product.cost_price)}</TableCell>
+                            <TableCell>{formatCurrency(product.margin)}</TableCell>
+                            <TableCell>{formatCurrency(product.meesho_price)}</TableCell>
+                            <TableCell>{formatCurrency(product.flipkart_price)}</TableCell>
+                            <TableCell>{formatCurrency(product.amazon_price)}</TableCell>
                             <TableCell>{stock}</TableCell>
                             <TableCell>
                               <Badge

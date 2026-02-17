@@ -5,6 +5,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { formatCurrency } from '@/lib/format';
 
 import {
   Card,
@@ -145,7 +146,7 @@ export default function ReturnsPage() {
                             {item.restockable ? 'Yes' : 'No'}
                           </Badge>
                         </TableCell>
-                        <TableCell>{item.total_loss.toLocaleString('en-IN', { style: 'currency', currency: 'INR' })}</TableCell>
+                        <TableCell>{formatCurrency(item.total_loss)}</TableCell>
                       </TableRow>
                     ))
                 ) : (

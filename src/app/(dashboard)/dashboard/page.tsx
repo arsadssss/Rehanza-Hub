@@ -19,36 +19,37 @@ import {
   TableCell,
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
+import { formatCurrency } from '@/lib/format';
 
 const recentOrders = [
   {
     orderId: '#FL-1234',
     channel: 'Flipkart',
-    amount: '₹ 1,250.00',
+    amount: formatCurrency(1250),
     status: 'Delivered',
   },
   {
     orderId: '#AMZ-5678',
     channel: 'Amazon',
-    amount: '₹ 890.50',
+    amount: formatCurrency(890.50),
     status: 'Returned',
   },
   {
     orderId: '#ME-9101',
     channel: 'Meesho',
-    amount: '₹ 450.00',
+    amount: formatCurrency(450),
     status: 'Delivered',
   },
   {
     orderId: '#FL-1112',
     channel: 'Flipkart',
-    amount: '₹ 2,100.00',
+    amount: formatCurrency(2100),
     status: 'RTO',
   },
     {
     orderId: '#AMZ-1314',
     channel: 'Amazon',
-    amount: '₹ 620.00',
+    amount: formatCurrency(620),
     status: 'Delivered',
   },
 ];
@@ -80,14 +81,14 @@ export default function DashboardPage() {
         />
         <StatCard
           title="Today Revenue"
-          value="₹45,231.89"
+          value={formatCurrency(45231.89)}
           icon={DollarSign}
           description="+180.1% from last week"
           gradient="from-blue-500 to-sky-500"
         />
         <StatCard
           title="Net Profit"
-          value="₹12,234.50"
+          value={formatCurrency(12234.50)}
           icon={TrendingUp}
           description="+19% from last month"
           gradient="from-emerald-500 to-green-500"
