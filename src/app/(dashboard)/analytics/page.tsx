@@ -98,7 +98,6 @@ export default function AnalyticsPage() {
   const [isMounted, setIsMounted] = useState(false);
   const { toast } = useToast();
 
-  const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly'>('daily');
   const [salesData, setSalesData] = useState<SalesAnalyticsData[]>([]);
   const [loadingSales, setLoadingSales] = useState(true);
 
@@ -162,57 +161,25 @@ export default function AnalyticsPage() {
   useEffect(() => {
     async function fetchSalesData() {
         setLoadingSales(true);
-        const { data: rawData, error } = await supabase.rpc('get_order_analytics', {
-            period_type: period,
-        });
+        const { data, error } = await supabase.from('analytics_last_7_days').select('*');
 
         if (error) {
             console.error("Error fetching sales data:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch sales data.' });
             setSalesData([]);
-            setLoadingSales(false);
-            return;
-        } 
-        
-        let processedData = (rawData || []) as SalesAnalyticsData[];
-
-        if (period === 'daily') {
-            const endDate = new Date();
-            const startDate = subDays(endDate, 6);
-            
-            const dataMap = new Map(
-              processedData.map(d => [d.label, d])
-            );
-
-            const fullRangeData: SalesAnalyticsData[] = [];
-            for (let i = 0; i < 7; i++) {
-                const currentDay = addDays(startDate, i);
-                const dateString = format(currentDay, 'yyyy-MM-dd');
-                
-                const existingData = dataMap.get(dateString);
-                if (existingData) {
-                    fullRangeData.push(existingData);
-                } else {
-                    fullRangeData.push({
-                        label: dateString,
-                        total_sales: 0,
-                        total_orders: 0,
-                    });
-                }
-            }
-            processedData = fullRangeData;
+        } else if (data) {
+            const chartData = data.map(item => ({
+                label: format(parseISO(item.label), 'dd MMM'),
+                total_sales: Number(item.total_sales),
+                total_orders: Number(item.total_orders),
+            }));
+            setSalesData(chartData);
         }
         
-        if (processedData.length === 1) {
-            processedData.push({ ...processedData[0] });
-        }
-        
-        console.log("Chart Data:", processedData);
-        setSalesData(processedData);
         setLoadingSales(false);
     }
     fetchSalesData();
-  }, [period, toast]);
+  }, [toast]);
 
 
   const { kpiStats } = useMemo(() => {
@@ -234,26 +201,6 @@ export default function AnalyticsPage() {
     Amazon: { label: "Amazon", color: "#C89F6D" },
   } as const;
 
-  const formatXAxis = (tickItem: string) => {
-    if (!tickItem) return '';
-    try {
-        if (period === 'daily') {
-            return format(parseISO(tickItem), 'MMM dd');
-        }
-        if (period === 'weekly') {
-            const [year, week] = tickItem.split('-');
-            return `${year}-W${week}`;
-        }
-        if (period === 'monthly') {
-            return format(parseISO(tickItem + '-01'), 'MMM yyyy');
-        }
-    } catch (e) {
-        console.error("Error formatting date:", tickItem, e);
-        return tickItem; // return original item on error
-    }
-    return tickItem;
-  };
-
   return (
     <div className="p-8 space-y-8 bg-gradient-to-br from-gray-100 to-blue-100 dark:from-gray-900 dark:to-slate-800 min-h-full">
         <div>
@@ -272,74 +219,38 @@ export default function AnalyticsPage() {
             <div className="lg:col-span-3 bg-white/40 dark:bg-black/20 backdrop-blur-lg rounded-3xl p-6 shadow-xl border border-white/30 dark:border-white/10 text-black dark:text-white">
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="font-bold text-xl">Sales</h3>
-                     <div className="flex items-center gap-1 rounded-lg bg-muted/20 p-1">
-                        <Button
-                          onClick={() => setPeriod('daily')}
-                          size="sm"
-                          variant="ghost"
-                          className={cn('h-8 px-4 text-xs font-normal', {
-                            'bg-primary text-primary-foreground shadow': period === 'daily',
-                            'bg-transparent text-muted-foreground hover:bg-muted/40': period !== 'daily',
-                          })}
-                        >
-                          Daily
-                        </Button>
-                        <Button
-                          onClick={() => setPeriod('weekly')}
-                          size="sm"
-                           variant="ghost"
-                           className={cn('h-8 px-4 text-xs font-normal', {
-                            'bg-primary text-primary-foreground shadow': period === 'weekly',
-                            'bg-transparent text-muted-foreground hover:bg-muted/40': period !== 'weekly',
-                          })}
-                        >
-                          Weekly
-                        </Button>
-                        <Button
-                          onClick={() => setPeriod('monthly')}
-                          size="sm"
-                           variant="ghost"
-                           className={cn('h-8 px-4 text-xs font-normal', {
-                            'bg-primary text-primary-foreground shadow': period === 'monthly',
-                            'bg-transparent text-muted-foreground hover:bg-muted/40': period !== 'monthly',
-                          })}
-                        >
-                          Monthly
-                        </Button>
-                      </div>
                 </div>
                 <div className="h-[350px] w-full">
                     {loadingSales ? <Skeleton className="h-full w-full bg-black/10 dark:bg-white/10" /> : (
-                         <LineChart
-                            width={800}
-                            height={350}
-                            data={salesData}
-                            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
-                        >
-                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e7eb" />
-                            <XAxis
-                                dataKey="label"
-                                tick={{ fontSize: 12 }}
-                                stroke="#9ca3af"
-                                tickFormatter={formatXAxis}
-                            />
-                            <YAxis
-                                tick={{ fontSize: 12 }}
-                                stroke="#9ca3af"
-                                tickFormatter={(value) => `₹${value}`}
-                            />
-                            <Tooltip
-                                content={<SalesTooltip />}
-                            />
-                            <Line
-                                type="monotone"
-                                dataKey="total_sales"
-                                stroke="#4f46e5"
-                                strokeWidth={3}
-                                dot={{ r: 4 }}
-                                activeDot={{ r: 6 }}
-                            />
-                        </LineChart>
+                        <ResponsiveContainer width="100%" height={300}>
+                            <LineChart
+                                data={salesData}
+                                margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                            >
+                                <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                                <XAxis
+                                    dataKey="label"
+                                    tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }}
+                                    stroke="hsl(var(--muted-foreground))"
+                                />
+                                <YAxis
+                                    tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }}
+                                    stroke="hsl(var(--muted-foreground))"
+                                    tickFormatter={(value) => `₹${value}`}
+                                />
+                                <Tooltip
+                                    content={<SalesTooltip />}
+                                />
+                                <Line
+                                    type="monotone"
+                                    dataKey="total_sales"
+                                    stroke="#4f46e5"
+                                    strokeWidth={3}
+                                    dot={{ r: 4 }}
+                                    activeDot={{ r: 6 }}
+                                />
+                            </LineChart>
+                        </ResponsiveContainer>
                     )}
                 </div>
             </div>
