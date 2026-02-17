@@ -12,9 +12,7 @@ export default function DashboardLayout({
       <div className="flex min-h-screen">
         <SidebarNav />
         <SidebarInset>
-          <main className="flex-1">
-            {children}
-          </main>
+          {children}
         </SidebarInset>
       </div>
     </SidebarProvider>
