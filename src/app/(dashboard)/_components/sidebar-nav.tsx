@@ -17,7 +17,6 @@ import {
   Package,
   Warehouse,
   ShoppingCart,
-  Undo2,
   BarChart2,
   Settings,
   ChevronDown,
@@ -29,7 +28,6 @@ const navItems = [
   { href: '/products', icon: Package, label: 'Products' },
   { href: '/inventory', icon: Warehouse, label: 'Inventory' },
   { href: '/orders', icon: ShoppingCart, label: 'Orders' },
-  { href: '/returns', icon: Undo2, label: 'Returns' },
   { href: '/analytics', icon: BarChart2, label: 'Analytics' },
   { href: '/settings', icon: Settings, label: 'Settings' },
 ];
