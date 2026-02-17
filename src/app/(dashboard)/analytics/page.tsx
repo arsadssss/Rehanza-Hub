@@ -69,6 +69,8 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const [analyticsData, setAnalyticsData] = useState<AnalyticsSummary[]>([]);
   const [returnsData, setReturnsData] = useState<ReturnsSummary[]>([]);
+  const [platformOrders, setPlatformOrders] = useState<{ name: string; value: number }[]>([]);
+  const [totalPlatformOrders, setTotalPlatformOrders] = useState(0);
   const [isMounted, setIsMounted] = useState(false);
   const { toast } = useToast();
 
@@ -79,6 +81,7 @@ export default function AnalyticsPage() {
       const endDate = new Date();
       const startDate = subDays(endDate, 6); // Last 7 days including today
 
+      // Fetch analytics summary
       const { data: analytics, error: analyticsError } = await supabase
         .from('analytics_summary')
         .select('*')
@@ -91,6 +94,7 @@ export default function AnalyticsPage() {
         setAnalyticsData(analytics || []);
       }
 
+      // Fetch returns summary
       const { data: returns, error: returnsError } = await supabase
         .from('returns_summary')
         .select('*')
@@ -102,13 +106,35 @@ export default function AnalyticsPage() {
       } else {
          setReturnsData(returns || []);
       }
+        
+      // Fetch all orders for platform pie chart
+      const { data: allOrders, error: ordersError } = await supabase
+        .from("orders")
+        .select("platform");
+
+      if (ordersError) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch platform orders.' });
+      } else if (allOrders) {
+        const meesho = allOrders.filter(o => o.platform === "Meesho").length;
+        const flipkart = allOrders.filter(o => o.platform === "Flipkart").length;
+        const amazon = allOrders.filter(o => o.platform === "Amazon").length;
+
+        const pieData = [
+          { name: 'Meesho', value: meesho },
+          { name: 'Flipkart', value: flipkart },
+          { name: 'Amazon', value: amazon },
+        ].filter(p => p.value > 0);
+        
+        setPlatformOrders(pieData);
+        setTotalPlatformOrders(meesho + flipkart + amazon);
+      }
 
       setLoading(false);
     }
     fetchData();
   }, [toast]);
 
-  const { kpiStats, barChartData, pieChartData, totalOrdersForPie } = useMemo(() => {
+  const { kpiStats, barChartData } = useMemo(() => {
     const totalRevenue = analyticsData.reduce((acc, item) => acc + item.total_revenue, 0);
     const totalOrders = analyticsData.reduce((acc, item) => acc + item.total_orders, 0);
     const totalReturns = returnsData.reduce((acc, item) => acc + item.total_returns, 0);
@@ -129,25 +155,10 @@ export default function AnalyticsPage() {
         date: format(day, 'MMM dd'),
         revenue: dailyRevenueMap[format(day, 'yyyy-MM-dd')] || 0,
     }));
-
-    const platformOrderMap = analyticsData.reduce((acc, item) => {
-      acc[item.platform] = (acc[item.platform] || 0) + item.total_orders;
-      return acc;
-    }, {} as Record<string, number>);
-
-    const totalOrdersForPie = Object.values(platformOrderMap).reduce((a, b) => a + b, 0);
-
-    const pieChartData = [
-      { name: 'Meesho', value: platformOrderMap['Meesho'] || 0 },
-      { name: 'Flipkart', value: platformOrderMap['Flipkart'] || 0 },
-      { name: 'Amazon', value: platformOrderMap['Amazon'] || 0 },
-    ].filter(p => p.value > 0);
     
     return { 
       kpiStats: { totalRevenue, totalOrders, totalReturns, netProfit },
       barChartData,
-      pieChartData,
-      totalOrdersForPie
     };
   }, [analyticsData, returnsData]);
 
@@ -160,10 +171,10 @@ export default function AnalyticsPage() {
 
   const platformChartConfig = {
     value: { label: "Orders" },
-    Meesho: { label: "Meesho", color: "hsl(var(--chart-1))" },
-    Flipkart: { label: "Flipkart", color: "hsl(var(--chart-2))" },
-    Amazon: { label: "Amazon", color: "hsl(var(--chart-3))" },
-  };
+    Meesho: { label: "Meesho", color: "#FF4FA3" },
+    Flipkart: { label: "Flipkart", color: "#FFC107" },
+    Amazon: { label: "Amazon", color: "#C89F6D" },
+  } as const;
 
   return (
     <div className="p-8 space-y-8 bg-gradient-to-br from-gray-100 to-blue-100 dark:from-gray-900 dark:to-slate-800 min-h-full">
@@ -209,7 +220,7 @@ export default function AnalyticsPage() {
                     <div className="flex items-center h-[300px]">
                         <div className="w-1/2 h-full relative">
                             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
-                                <p className="text-3xl font-bold">{totalOrdersForPie}</p>
+                                <p className="text-3xl font-bold">{totalPlatformOrders}</p>
                                 <p className="text-xs opacity-70">Total Orders</p>
                             </div>
                             <ChartContainer config={platformChartConfig} className="h-full w-full">
@@ -217,7 +228,7 @@ export default function AnalyticsPage() {
                                     <PieChart>
                                         <Tooltip content={<ChartTooltipContent nameKey="name" formatter={(value) => `${value} orders`} />} />
                                         <Pie 
-                                            data={pieChartData} 
+                                            data={platformOrders} 
                                             dataKey="value" 
                                             nameKey="name" 
                                             cx="50%" 
@@ -227,8 +238,8 @@ export default function AnalyticsPage() {
                                             strokeWidth={2}
                                             paddingAngle={5}
                                         >
-                                            {pieChartData.map((entry, index) => (
-                                                <Cell key={`cell-${index}`} fill={`var(--color-${entry.name})`} />
+                                            {platformOrders.map((entry) => (
+                                                <Cell key={`cell-${entry.name}`} fill={platformChartConfig[entry.name as keyof typeof platformChartConfig]?.color} />
                                             ))}
                                         </Pie>
                                     </PieChart>
@@ -237,18 +248,14 @@ export default function AnalyticsPage() {
                         </div>
                         <div className="w-1/2 pl-8">
                             <ul className="flex flex-col gap-3">
-                                {pieChartData.map((platform, index) => {
-                                    const percentage = totalOrdersForPie > 0 ? ((platform.value || 0) / totalOrdersForPie * 100).toFixed(0) : 0;
-                                    return (
-                                        <li key={index} className="flex items-center justify-between text-sm">
-                                            <div className="flex items-center gap-2">
-                                                <span style={{ backgroundColor: `var(--color-${platform.name})` }} className="h-2.5 w-2.5 rounded-full" />
-                                                <span>{platform.name}</span>
-                                            </div>
-                                            <span className="font-medium">{percentage}%</span>
-                                        </li>
-                                    )
-                                })}
+                                {platformOrders.map((platform) => (
+                                    <li key={platform.name} className="flex items-center justify-start text-sm">
+                                      <div className="flex items-center gap-2">
+                                          <span style={{ backgroundColor: platformChartConfig[platform.name as keyof typeof platformChartConfig]?.color }} className="h-2.5 w-2.5 rounded-full" />
+                                          <span>{platform.name} — <span className="font-medium">{platform.value} orders</span></span>
+                                      </div>
+                                    </li>
+                                ))}
                             </ul>
                         </div>
                     </div>
