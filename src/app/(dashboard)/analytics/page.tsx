@@ -8,9 +8,9 @@ import { subDays, format, eachDayOfInterval, parseISO } from 'date-fns';
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
+  CardDescription,
 } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
@@ -46,26 +46,21 @@ type ReturnsSummary = {
   total_loss: number;
 };
 
-const KpiCard = ({ title, value, icon: Icon, primary = false, loading }: { title: string, value: string, icon: React.ElementType, primary?: boolean, loading: boolean }) => {
+const KpiCard = ({ title, value, icon: Icon, loading, gradient }: { title: string, value: string, icon: React.ElementType, loading: boolean, gradient: string }) => {
     return (
-        <Card className={cn(
-            "rounded-2xl border-0 shadow-lg",
-            primary ? 'bg-primary text-primary-foreground' : 'bg-card text-card-foreground'
-        )}>
-            <CardHeader className="pb-2">
-                <div className="flex items-center justify-between">
-                    <CardTitle className="text-sm font-medium">{title}</CardTitle>
-                    <div className={cn("rounded-lg p-2", primary ? 'bg-white/10' : 'bg-muted')}>
-                        <Icon className={cn("h-5 w-5", primary ? 'text-primary-foreground' : 'text-primary')} />
-                    </div>
+        <div className={`bg-white/40 dark:bg-black/20 backdrop-blur-lg rounded-3xl p-6 shadow-xl border border-white/30 dark:border-white/10`}>
+            <div className="flex justify-between items-start text-black dark:text-white">
+                <div className="flex-1">
+                    <p className="font-bold text-lg">{title}</p>
+                    {loading ? <Skeleton className="h-12 w-3/4 mt-2 bg-black/10 dark:bg-white/10" /> : (
+                        <p className="font-headline text-5xl font-bold mt-2">{value}</p>
+                    )}
                 </div>
-            </CardHeader>
-            <CardContent>
-                {loading ? <Skeleton className={cn("h-8 w-3/4", primary ? "bg-white/30" : "")} /> : (
-                    <div className="text-3xl font-bold">{value}</div>
-                )}
-            </CardContent>
-        </Card>
+                <div className={`p-3 rounded-lg bg-gradient-to-br ${gradient}`}>
+                    <Icon className="h-8 w-8 text-white" />
+                </div>
+            </div>
+        </div>
     );
 };
 
@@ -168,49 +163,45 @@ export default function AnalyticsPage() {
   };
 
   return (
-    <div className="p-8 space-y-8 bg-background">
+    <div className="p-8 space-y-8 bg-gradient-to-br from-gray-100 to-blue-100 dark:from-gray-900 dark:to-slate-800 min-h-full">
         <div>
             <h1 className="text-3xl font-bold tracking-tight">Sales Report</h1>
             <p className="text-muted-foreground">Here's a summary of your sales for the last 7 days.</p>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            <KpiCard title="Total Sales" value={isMounted ? `₹${new Intl.NumberFormat('en-IN').format(kpiStats.totalRevenue)}` : '...'} icon={DollarSign} primary loading={loading} />
-            <KpiCard title="Total Orders" value={kpiStats.totalOrders.toLocaleString('en-IN')} icon={ShoppingCart} loading={loading} />
-            <KpiCard title="Total Returns" value={kpiStats.totalReturns.toLocaleString('en-IN')} icon={Undo2} loading={loading} />
-            <KpiCard title="Net Profit" value={isMounted ? `₹${new Intl.NumberFormat('en-IN').format(kpiStats.netProfit)}` : '...'} icon={TrendingUp} loading={loading} />
+            <KpiCard title="Total Sales" value={isMounted ? `₹${new Intl.NumberFormat('en-IN').format(kpiStats.totalRevenue)}` : '...'} icon={DollarSign} loading={loading} gradient="from-purple-400 to-indigo-500" />
+            <KpiCard title="Total Orders" value={kpiStats.totalOrders.toLocaleString('en-IN')} icon={ShoppingCart} loading={loading} gradient="from-cyan-400 to-blue-500" />
+            <KpiCard title="Total Returns" value={kpiStats.totalReturns.toLocaleString('en-IN')} icon={Undo2} loading={loading} gradient="from-amber-500 to-orange-500" />
+            <KpiCard title="Net Profit" value={isMounted ? `₹${new Intl.NumberFormat('en-IN').format(kpiStats.netProfit)}` : '...'} icon={TrendingUp} loading={loading} gradient="from-emerald-500 to-green-500" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-            <Card className="lg:col-span-3 rounded-2xl shadow-lg border-0">
-                <CardHeader>
-                    <CardTitle>Customer Habits</CardTitle>
-                    <CardDescription>Track your customer habits</CardDescription>
-                </CardHeader>
-                <CardContent className="h-[350px] w-full pl-0">
-                    {loading ? <Skeleton className="h-full w-full" /> : (
+            <div className="lg:col-span-3 bg-white/40 dark:bg-black/20 backdrop-blur-lg rounded-3xl p-6 shadow-xl border border-white/30 dark:border-white/10 text-black dark:text-white">
+                <h3 className="font-bold text-xl">Customer Habits</h3>
+                <p className="text-sm opacity-70">Track your customer habits</p>
+                <div className="h-[350px] w-full mt-4 -ml-2">
+                    {loading ? <Skeleton className="h-full w-full bg-black/10 dark:bg-white/10" /> : (
                         <ChartContainer config={revenueChartConfig} className="h-full w-full">
                             <ResponsiveContainer>
                                 <BarChart data={barChartData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                                    <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} />
-                                    <YAxis tickLine={false} axisLine={false} tickMargin={8} tickFormatter={(value) => `₹${value / 1000}k`} />
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-black/20 dark:stroke-white/20" />
+                                    <XAxis dataKey="date" tickLine={false} axisLine={false} tickMargin={8} stroke="currentColor" className="opacity-70" />
+                                    <YAxis tickLine={false} axisLine={false} tickMargin={8} tickFormatter={(value) => `₹${value / 1000}k`} stroke="currentColor" className="opacity-70" />
                                     <Tooltip cursor={{ fill: 'hsl(var(--primary) / 0.1)' }} content={<ChartTooltipContent indicator="dot" formatter={(value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value as number)} />} />
                                     <Bar dataKey="revenue" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} />
                                 </BarChart>
                             </ResponsiveContainer>
                         </ChartContainer>
                     )}
-                </CardContent>
-            </Card>
+                </div>
+            </div>
 
-            <Card className="lg:col-span-2 rounded-2xl shadow-lg border-0">
-                <CardHeader>
-                    <CardTitle>Product Statistic</CardTitle>
-                    <CardDescription>Track your product sales</CardDescription>
-                </CardHeader>
-                <CardContent className="h-[350px] w-full flex flex-col items-center">
-                      {loading ? <Skeleton className="h-full w-full" /> : (
+            <div className="lg:col-span-2 bg-white/40 dark:bg-black/20 backdrop-blur-lg rounded-3xl p-6 shadow-xl border border-white/30 dark:border-white/10 text-black dark:text-white">
+                 <h3 className="font-bold text-xl">Product Statistic</h3>
+                 <p className="text-sm opacity-70">Track your product sales</p>
+                <div className="h-[350px] w-full mt-4">
+                      {loading ? <Skeleton className="h-full w-full bg-black/10 dark:bg-white/10" /> : (
                         <ChartContainer config={platformChartConfig} className="h-full w-full">
                             <ResponsiveContainer>
                                 <PieChart>
@@ -243,8 +234,8 @@ export default function AnalyticsPage() {
                             </ResponsiveContainer>
                         </ChartContainer>
                       )}
-                </CardContent>
-            </Card>
+                </div>
+            </div>
         </div>
     </div>
   );
