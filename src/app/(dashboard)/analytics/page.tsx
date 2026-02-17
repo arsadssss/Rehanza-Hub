@@ -4,20 +4,17 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/use-toast';
-import { subDays, format, eachDayOfInterval, parseISO } from 'date-fns';
+import { subDays, format, parseISO } from 'date-fns';
 import {
   Card,
   CardContent,
   CardHeader,
   CardTitle,
-  CardDescription,
 } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   AreaChart,
   Area,
-  BarChart,
-  Bar,
   PieChart,
   Pie,
   XAxis,
@@ -26,13 +23,12 @@ import {
   ResponsiveContainer,
   CartesianGrid,
   Cell,
-  Legend,
 } from 'recharts';
 import {
   ChartContainer,
   ChartTooltipContent,
 } from '@/components/ui/chart';
-import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
 import { DollarSign, ShoppingCart, Undo2, TrendingUp, ArrowUpRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -49,9 +45,9 @@ type ReturnsSummary = {
   total_loss: number;
 };
 
-type SalesData = {
-  period: string;
-  total_revenue: number;
+type SalesAnalyticsData = {
+  label: string;
+  total_sales: number;
   total_orders: number;
 }
 
@@ -75,15 +71,16 @@ const KpiCard = ({ title, value, icon: Icon, loading, gradient }: { title: strin
 
 const SalesTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
+        const data = payload[0].payload;
         return (
             <div className="rounded-lg bg-primary text-primary-foreground p-3 shadow-lg">
-                <p className="text-sm font-medium mb-1">{label}</p>
+                <p className="text-sm font-medium mb-1">Date: {label}</p>
                 <p className="text-xs">
-                    <span className="font-semibold">Revenue:</span>{' '}
-                    {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(payload[0].value)}
+                    <span className="font-semibold">Total Sales:</span>{' '}
+                    {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(data.total_sales)}
                 </p>
                 <p className="text-xs">
-                    <span className="font-semibold">Orders:</span> {payload[0].payload.total_orders}
+                    <span className="font-semibold">Orders:</span> {data.total_orders}
                 </p>
             </div>
         );
@@ -101,8 +98,8 @@ export default function AnalyticsPage() {
   const [isMounted, setIsMounted] = useState(false);
   const { toast } = useToast();
 
-  const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly'>('weekly');
-  const [salesData, setSalesData] = useState<SalesData[]>([]);
+  const [period, setPeriod] = useState<'daily' | 'weekly' | 'monthly'>('daily');
+  const [salesData, setSalesData] = useState<SalesAnalyticsData[]>([]);
   const [loadingSales, setLoadingSales] = useState(true);
 
   useEffect(() => {
@@ -110,9 +107,8 @@ export default function AnalyticsPage() {
     async function fetchSummaryData() {
       setLoading(true);
       const endDate = new Date();
-      const startDate = subDays(endDate, 6); // Last 7 days including today
+      const startDate = subDays(endDate, 6);
 
-      // Fetch analytics summary
       const { data: analytics, error: analyticsError } = await supabase
         .from('analytics_summary')
         .select('*')
@@ -125,7 +121,6 @@ export default function AnalyticsPage() {
         setSummaryData(analytics || []);
       }
 
-      // Fetch returns summary
       const { data: returns, error: returnsError } = await supabase
         .from('returns_summary')
         .select('*')
@@ -138,7 +133,6 @@ export default function AnalyticsPage() {
          setReturnsData(returns || []);
       }
         
-      // Fetch all orders for platform pie chart
       const { data: allOrders, error: ordersError } = await supabase
         .from("orders")
         .select("platform");
@@ -173,10 +167,11 @@ export default function AnalyticsPage() {
         });
 
         if (error) {
+            console.error("Error fetching sales data:", error);
             toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch sales data.' });
             setSalesData([]);
         } else {
-            setSalesData(data);
+            setSalesData(data as SalesAnalyticsData[]);
         }
         setLoadingSales(false);
     }
@@ -197,8 +192,8 @@ export default function AnalyticsPage() {
   }, [summaryData, returnsData]);
 
   const salesChartConfig = {
-    total_revenue: {
-      label: "Revenue",
+    total_sales: {
+      label: "Sales",
       color: "hsl(var(--primary))",
     },
   };
@@ -210,11 +205,31 @@ export default function AnalyticsPage() {
     Amazon: { label: "Amazon", color: "#C89F6D" },
   } as const;
 
+  const formatXAxis = (tickItem: string) => {
+    if (!tickItem) return '';
+    try {
+        if (period === 'daily') {
+            return format(parseISO(tickItem), 'MMM dd');
+        }
+        if (period === 'weekly') {
+            const [year, week] = tickItem.split('-');
+            return `${year}-W${week}`;
+        }
+        if (period === 'monthly') {
+            return format(parseISO(tickItem + '-01'), 'MMM yyyy');
+        }
+    } catch (e) {
+        console.error("Error formatting date:", tickItem, e);
+        return tickItem; // return original item on error
+    }
+    return tickItem;
+  };
+
   return (
     <div className="p-8 space-y-8 bg-gradient-to-br from-gray-100 to-blue-100 dark:from-gray-900 dark:to-slate-800 min-h-full">
         <div>
             <h1 className="text-3xl font-bold tracking-tight">Sales Report</h1>
-            <p className="text-muted-foreground">Here's a summary of your sales for the last 7 days.</p>
+            <p className="text-muted-foreground">Here's a summary of your sales performance.</p>
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
@@ -228,38 +243,66 @@ export default function AnalyticsPage() {
             <div className="lg:col-span-3 bg-white/40 dark:bg-black/20 backdrop-blur-lg rounded-3xl p-6 shadow-xl border border-white/30 dark:border-white/10 text-black dark:text-white">
                 <div className="flex justify-between items-center mb-4">
                     <h3 className="font-bold text-xl">Sales</h3>
-                     <Tabs defaultValue="weekly" onValueChange={(p) => setPeriod(p as any)} className="w-auto">
-                        <TabsList className="bg-muted/50 dark:bg-muted/20">
-                            <TabsTrigger value="daily">Daily</TabsTrigger>
-                            <TabsTrigger value="weekly">Weekly</TabsTrigger>
-                            <TabsTrigger value="monthly">Monthly</TabsTrigger>
-                        </TabsList>
-                    </Tabs>
+                     <div className="flex items-center gap-1 rounded-lg bg-muted/20 p-1">
+                        <Button
+                          onClick={() => setPeriod('daily')}
+                          size="sm"
+                          variant="ghost"
+                          className={cn('h-8 px-4 text-xs font-normal', {
+                            'bg-primary text-primary-foreground shadow': period === 'daily',
+                            'bg-transparent text-muted-foreground hover:bg-muted/40': period !== 'daily',
+                          })}
+                        >
+                          Daily
+                        </Button>
+                        <Button
+                          onClick={() => setPeriod('weekly')}
+                          size="sm"
+                           variant="ghost"
+                           className={cn('h-8 px-4 text-xs font-normal', {
+                            'bg-primary text-primary-foreground shadow': period === 'weekly',
+                            'bg-transparent text-muted-foreground hover:bg-muted/40': period !== 'weekly',
+                          })}
+                        >
+                          Weekly
+                        </Button>
+                        <Button
+                          onClick={() => setPeriod('monthly')}
+                          size="sm"
+                           variant="ghost"
+                           className={cn('h-8 px-4 text-xs font-normal', {
+                            'bg-primary text-primary-foreground shadow': period === 'monthly',
+                            'bg-transparent text-muted-foreground hover:bg-muted/40': period !== 'monthly',
+                          })}
+                        >
+                          Monthly
+                        </Button>
+                      </div>
                 </div>
                 <div className="h-[350px] w-full mt-4 -ml-2">
                     {loadingSales ? <Skeleton className="h-full w-full bg-black/10 dark:bg-white/10" /> : (
-                        <ChartContainer
+                         <ChartContainer
                           config={salesChartConfig}
-                          className="h-full w-full [&_.recharts-cartesian-axis-tick_text]:fill-foreground"
+                          className="h-full w-full [&_.recharts-cartesian-axis-tick_text]:fill-current"
                         >
-                            <ResponsiveContainer>
-                                <AreaChart data={salesData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
-                                     <defs>
-                                        <linearGradient id="fillRevenue" x1="0" y1="0" x2="0" y2="1">
-                                            <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.8} />
-                                            <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0.1} />
-                                        </linearGradient>
-                                    </defs>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border/20" />
-                                    <XAxis dataKey="period" tickLine={false} axisLine={false} tickMargin={8} />
-                                    <YAxis tickLine={false} axisLine={false} tickMargin={8} tickFormatter={(value) => `₹${value / 1000}k`} />
-                                    <Tooltip
-                                      cursor={{ stroke: "hsl(var(--primary))", strokeWidth: 1, strokeDasharray: "3 3" }}
-                                      content={<SalesTooltip />}
-                                    />
-                                    <Area dataKey="total_revenue" type="monotone" stroke="hsl(var(--primary))" fill="url(#fillRevenue)" strokeWidth={2} />
-                                </AreaChart>
-                            </ResponsiveContainer>
+                          <ResponsiveContainer>
+                             <AreaChart data={salesData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
+                                  <defs>
+                                      <linearGradient id="fillSales" x1="0" y1="0" x2="0" y2="1">
+                                          <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.8} />
+                                          <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0.1} />
+                                      </linearGradient>
+                                  </defs>
+                                  <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border/20" />
+                                  <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={8} tickFormatter={formatXAxis} />
+                                  <YAxis tickLine={false} axisLine={false} tickMargin={8} tickFormatter={(value) => `₹${Number(value) / 1000}k`} />
+                                  <Tooltip
+                                    cursor={{ stroke: "hsl(var(--primary))", strokeWidth: 1, strokeDasharray: "3 3" }}
+                                    content={<SalesTooltip />}
+                                  />
+                                  <Area dataKey="total_sales" type="monotone" stroke="hsl(var(--primary))" fill="url(#fillSales)" strokeWidth={2} dot={false} />
+                              </AreaChart>
+                          </ResponsiveContainer>
                         </ChartContainer>
                     )}
                 </div>
@@ -319,4 +362,3 @@ export default function AnalyticsPage() {
     </div>
   );
 }
-
