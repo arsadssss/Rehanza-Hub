@@ -27,7 +27,6 @@ body {
     --border: 220 15% 88%;
     --input: 220 15% 88%;
     --ring: 244 80% 60%;
-    --radius: 1rem;
     
     --sidebar-background: 224 21% 15%;
     --sidebar-foreground: 220 15% 85%;
@@ -38,9 +37,9 @@ body {
     --sidebar-border: 224 21% 25%;
     --sidebar-ring: 244 80% 60%;
 
-    --chart-1: 244 80% 60%;
-    --chart-2: 15 85% 60%;
-    --chart-3: 195 85% 60%;
+    --chart-1: 340 82% 76%;
+    --chart-2: 48 96% 61%;
+    --chart-3: 30 35% 60%;
   }
 
   .dark {
@@ -73,9 +72,9 @@ body {
     --sidebar-border: 224 21% 25%;
     --sidebar-ring: 244 80% 65%;
 
-    --chart-1: 244 80% 65%;
-    --chart-2: 15 80% 65%;
-    --chart-3: 195 80% 65%;
+    --chart-1: 340 82% 76%;
+    --chart-2: 48 96% 61%;
+    --chart-3: 30 35% 60%;
   }
 }
 

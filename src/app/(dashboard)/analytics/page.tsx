@@ -30,7 +30,7 @@ import {
   ChartContainer,
   ChartTooltipContent,
 } from '@/components/ui/chart';
-import { DollarSign, ShoppingCart, Undo2, TrendingUp } from 'lucide-react';
+import { DollarSign, ShoppingCart, Undo2, TrendingUp, ArrowUpRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type AnalyticsSummary = {
@@ -108,7 +108,7 @@ export default function AnalyticsPage() {
     fetchData();
   }, [toast]);
 
-  const { kpiStats, barChartData, pieChartData } = useMemo(() => {
+  const { kpiStats, barChartData, pieChartData, totalOrdersForPie } = useMemo(() => {
     const totalRevenue = analyticsData.reduce((acc, item) => acc + item.total_revenue, 0);
     const totalOrders = analyticsData.reduce((acc, item) => acc + item.total_orders, 0);
     const totalReturns = returnsData.reduce((acc, item) => acc + item.total_returns, 0);
@@ -130,21 +130,24 @@ export default function AnalyticsPage() {
         revenue: dailyRevenueMap[format(day, 'yyyy-MM-dd')] || 0,
     }));
 
-    const platformRevenueMap = analyticsData.reduce((acc, item) => {
-      acc[item.platform] = (acc[item.platform] || 0) + item.total_revenue;
+    const platformOrderMap = analyticsData.reduce((acc, item) => {
+      acc[item.platform] = (acc[item.platform] || 0) + item.total_orders;
       return acc;
     }, {} as Record<string, number>);
 
+    const totalOrdersForPie = Object.values(platformOrderMap).reduce((a, b) => a + b, 0);
+
     const pieChartData = [
-      { name: 'Meesho', value: platformRevenueMap['Meesho'] || 0, fill: "var(--color-Meesho)" },
-      { name: 'Flipkart', value: platformRevenueMap['Flipkart'] || 0, fill: "var(--color-Flipkart)" },
-      { name: 'Amazon', value: platformRevenueMap['Amazon'] || 0, fill: "var(--color-Amazon)" },
-    ];
+      { name: 'Meesho', value: platformOrderMap['Meesho'] || 0 },
+      { name: 'Flipkart', value: platformOrderMap['Flipkart'] || 0 },
+      { name: 'Amazon', value: platformOrderMap['Amazon'] || 0 },
+    ].filter(p => p.value > 0);
     
     return { 
       kpiStats: { totalRevenue, totalOrders, totalReturns, netProfit },
       barChartData,
-      pieChartData
+      pieChartData,
+      totalOrdersForPie
     };
   }, [analyticsData, returnsData]);
 
@@ -156,7 +159,7 @@ export default function AnalyticsPage() {
   };
 
   const platformChartConfig = {
-    value: { label: "Revenue" },
+    value: { label: "Orders" },
     Meesho: { label: "Meesho", color: "hsl(var(--chart-1))" },
     Flipkart: { label: "Flipkart", color: "hsl(var(--chart-2))" },
     Amazon: { label: "Amazon", color: "hsl(var(--chart-3))" },
@@ -198,39 +201,58 @@ export default function AnalyticsPage() {
             </div>
 
             <div className="lg:col-span-2 bg-white/40 dark:bg-black/20 backdrop-blur-lg rounded-3xl p-6 shadow-xl border border-white/30 dark:border-white/10 text-black dark:text-white">
-                 <h3 className="font-bold text-xl">Product Statistic</h3>
-                 <p className="text-sm opacity-70">Track your product sales</p>
-                <div className="h-[350px] w-full mt-4">
-                      {loading ? <Skeleton className="h-full w-full bg-black/10 dark:bg-white/10" /> : (
-                        <ChartContainer config={platformChartConfig} className="h-full w-full">
-                            <ResponsiveContainer>
-                                <PieChart>
-                                    <Tooltip content={<ChartTooltipContent nameKey="name" formatter={(value) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value as number)} />} />
-                                    <Pie data={pieChartData} dataKey="value" nameKey="name" cx="50%" cy="50%" innerRadius={60} outerRadius={90} strokeWidth={3} paddingAngle={5} />
-                                    <Legend verticalAlign="bottom" iconType="circle" content={({ payload }) => (
-                                        <ul className="flex flex-col gap-2 pt-4">
-                                            {payload?.map((entry, index) => {
-                                                const { value, color } = entry;
-                                                const platformData = pieChartData.find(d => d.name === value);
-                                                return (
-                                                    <li key={`item-${index}`} className="flex items-center justify-between text-sm">
-                                                        <div className="flex items-center gap-2">
-                                                            <span style={{ backgroundColor: color }} className="h-2 w-2 rounded-full" />
-                                                            <span>{value}</span>
-                                                        </div>
-                                                        <span className="font-medium">
-                                                            {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(platformData?.value || 0)}
-                                                        </span>
-                                                    </li>
-                                                )
-                                            })}
-                                        </ul>
-                                    )} />
-                                </PieChart>
-                            </ResponsiveContainer>
-                        </ChartContainer>
-                      )}
+                <div className="flex justify-between items-center mb-4">
+                    <h3 className="font-bold text-xl">Platform Orders</h3>
+                    <a href="#" className="text-sm opacity-70 flex items-center gap-1">See All <ArrowUpRight className="h-4 w-4" /></a>
                 </div>
+                {loading ? <Skeleton className="h-[300px] w-full bg-black/10 dark:bg-white/10" /> : (
+                    <div className="flex items-center h-[300px]">
+                        <div className="w-1/2 h-full relative">
+                            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
+                                <p className="text-3xl font-bold">{totalOrdersForPie}</p>
+                                <p className="text-xs opacity-70">Total Orders</p>
+                            </div>
+                            <ChartContainer config={platformChartConfig} className="h-full w-full">
+                                <ResponsiveContainer>
+                                    <PieChart>
+                                        <Tooltip content={<ChartTooltipContent nameKey="name" formatter={(value) => `${value} orders`} />} />
+                                        <Pie 
+                                            data={pieChartData} 
+                                            dataKey="value" 
+                                            nameKey="name" 
+                                            cx="50%" 
+                                            cy="50%" 
+                                            innerRadius={80} 
+                                            outerRadius={100} 
+                                            strokeWidth={2}
+                                            paddingAngle={5}
+                                        >
+                                            {pieChartData.map((entry, index) => (
+                                                <Cell key={`cell-${index}`} fill={`var(--color-${entry.name})`} />
+                                            ))}
+                                        </Pie>
+                                    </PieChart>
+                                </ResponsiveContainer>
+                            </ChartContainer>
+                        </div>
+                        <div className="w-1/2 pl-8">
+                            <ul className="flex flex-col gap-3">
+                                {pieChartData.map((platform, index) => {
+                                    const percentage = totalOrdersForPie > 0 ? ((platform.value || 0) / totalOrdersForPie * 100).toFixed(0) : 0;
+                                    return (
+                                        <li key={index} className="flex items-center justify-between text-sm">
+                                            <div className="flex items-center gap-2">
+                                                <span style={{ backgroundColor: `var(--color-${platform.name})` }} className="h-2.5 w-2.5 rounded-full" />
+                                                <span>{platform.name}</span>
+                                            </div>
+                                            <span className="font-medium">{percentage}%</span>
+                                        </li>
+                                    )
+                                })}
+                            </ul>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     </div>
