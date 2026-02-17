@@ -98,6 +98,7 @@ export default function AnalyticsPage() {
   const [isMounted, setIsMounted] = useState(false);
   const { toast } = useToast();
   const [netProfit, setNetProfit] = useState(0);
+  const [totalSales, setTotalSales] = useState(0);
 
   const [salesData, setSalesData] = useState<SalesAnalyticsData[]>([]);
   const [loadingSales, setLoadingSales] = useState(true);
@@ -120,6 +121,19 @@ export default function AnalyticsPage() {
       } else {
         setSummaryData(analytics || []);
       }
+      
+      const { data: ordersForSales, error: ordersForSalesError } = await supabase
+        .from('orders')
+        .select('total_amount')
+        .gte('created_at', format(subDays(new Date(), 7), 'yyyy-MM-dd'));
+
+      if (ordersForSalesError) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch total sales.' });
+      } else {
+        const total = (ordersForSales || []).reduce((acc, order) => acc + order.total_amount, 0);
+        setTotalSales(total);
+      }
+
 
       const { data: returns, error: returnsError } = await supabase
         .from('returns_summary')
@@ -253,12 +267,11 @@ export default function AnalyticsPage() {
 
 
   const kpiStats = useMemo(() => {
-    const totalRevenue = summaryData.reduce((acc, item) => acc + item.total_revenue, 0);
     const totalOrders = summaryData.reduce((acc, item) => acc + item.total_orders, 0);
     const totalReturns = returnsData.reduce((acc, item) => acc + item.total_returns, 0);
     
     return { 
-      totalRevenue, totalOrders, totalReturns
+      totalOrders, totalReturns
     };
   }, [summaryData, returnsData]);
 
@@ -277,7 +290,7 @@ export default function AnalyticsPage() {
         </div>
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            <KpiCard title="Total Sales" value={isMounted ? `₹${new Intl.NumberFormat('en-IN').format(kpiStats.totalRevenue)}` : '...'} icon={DollarSign} loading={loading} gradient="from-purple-400 to-indigo-500" />
+            <KpiCard title="Total Sales" value={isMounted ? `₹${new Intl.NumberFormat('en-IN').format(totalSales)}` : '...'} icon={DollarSign} loading={loading} gradient="from-purple-400 to-indigo-500" />
             <KpiCard title="Total Orders" value={kpiStats.totalOrders.toLocaleString('en-IN')} icon={ShoppingCart} loading={loading} gradient="from-cyan-400 to-blue-500" />
             <KpiCard title="Total Returns" value={kpiStats.totalReturns.toLocaleString('en-IN')} icon={Undo2} loading={loading} gradient="from-amber-500 to-orange-500" />
             <KpiCard title="Net Profit" value={isMounted ? `₹${new Intl.NumberFormat('en-IN').format(netProfit)}` : '...'} icon={TrendingUp} loading={loading} gradient="from-emerald-500 to-green-500" />
@@ -303,7 +316,7 @@ export default function AnalyticsPage() {
                                 />
                                 <YAxis
                                     tick={{ fontSize: 12, fill: 'hsl(var(--foreground))' }}
-                                    stroke="hsl(var(--muted-foreground))"
+                                    stroke="hsl(var(--muted-foreground))'
                                     tickFormatter={(value) => `₹${value}`}
                                 />
                                 <Tooltip
@@ -377,3 +390,5 @@ export default function AnalyticsPage() {
     </div>
   );
 }
+
+    
