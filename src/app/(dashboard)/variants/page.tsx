@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { AddVariantModal } from './components/add-variant-modal';
 import { PlusCircle, Search, Trash2 } from 'lucide-react';
@@ -30,6 +31,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 export type Variant = {
   id: string;
   product_id: string;
+  variant_sku: string;
   color: string | null;
   size: string | null;
   stock: number;
@@ -53,6 +55,7 @@ export default function VariantsPage() {
       .from('product_variants')
       .select(`
         id,
+        variant_sku,
         color,
         size,
         stock,
@@ -72,7 +75,7 @@ export default function VariantsPage() {
       });
       setVariants([]);
     } else {
-      setVariants(data as Variant[]);
+      setVariants(data as any as Variant[]);
     }
     setLoading(false);
   }
@@ -110,7 +113,7 @@ export default function VariantsPage() {
     if (!searchTerm) return variants;
     return variants.filter(
       v =>
-        v.allproducts?.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        v.variant_sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
         v.allproducts?.product_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
         v.color?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         v.size?.toLowerCase().includes(searchTerm.toLowerCase())
@@ -180,7 +183,7 @@ export default function VariantsPage() {
                       onCheckedChange={handleSelectAll}
                     />
                   </TableHead>
-                  <TableHead>SKU</TableHead>
+                  <TableHead>Variant SKU</TableHead>
                   <TableHead>Product Name</TableHead>
                   <TableHead>Color</TableHead>
                   <TableHead>Size</TableHead>
@@ -208,7 +211,7 @@ export default function VariantsPage() {
                             onCheckedChange={() => handleRowSelect(variant.id)}
                           />
                         </TableCell>
-                        <TableCell className="font-medium">{variant.allproducts?.sku}</TableCell>
+                        <TableCell className="font-medium">{variant.variant_sku}</TableCell>
                         <TableCell>{variant.allproducts?.product_name}</TableCell>
                         <TableCell>{variant.color}</TableCell>
                         <TableCell>{variant.size}</TableCell>

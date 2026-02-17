@@ -39,7 +39,7 @@ export type Product = {
   meesho_price: number;
   flipkart_price: number;
   amazon_price: number;
-  total_stock: number;
+  stock: number;
   low_stock_threshold: number;
 };
 
@@ -64,7 +64,7 @@ export default function ProductsPage() {
       });
       setProducts([]);
     } else {
-      setProducts(data as Product[]);
+      setProducts(data as any as Product[]);
     }
     setLoading(false);
   }
@@ -75,6 +75,7 @@ export default function ProductsPage() {
 
   const handleProductAdded = (newProduct: Product) => {
     setProducts(prevProducts => [newProduct, ...prevProducts]);
+    fetchProducts(); // Refetch to get the calculated stock
   };
 
   const handleDeleteSelected = async () => {
@@ -192,7 +193,7 @@ export default function ProductsPage() {
                   ))
                 ) : filteredProducts.length > 0 ? (
                   filteredProducts.map(product => {
-                    const stock = product.total_stock;
+                    const stock = product.stock;
                     let statusText: string;
                     let badgeVariant: 'destructive' | 'default' = 'default';
                     let badgeClassName = '';
@@ -226,7 +227,7 @@ export default function ProductsPage() {
                         <TableCell>₹{product.meesho_price.toFixed(2)}</TableCell>
                         <TableCell>₹{product.flipkart_price.toFixed(2)}</TableCell>
                         <TableCell>₹{product.amazon_price.toFixed(2)}</TableCell>
-                        <TableCell>{product.total_stock}</TableCell>
+                        <TableCell>{stock}</TableCell>
                         <TableCell>
                           <Badge
                              variant={badgeVariant}
