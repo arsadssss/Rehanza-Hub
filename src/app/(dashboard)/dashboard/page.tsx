@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState } from 'react';
@@ -80,77 +81,82 @@ export default function DashboardPage() {
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
-      const todayISO = today.toISOString();
 
-      // Multiple fetches in parallel
       const [
-        dashboardRes,
+        allOrdersRes,
+        allReturnsRes,
         revenueRes,
-        channelRes,
         recentOrdersRes,
         lowStockRes,
-        netProfitRes,
       ] = await Promise.all([
-        supabase.from('orders').select('total_amount', { count: 'exact' }).gte('created_at', todayISO),
+        supabase.from('orders').select('platform, quantity, total_amount, created_at, product_variants(allproducts(margin))'),
+        supabase.from('returns').select('quantity, restockable, product_variants(allproducts(margin))'),
         supabase.from('analytics_last_7_days').select('*'),
-        supabase.from('orders').select('platform, quantity'),
         supabase.from('orders').select('id, platform, total_amount, created_at').order('created_at', { ascending: false }).limit(5),
         supabase.rpc('low_stock_count'),
-        supabase.from("analytics_net_profit").select("net_profit").single(),
       ]);
 
+      const allOrders = allOrdersRes.data || [];
+      const allReturns = allReturnsRes.data || [];
+
       // 1. Dashboard Metrics
-      const { data: todayOrders, count: totalOrders, error: dashboardError } = dashboardRes;
+      const totalOrders = allOrders.reduce((sum, o) => sum + o.quantity, 0);
+
+      const todayRevenue = allOrders
+        .filter(o => new Date(o.created_at).toDateString() === new Date().toDateString())
+        .reduce((sum, o) => sum + o.total_amount, 0);
       
-      const { count: totalOrderCount } = await supabase.from('orders').select('id', { count: 'exact' });
+      const grossMargin = allOrders.reduce((acc, order: any) => {
+        const margin = order.product_variants?.allproducts?.margin || 0;
+        return acc + (order.quantity * margin);
+      }, 0);
 
-      if (!dashboardError && todayOrders) {
-        const todayRevenue = todayOrders.reduce((sum, o) => sum + o.total_amount, 0);
+      const returnImpact = allReturns.reduce((acc, ret: any) => {
+        if (ret.restockable) {
+          return acc + (ret.quantity * 45);
+        }
+        const margin = ret.product_variants?.allproducts?.margin || 0;
+        return acc + (ret.quantity * margin);
+      }, 0);
 
-        setDashboardData({
-          total_orders: totalOrderCount || 0,
-          today_revenue: todayRevenue,
-          net_profit: netProfitRes.data?.net_profit || 0,
-          low_stock: lowStockRes.data || 0,
-        });
-      }
+      const netProfit = grossMargin - returnImpact;
+      
+      setDashboardData({
+        total_orders: totalOrders,
+        today_revenue: todayRevenue,
+        net_profit: netProfit,
+        low_stock: lowStockRes.data || 0,
+      });
 
       // 2. Revenue Trend
-      const { data: revenueOrders, error: revenueError } = revenueRes;
-      if (!revenueError && revenueOrders) {
-        const formattedRevenue = revenueOrders.map(item => ({
+      if (revenueRes.data) {
+        const formattedRevenue = revenueRes.data.map(item => ({
           label: new Date(item.label).toLocaleDateString("en-IN", { day: "numeric", month: "short" }),
           revenue: item.total_sales
-        })).sort((a, b) => new Date(a.label).getTime() - new Date(b.label).getTime());
+        }));
         setRevenueData(formattedRevenue);
       }
 
       // 3. Channel Performance
-      const { data: channelOrders, error: channelError } = channelRes;
-      if (!channelError && channelOrders) {
-        const grouped: { [key: string]: number } = {};
-        channelOrders.forEach((item: any) => {
-          grouped[item.platform] = (grouped[item.platform] || 0) + item.quantity;
-        });
-
-        const formattedChannels = Object.keys(grouped).map(key => ({
-          name: key,
-          value: grouped[key]
-        }));
-        setChannelData(formattedChannels);
-      }
+      const grouped: { [key: string]: number } = {};
+      allOrders.forEach((item: any) => {
+        grouped[item.platform] = (grouped[item.platform] || 0) + item.quantity;
+      });
+      const formattedChannels = Object.keys(grouped).map(key => ({
+        name: key,
+        value: grouped[key]
+      }));
+      setChannelData(formattedChannels);
 
       // 4. Recent Orders
-      const { data: recentOrdersData, error: recentOrdersError } = recentOrdersRes;
-      if (!recentOrdersError && recentOrdersData) {
-        // Mock status and orderId for display purposes to match screenshot
+      if (recentOrdersRes.data) {
         const statuses = ['Delivered', 'Returned', 'Delivered', 'RTO', 'Delivered'];
-        const formattedRecentOrders = recentOrdersData.map((order, index) => ({
+        const formattedRecentOrders = recentOrdersRes.data.map((order, index) => ({
             id: order.id,
             order_id_display: `#${order.platform.substring(0, 2).toUpperCase()}-${String(order.id).slice(-4)}`,
             platform: order.platform,
             total_amount: order.total_amount,
-            status: statuses[index % statuses.length], // Cycle through statuses
+            status: statuses[index % statuses.length],
         }));
         setRecentOrders(formattedRecentOrders);
       }
@@ -220,8 +226,8 @@ export default function DashboardPage() {
         )}
       </div>
 
-      <div className="grid gap-6 lg:grid-cols-5">
-        <Card className="lg:col-span-3 shadow-xl rounded-2xl">
+      <div className="grid gap-6 lg:grid-cols-2">
+        <Card className="shadow-xl rounded-2xl">
           <CardHeader>
             <CardTitle className="font-headline">Revenue Trend</CardTitle>
           </CardHeader>
@@ -240,7 +246,7 @@ export default function DashboardPage() {
             )}
           </CardContent>
         </Card>
-        <Card className="lg:col-span-2 shadow-xl rounded-2xl">
+        <Card className="shadow-xl rounded-2xl">
           <CardHeader>
             <CardTitle className="font-headline">Channel Performance</CardTitle>
           </CardHeader>
