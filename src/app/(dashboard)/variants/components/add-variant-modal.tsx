@@ -53,11 +53,11 @@ interface AddVariantModalProps {
 export function AddVariantModal({ isOpen, onClose, onVariantAdded }: AddVariantModalProps) {
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [products, setProducts] = React.useState<Pick<Product, 'id' | 'product_name'>[]>([])
+  const [products, setProducts] = React.useState<Pick<Product, 'id' | 'sku'>[]>([])
 
   React.useEffect(() => {
     async function fetchProducts() {
-      const { data, error } = await supabase.from("allproducts").select("id, product_name").order("product_name");
+      const { data, error } = await supabase.from("allproducts").select("id, sku").order("sku");
       if (data) {
         setProducts(data);
       }
@@ -138,12 +138,12 @@ export function AddVariantModal({ isOpen, onClose, onVariantAdded }: AddVariantM
                    <Select onValueChange={field.onChange} defaultValue={field.value}>
                       <FormControl>
                       <SelectTrigger>
-                          <SelectValue placeholder="Select a product" />
+                          <SelectValue placeholder="Select a SKU" />
                       </SelectTrigger>
                       </FormControl>
                       <SelectContent>
                       {products.map(p => (
-                          <SelectItem key={p.id} value={p.id}>{p.product_name}</SelectItem>
+                          <SelectItem key={p.id} value={p.id}>{p.sku}</SelectItem>
                       ))}
                       </SelectContent>
                   </Select>
