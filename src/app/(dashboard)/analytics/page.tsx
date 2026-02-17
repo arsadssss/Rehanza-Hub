@@ -79,10 +79,11 @@ const SalesTooltip = ({ active, payload, label }: any) => {
             <div className="rounded-lg bg-primary text-primary-foreground p-3 shadow-lg">
                 <p className="text-sm font-medium mb-1">{label}</p>
                 <p className="text-xs">
-                    <span className="font-bold">Revenue:</span> {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(payload[0].value)}
+                    <span className="font-semibold">Revenue:</span>{' '}
+                    {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(payload[0].value)}
                 </p>
                 <p className="text-xs">
-                    <span className="font-bold">Orders:</span> {payload[0].payload.total_orders}
+                    <span className="font-semibold">Orders:</span> {payload[0].payload.total_orders}
                 </p>
             </div>
         );
@@ -237,19 +238,25 @@ export default function AnalyticsPage() {
                 </div>
                 <div className="h-[350px] w-full mt-4 -ml-2">
                     {loadingSales ? <Skeleton className="h-full w-full bg-black/10 dark:bg-white/10" /> : (
-                        <ChartContainer config={salesChartConfig} className="h-full w-full">
+                        <ChartContainer
+                          config={salesChartConfig}
+                          className="h-full w-full [&_.recharts-cartesian-axis-tick_text]:fill-foreground"
+                        >
                             <ResponsiveContainer>
                                 <AreaChart data={salesData} margin={{ top: 5, right: 20, left: 10, bottom: 5 }}>
                                      <defs>
                                         <linearGradient id="fillRevenue" x1="0" y1="0" x2="0" y2="1">
                                             <stop offset="5%" stopColor="hsl(var(--primary))" stopOpacity={0.8} />
-                                            <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                                            <stop offset="95%" stopColor="hsl(var(--primary))" stopOpacity={0.1} />
                                         </linearGradient>
                                     </defs>
-                                    <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-black/20 dark:stroke-white/20" />
-                                    <XAxis dataKey="period" tickLine={false} axisLine={false} tickMargin={8} stroke="currentColor" className="opacity-70" />
-                                    <YAxis tickLine={false} axisLine={false} tickMargin={8} tickFormatter={(value) => `₹${value / 1000}k`} stroke="currentColor" className="opacity-70" />
-                                    <Tooltip cursor={{ fill: 'hsl(var(--primary) / 0.1)' }} content={<SalesTooltip />} />
+                                    <CartesianGrid strokeDasharray="3 3" vertical={false} className="stroke-border/20" />
+                                    <XAxis dataKey="period" tickLine={false} axisLine={false} tickMargin={8} />
+                                    <YAxis tickLine={false} axisLine={false} tickMargin={8} tickFormatter={(value) => `₹${value / 1000}k`} />
+                                    <Tooltip
+                                      cursor={{ stroke: "hsl(var(--primary))", strokeWidth: 1, strokeDasharray: "3 3" }}
+                                      content={<SalesTooltip />}
+                                    />
                                     <Area dataKey="total_revenue" type="monotone" stroke="hsl(var(--primary))" fill="url(#fillRevenue)" strokeWidth={2} />
                                 </AreaChart>
                             </ResponsiveContainer>
@@ -312,3 +319,4 @@ export default function AnalyticsPage() {
     </div>
   );
 }
+
