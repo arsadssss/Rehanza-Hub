@@ -33,7 +33,8 @@ type InventoryItem = {
   total_orders: number;
   total_returns: number;
   total_revenue: number;
-  low_stock_threshold: number; // Assuming this is available, if not, will use a default
+  low_stock_threshold: number;
+  formatted_revenue: string;
 };
 
 export default function InventoryPage() {
@@ -58,8 +59,12 @@ export default function InventoryPage() {
       setInventory([]);
     } else {
       // Temporary fix: If low_stock_threshold is not in the view, add it with a default
-      const dataWithThreshold = data.map(item => ({...item, low_stock_threshold: item.low_stock_threshold || 5}))
-      setInventory(dataWithThreshold as InventoryItem[]);
+      const dataWithFormatting = data.map(item => ({
+          ...item,
+          low_stock_threshold: item.low_stock_threshold || 5,
+          formatted_revenue: new Intl.NumberFormat('en-IN').format(item.total_revenue)
+      }));
+      setInventory(dataWithFormatting as InventoryItem[]);
     }
     setLoading(false);
   }
@@ -158,7 +163,7 @@ export default function InventoryPage() {
                   {/* Left Side */}
                   <div>
                     <p className="font-bold text-lg">SKU: {item.sku}</p>
-                    <p className="font-headline text-5xl font-bold mt-2">₹{new Intl.NumberFormat('en-IN').format(item.total_revenue)}</p>
+                    <p className="font-headline text-5xl font-bold mt-2">₹{item.formatted_revenue}</p>
                     <p className="text-sm opacity-70 mt-1">{item.product_name}</p>
                   </div>
                   {/* Right Side */}
@@ -217,5 +222,3 @@ export default function InventoryPage() {
     </div>
   );
 }
-
-    
