@@ -21,12 +21,14 @@ import {
   BarChart2,
   Settings,
   ChevronDown,
+  Puzzle,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 
 const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/products', icon: Package, label: 'Products' },
+  { href: '/variants', icon: Puzzle, label: 'Variants' },
   { href: '/inventory', icon: Warehouse, label: 'Inventory' },
   { href: '/orders', icon: ShoppingCart, label: 'Orders' },
   { href: '/returns', icon: Undo2, label: 'Returns' },
