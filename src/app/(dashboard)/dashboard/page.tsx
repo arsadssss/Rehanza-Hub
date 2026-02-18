@@ -561,7 +561,7 @@ export default function DashboardPage() {
     <div className="p-6 md:p-8 space-y-6 bg-gray-50/50 dark:bg-black/50">
        {/* New Financial Summary Cards */}
        <div className="grid gap-6 md:grid-cols-2">
-        <Card className="text-white bg-gradient-to-r from-indigo-500 to-purple-600 shadow-lg rounded-2xl border-0">
+        <Card className="text-white bg-gradient-to-r from-red-500 to-orange-600 shadow-lg rounded-2xl border-0">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Due Across Vendors</CardTitle>
             <Wallet className="h-5 w-5 text-white/80" />
@@ -696,3 +696,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    
