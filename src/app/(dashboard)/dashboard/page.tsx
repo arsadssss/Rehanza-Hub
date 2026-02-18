@@ -40,11 +40,11 @@ import {
   CircleDollarSign,
   TrendingUp,
   Undo2,
-  AlertTriangle,
-  CheckCircle2,
   Download,
   ChevronDown,
   Medal,
+  Wallet,
+  Archive,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -486,6 +486,9 @@ export default function DashboardPage() {
   const [topSellingProducts, setTopSellingProducts] = useState<TopSellingProduct[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const [totalDueAllVendors, setTotalDueAllVendors] = useState(0);
+  const [totalInventoryValue, setTotalInventoryValue] = useState(0);
+
   useEffect(() => {
     async function fetchData() {
       setLoading(true);
@@ -498,6 +501,8 @@ export default function DashboardPage() {
         lowStockRes,
         recentOrdersRes,
         topSellingRes,
+        vendorSummaryRes,
+        allProductsRes,
       ] = await Promise.all([
         supabase.from('dashboard_summary').select('*').single(),
         supabase.from('platform_performance').select('*'),
@@ -515,6 +520,8 @@ export default function DashboardPage() {
             )
         `).order('created_at', { ascending: false }).limit(5),
         supabase.from('top_selling_products').select('*').limit(5),
+        supabase.from('vendor_balance_summary').select('balance_due'),
+        supabase.from('allproducts').select('cost_price, stock'),
       ]);
 
       setSummary(summaryRes.data);
@@ -525,6 +532,24 @@ export default function DashboardPage() {
       setRecentOrders(recentOrdersRes.data as RecentOrder[] || []);
       setTopSellingProducts(topSellingRes.data || []);
 
+      // Calculate total due
+      if (vendorSummaryRes.data) {
+          const totalDue = vendorSummaryRes.data.reduce((acc, vendor) => {
+              return acc + (vendor.balance_due > 0 ? vendor.balance_due : 0);
+          }, 0);
+          setTotalDueAllVendors(totalDue);
+      }
+      
+      // Calculate inventory value
+      if (allProductsRes.data) {
+          const totalValue = allProductsRes.data.reduce((sum, product) => {
+              const cost = Number(product.cost_price || 0);
+              const stock = Number(product.stock || 0);
+              return sum + (cost * stock);
+          }, 0);
+          setTotalInventoryValue(totalValue);
+      }
+
       setLoading(false);
     }
 
@@ -534,6 +559,52 @@ export default function DashboardPage() {
 
   return (
     <div className="p-6 md:p-8 space-y-6 bg-gray-50/50 dark:bg-black/50">
+       {/* New Financial Summary Cards */}
+       <div className="grid gap-6 md:grid-cols-2">
+        <Card className="text-white bg-gradient-to-r from-indigo-500 to-purple-600 shadow-lg rounded-2xl border-0">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Due Across Vendors</CardTitle>
+            <Wallet className="h-5 w-5 text-white/80" />
+          </CardHeader>
+          <CardContent>
+            {loading ? <Skeleton className="h-10 w-48 bg-white/20" /> : (
+              totalDueAllVendors > 0 ? (
+                <>
+                  <div className="text-3xl font-bold font-headline">{formatCurrency(totalDueAllVendors)}</div>
+                  <p className="text-xs text-white/80">Outstanding Payable</p>
+                </>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold font-headline">All Vendors Settled</div>
+                  <p className="text-xs text-white/80">No outstanding payables.</p>
+                </>
+              )
+            )}
+          </CardContent>
+        </Card>
+        <Card className="text-white bg-gradient-to-r from-emerald-500 to-teal-600 shadow-lg rounded-2xl border-0">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Total Inventory Purchase Value</CardTitle>
+            <Archive className="h-5 w-5 text-white/80" />
+          </CardHeader>
+          <CardContent>
+            {loading ? <Skeleton className="h-10 w-48 bg-white/20" /> : (
+              totalInventoryValue > 0 ? (
+                <>
+                  <div className="text-3xl font-bold font-headline">{formatCurrency(totalInventoryValue)}</div>
+                  <p className="text-xs text-white/80">Capital Invested in Stock</p>
+                </>
+              ) : (
+                <>
+                  <div className="text-2xl font-bold font-headline">No Inventory</div>
+                  <p className="text-xs text-white/80">Your inventory value is zero.</p>
+                </>
+              )
+            )}
+          </CardContent>
+        </Card>
+      </div>
+      
       {/* KPI Row */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <KpiCard
