@@ -57,10 +57,9 @@ export function SidebarNav({ user }: { user: User }) {
               <SidebarMenuButton
                 asChild
                 isActive={pathname.startsWith(item.href) && (item.href === '/dashboard' ? pathname === item.href : true)}
-                className="justify-start w-full"
               >
                 <Link href={item.href}>
-                  <item.icon className="h-5 w-5 mr-3" />
+                  <item.icon className="h-5 w-5" />
                   <span>{item.label}</span>
                 </Link>
               </SidebarMenuButton>
