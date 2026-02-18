@@ -159,7 +159,7 @@ export default function DashboardPage() {
   const platformMeta: { [key: string]: { color: string, icon: LucideIcon } } = {
     Meesho: { color: "text-pink-600 bg-pink-500/10", icon: Store },
     Flipkart: { color: "text-yellow-600 bg-yellow-500/10", icon: Store },
-    Amazon: { color: "text-orange-600 bg-orange-500/10", icon: Store },
+    Amazon: { color: "text-amber-700 bg-amber-500/10", icon: Store },
   };
 
   const getStatusBadge = (status: string) => {
@@ -234,7 +234,7 @@ export default function DashboardPage() {
               <Card key={p.platform} className="rounded-2xl shadow-md border-0 bg-white/70 dark:bg-black/20 backdrop-blur-sm">
                 <CardHeader className="flex flex-row items-center justify-between pb-2">
                   <CardTitle className="text-base font-medium">{p.platform}</CardTitle>
-                  <meta.icon className={cn("h-6 w-6", meta.color.replace('bg-', 'text-'))} />
+                  <meta.icon className={cn("h-6 w-6", meta.color.split(' ')[0])} />
                 </CardHeader>
                 <CardContent>
                   <div className="text-2xl font-bold">{formatCurrency(p.revenue)}</div>
@@ -378,5 +378,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    
