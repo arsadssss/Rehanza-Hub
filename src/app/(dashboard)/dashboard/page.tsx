@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { supabase } from '@/lib/supabase';
 import { formatCurrency } from '@/lib/format';
 import {
@@ -21,14 +21,13 @@ import {
 } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import {
-  ComposedChart,
-  Bar,
+  Area,
+  LineChart,
   Line,
   XAxis,
   YAxis,
   Tooltip,
   ResponsiveContainer,
-  Legend,
   CartesianGrid,
   PieChart,
   Pie,
@@ -41,12 +40,15 @@ import {
   CircleDollarSign,
   TrendingUp,
   Undo2,
-  Store,
   AlertTriangle,
   CheckCircle2,
+  Download,
+  ChevronDown
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
+import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
+
 
 // Types from Supabase views (assuming structure)
 type DashboardSummary = {
@@ -62,10 +64,10 @@ type PlatformPerformance = {
   total_revenue: number;
 };
 
-type RevenueTrend = {
-  order_date: string;
-  total_revenue: number;
-  total_units: number;
+type WeeklyOrdersVsReturns = {
+  day_label: string;
+  total_orders: number;
+  total_returns: number;
 };
 
 type BestSellingSku = {
@@ -88,11 +90,325 @@ type RecentOrder = {
   } | null;
 };
 
+// --- SUB-COMPONENTS ---
+
+const KpiCard = ({ title, value, icon: Icon, gradient, children, loading }: { title: string; value: string; icon: React.ElementType; gradient: string; children?: React.ReactNode; loading: boolean }) => (
+  <Card className={cn('text-white shadow-lg rounded-2xl border-0 overflow-hidden bg-gradient-to-br', gradient)}>
+    {loading ? (
+      <div className="p-6 h-full flex flex-col justify-between">
+        <Skeleton className="h-6 w-3/4 bg-white/20" />
+        <Skeleton className="h-10 w-1/2 mt-2 bg-white/20" />
+        <Skeleton className="h-4 w-full mt-4 bg-white/20" />
+      </div>
+    ) : (
+      <div className="p-6 h-full flex flex-col">
+          <div className="flex justify-between items-start">
+            <h3 className="text-sm font-medium uppercase tracking-wider">{title}</h3>
+            <div className="p-2 bg-white/20 rounded-lg">
+              <Icon className="h-5 w-5" />
+            </div>
+          </div>
+          <div className="mt-2 flex-grow flex items-center">
+            <p className="text-4xl font-bold font-headline">{value}</p>
+          </div>
+          {children && <div className="mt-4">{children}</div>}
+      </div>
+    )}
+  </Card>
+);
+
+const ReturnRateCard = ({ rate, loading }: { rate: number; loading: boolean }) => {
+  const ActiveSector = (props: any) => {
+    const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props;
+    return (
+      <g>
+        <Sector
+          cx={cx}
+          cy={cy}
+          innerRadius={innerRadius}
+          outerRadius={outerRadius + 2}
+          startAngle={startAngle}
+          endAngle={endAngle}
+          fill={fill}
+        />
+      </g>
+    );
+  };
+
+  return (
+    <Card className="text-white shadow-lg rounded-2xl border-0 overflow-hidden bg-gradient-to-br from-amber-500 to-orange-600">
+      {loading ? (
+         <div className="p-6 h-full flex flex-col justify-between">
+            <Skeleton className="h-6 w-3/4 bg-white/20" />
+            <Skeleton className="h-10 w-1/2 mt-2 bg-white/20" />
+          </div>
+      ) : (
+        <div className="p-6 h-full flex items-center justify-between">
+          <div className="flex-1">
+            <h3 className="text-sm font-medium uppercase tracking-wider">Return Rate</h3>
+            <p className="text-4xl font-bold font-headline mt-2">
+              {(rate || 0).toFixed(1)}%
+            </p>
+          </div>
+          <div className="relative w-24 h-24">
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={[{ value: rate || 0 }, { value: 100 - (rate || 0) }]}
+                  cx="50%"
+                  cy="50%"
+                  dataKey="value"
+                  innerRadius={30}
+                  outerRadius={40}
+                  startAngle={90}
+                  endAngle={-270}
+                  paddingAngle={0}
+                  stroke="none"
+                  activeIndex={0}
+                  activeShape={ActiveSector}
+                >
+                  <Cell fill="rgba(255, 255, 255, 0.8)" />
+                  <Cell fill="rgba(255, 255, 255, 0.2)" />
+                </Pie>
+              </PieChart>
+            </ResponsiveContainer>
+            <div className="absolute inset-0 flex items-center justify-center">
+               <Undo2 className="h-6 w-6 text-white/90" />
+            </div>
+          </div>
+        </div>
+      )}
+    </Card>
+  );
+};
+
+const PlatformPerformanceCard = ({ platform, revenue, units, loading, totalUnits }: { platform: 'Meesho' | 'Flipkart' | 'Amazon', revenue: number, units: number, loading: boolean, totalUnits: number }) => {
+    
+  const chartColors = {
+      Meesho: { color1: '#ec4899', color2: '#f9a8d4' }, // pink-500, pink-300
+      Flipkart: { color1: '#f59e0b', color2: '#fcd34d' }, // amber-500, amber-300
+      Amazon: { color1: '#a16207', color2: '#ca8a04' }, // yellow-700, yellow-600
+  };
+
+  const aestheticData = [{ value: 60 }, { value: 40 }];
+  const share = totalUnits > 0 ? (units / totalUnits) * 100 : 0;
+
+  if (loading) {
+      return <Skeleton className="h-[140px] w-full rounded-3xl bg-white/20 dark:bg-black/20" />
+  }
+
+  return (
+      <div className="relative overflow-hidden rounded-3xl border border-white/20 bg-white/10 p-6 shadow-xl backdrop-blur-xl dark:border-white/10 dark:bg-black/20">
+          <div className="absolute -bottom-16 left-1/2 h-32 w-[200%] -translate-x-1/2 rounded-full bg-primary/10 blur-3xl"></div>
+
+          <div className="flex items-center justify-between gap-4">
+              <div className="space-y-1">
+                  <p className="font-semibold text-foreground">Platform: {platform}</p>
+                  <p className="text-3xl font-bold font-headline text-foreground">{formatCurrency(revenue)}</p>
+                  <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <TrendingUp className="h-4 w-4 text-emerald-500" />
+                      <span>{share.toFixed(1)}% of total units</span>
+                  </div>
+              </div>
+
+              <div className="relative h-24 w-24 shrink-0">
+                  <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                           <Pie
+                              data={aestheticData}
+                              dataKey="value"
+                              cx="50%"
+                              cy="50%"
+                              innerRadius={30}
+                              outerRadius={40}
+                              startAngle={90}
+                              endAngle={450}
+                              strokeWidth={2}
+                              stroke="hsl(var(--background))"
+                          >
+                              <Cell fill={chartColors[platform].color1} />
+                              <Cell fill={chartColors[platform].color2} />
+                          </Pie>
+                      </PieChart>
+                  </ResponsiveContainer>
+                  <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                      <p className="text-xl font-bold text-foreground">{units.toLocaleString()}</p>
+                      <p className="text-[10px] font-medium tracking-tight text-muted-foreground">Total Orders</p>
+                  </div>
+              </div>
+          </div>
+      </div>
+  )
+}
+
+const OrdersVsReturnsCard = ({ data, loading }: { data: any[], loading: boolean }) => {
+  const CustomTooltip = ({ active, payload, label }: any) => {
+      if (active && payload && payload.length) {
+          const orders = payload.find((p: any) => p.dataKey === 'total_orders')?.value || 0;
+          const returns = payload.find((p: any) => p.dataKey === 'total_returns')?.value || 0;
+          const rate = orders > 0 ? ((returns / orders) * 100).toFixed(1) : 0;
+
+          return (
+              <div className="rounded-md border border-border/50 bg-background/80 backdrop-blur-sm p-3 shadow-md">
+                  <p className="font-bold text-base mb-2">{label}</p>
+                  <div className="space-y-1 text-sm">
+                      <div className="flex items-center justify-between gap-4">
+                          <div className="flex items-center gap-2">
+                              <span className="w-2.5 h-2.5 rounded-full bg-indigo-500"></span>
+                              <p className="text-muted-foreground">Orders:</p>
+                          </div>
+                          <p className="font-medium">{orders}</p>
+                      </div>
+                      <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-2">
+                              <span className="w-2.5 h-2.5 rounded-full bg-orange-500"></span>
+                              <p className="text-muted-foreground">Returns:</p>
+                          </div>
+                          <p className="font-medium">{returns}</p>
+                      </div>
+                      <div className="flex items-center justify-between border-t border-border/50 mt-2 pt-2">
+                           <div className="flex items-center gap-2">
+                              <span className="w-2.5 h-2.5 rounded-full bg-gray-400"></span>
+                              <p className="text-muted-foreground">Return Rate:</p>
+                          </div>
+                          <p className="font-medium">{rate}%</p>
+                      </div>
+                  </div>
+              </div>
+          );
+      }
+      return null;
+  };
+  
+  return (
+      <Card className="rounded-2xl shadow-lg lg:col-span-2 bg-white/70 dark:bg-black/20 backdrop-blur-sm border-0">
+          <CardHeader>
+              <div className="flex justify-between items-center">
+                  <div>
+                      <CardTitle>Orders vs Returns</CardTitle>
+                      <CardDescription>Last 7 Days Performance</CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2">
+                      <Button size="sm" variant="outline" className="h-8 gap-1 bg-background/50">
+                          <span>Weekly</span> <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                      <Button size="icon" variant="ghost" className="h-8 w-8 bg-background/50">
+                          <Download className="h-4 w-4" />
+                      </Button>
+                  </div>
+              </div>
+          </CardHeader>
+          <CardContent className="h-[320px] pr-4">
+              {loading ? <Skeleton className="h-full w-full" /> : (
+                  data && data.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                          <LineChart data={data} margin={{ top: 5, right: 10, left: -20, bottom: 5 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} opacity={0.3} />
+                              <XAxis dataKey="day_label" fontSize={12} tickLine={false} axisLine={false} dy={10} />
+                              <YAxis allowDecimals={false} fontSize={12} tickLine={false} axisLine={false} dx={-10} />
+                              <Tooltip content={<CustomTooltip />} cursor={{ stroke: 'hsl(var(--border))', strokeWidth: 1, strokeDasharray: '3 3' }}/>
+                              <defs>
+                                  <linearGradient id="colorOrders" x1="0" y1="0" x2="0" y2="1">
+                                      <stop offset="5%" stopColor="#4F46E5" stopOpacity={0.15}/>
+                                      <stop offset="95%" stopColor="#4F46E5" stopOpacity={0}/>
+                                  </linearGradient>
+                              </defs>
+                              <Area type="monotone" dataKey="total_orders" stroke="none" fill="url(#colorOrders)" />
+                              <Line
+                                  type="monotone"
+                                  dataKey="total_orders"
+                                  stroke="#4F46E5"
+                                  strokeWidth={3}
+                                  dot={{ r: 4, fill: '#4F46E5', strokeWidth: 2, stroke: 'hsl(var(--background))' }}
+                                  activeDot={{ r: 6, strokeWidth: 2, fill: '#4F46E5', stroke: 'hsl(var(--background))' }}
+                              />
+                              <Line
+                                  type="monotone"
+                                  dataKey="total_returns"
+                                  stroke="#F97316"
+                                  strokeWidth={3}
+                                  dot={{ r: 4, fill: '#F97316', strokeWidth: 2, stroke: 'hsl(var(--background))' }}
+                                  activeDot={{ r: 6, strokeWidth: 2, fill: '#F97316', stroke: 'hsl(var(--background))' }}
+                              />
+                          </LineChart>
+                      </ResponsiveContainer>
+                  ) : (
+                      <div className="h-full w-full flex items-center justify-center">
+                          <p className="text-muted-foreground">Not enough data yet</p>
+                      </div>
+                  )
+              )}
+          </CardContent>
+      </Card>
+  );
+};
+
+const ChannelPerformanceCard = ({ data, loading }: { data: PlatformPerformance[], loading: boolean }) => {
+    const chartConfig = {
+        total_units: { label: "Units" },
+        Meesho: { label: "Meesho", color: "hsl(var(--chart-1))" },
+        Flipkart: { label: "Flipkart", color: "hsl(var(--chart-2))" },
+        Amazon: { label: "Amazon", color: "hsl(var(--chart-3))" },
+    } as const;
+
+    const chartData = useMemo(() => data.map(item => ({
+        name: item.platform,
+        value: item.total_units,
+    })), [data]);
+
+    const totalUnits = useMemo(() => data.reduce((acc, curr) => acc + curr.total_units, 0), [data]);
+
+    return (
+        <Card className="rounded-2xl shadow-lg bg-white/70 dark:bg-black/20 backdrop-blur-sm border-0 lg:col-span-1">
+            <CardHeader>
+                <CardTitle>Channel Performance</CardTitle>
+                <CardDescription>Total units sold by platform</CardDescription>
+            </CardHeader>
+            <CardContent className="h-[320px] flex items-center justify-center">
+                {loading ? <Skeleton className="h-full w-full rounded-full" /> : (
+                     <ChartContainer config={chartConfig} className="h-full w-full aspect-square">
+                        <ResponsiveContainer>
+                            <PieChart>
+                                <Tooltip
+                                    cursor={false}
+                                    content={<ChartTooltipContent indicator="dot" nameKey="name" />}
+                                />
+                                <Pie
+                                    data={chartData}
+                                    dataKey="value"
+                                    nameKey="name"
+                                    innerRadius={70}
+                                    outerRadius={110}
+                                    strokeWidth={2}
+                                    paddingAngle={5}
+                                >
+                                     {chartData.map((entry) => (
+                                        <Cell key={`cell-${entry.name}`} fill={`var(--color-${entry.name})`} className="focus:outline-none" />
+                                    ))}
+                                </Pie>
+                                <g>
+                                  <text x="50%" y="47%" textAnchor="middle" dominantBaseline="central" className="text-4xl font-bold font-headline fill-foreground">
+                                    {totalUnits.toLocaleString()}
+                                  </text>
+                                  <text x="50%" y="60%" textAnchor="middle" dominantBaseline="central" className="text-xs fill-muted-foreground">
+                                    Total Units
+                                  </text>
+                                </g>
+                            </PieChart>
+                        </ResponsiveContainer>
+                    </ChartContainer>
+                )}
+            </CardContent>
+        </Card>
+    );
+};
+
+
 // Main Page Component
 export default function DashboardPage() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [platformPerformance, setPlatformPerformance] = useState<PlatformPerformance[]>([]);
-  const [revenueTrend, setRevenueTrend] = useState<RevenueTrend[]>([]);
+  const [ordersReturnsData, setOrdersReturnsData] = useState<WeeklyOrdersVsReturns[]>([]);
   const [bestSeller, setBestSeller] = useState<BestSellingSku | null>(null);
   const [lowStock, setLowStock] = useState<LowStockItems | null>(null);
   const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([]);
@@ -105,14 +421,14 @@ export default function DashboardPage() {
       const [
         summaryRes,
         platformRes,
-        revenueRes,
+        ordersReturnsRes,
         bestSellerRes,
         lowStockRes,
         recentOrdersRes,
       ] = await Promise.all([
         supabase.from('dashboard_summary').select('*').single(),
         supabase.from('platform_performance').select('*'),
-        supabase.from('revenue_trend_30d').select('*'),
+        supabase.from('weekly_orders_vs_returns').select('*'),
         supabase.from('best_selling_sku').select('*').single(),
         supabase.from('low_stock_items').select('*').single(),
         supabase.from('orders').select(`
@@ -129,13 +445,7 @@ export default function DashboardPage() {
 
       setSummary(summaryRes.data);
       setPlatformPerformance(platformRes.data || []);
-      
-      const formattedRevenue = (revenueRes.data || []).map(d => ({
-        ...d,
-        order_date: new Date(d.order_date).toLocaleDateString('en-IN', { day: 'numeric', month: 'short' })
-      }));
-      setRevenueTrend(formattedRevenue);
-
+      setOrdersReturnsData(ordersReturnsRes.data || []);
       setBestSeller(bestSellerRes.data);
       setLowStock(lowStockRes.data);
       setRecentOrders(recentOrdersRes.data as RecentOrder[] || []);
@@ -145,156 +455,7 @@ export default function DashboardPage() {
 
     fetchData();
   }, []);
-
-  // --- SUB-COMPONENTS ---
-
-  const KpiCard = ({ title, value, icon: Icon, gradient, children, loading }: { title: string; value: string; icon: React.ElementType; gradient: string; children?: React.ReactNode; loading: boolean }) => (
-    <Card className={cn('text-white shadow-lg rounded-2xl border-0 overflow-hidden bg-gradient-to-br', gradient)}>
-      {loading ? (
-        <div className="p-6 h-full flex flex-col justify-between">
-          <Skeleton className="h-6 w-3/4 bg-white/20" />
-          <Skeleton className="h-10 w-1/2 mt-2 bg-white/20" />
-          <Skeleton className="h-4 w-full mt-4 bg-white/20" />
-        </div>
-      ) : (
-        <div className="p-6 h-full flex flex-col">
-            <div className="flex justify-between items-start">
-              <h3 className="text-sm font-medium uppercase tracking-wider">{title}</h3>
-              <div className="p-2 bg-white/20 rounded-lg">
-                <Icon className="h-5 w-5" />
-              </div>
-            </div>
-            <div className="mt-2 flex-grow flex items-center">
-              <p className="text-4xl font-bold font-headline">{value}</p>
-            </div>
-            {children && <div className="mt-4">{children}</div>}
-        </div>
-      )}
-    </Card>
-  );
-
-  const ReturnRateCard = ({ rate, loading }: { rate: number; loading: boolean }) => {
-    const ActiveSector = (props: any) => {
-      const { cx, cy, innerRadius, outerRadius, startAngle, endAngle, fill } = props;
-      return (
-        <g>
-          <Sector
-            cx={cx}
-            cy={cy}
-            innerRadius={innerRadius}
-            outerRadius={outerRadius + 2}
-            startAngle={startAngle}
-            endAngle={endAngle}
-            fill={fill}
-          />
-        </g>
-      );
-    };
-
-    return (
-      <Card className="text-white shadow-lg rounded-2xl border-0 overflow-hidden bg-gradient-to-br from-amber-500 to-orange-600">
-        {loading ? (
-           <div className="p-6 h-full flex flex-col justify-between">
-              <Skeleton className="h-6 w-3/4 bg-white/20" />
-              <Skeleton className="h-10 w-1/2 mt-2 bg-white/20" />
-            </div>
-        ) : (
-          <div className="p-6 h-full flex items-center justify-between">
-            <div className="flex-1">
-              <h3 className="text-sm font-medium uppercase tracking-wider">Return Rate</h3>
-              <p className="text-4xl font-bold font-headline mt-2">
-                {(rate || 0).toFixed(1)}%
-              </p>
-            </div>
-            <div className="relative w-24 h-24">
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={[{ value: rate || 0 }, { value: 100 - (rate || 0) }]}
-                    cx="50%"
-                    cy="50%"
-                    dataKey="value"
-                    innerRadius={30}
-                    outerRadius={40}
-                    startAngle={90}
-                    endAngle={-270}
-                    paddingAngle={0}
-                    stroke="none"
-                    activeIndex={0}
-                    activeShape={ActiveSector}
-                  >
-                    <Cell fill="rgba(255, 255, 255, 0.8)" />
-                    <Cell fill="rgba(255, 255, 255, 0.2)" />
-                  </Pie>
-                </PieChart>
-              </ResponsiveContainer>
-              <div className="absolute inset-0 flex items-center justify-center">
-                 <Undo2 className="h-6 w-6 text-white/90" />
-              </div>
-            </div>
-          </div>
-        )}
-      </Card>
-    );
-  };
   
-  const PlatformPerformanceCard = ({ platform, revenue, units, loading, totalUnits }: { platform: 'Meesho' | 'Flipkart' | 'Amazon', revenue: number, units: number, loading: boolean, totalUnits: number }) => {
-    
-    const chartColors = {
-        color1: '#22d3ee', // cyan-400
-        color2: '#8b5cf6', // violet-500
-    }
-
-    const aestheticData = [{ value: 60 }, { value: 40 }];
-    const share = totalUnits > 0 ? (units / totalUnits) * 100 : 0;
-
-    if (loading) {
-        return <Skeleton className="h-[140px] w-full rounded-3xl bg-white/20 dark:bg-black/20" />
-    }
-
-    return (
-        <div className="relative overflow-hidden rounded-3xl border border-white/20 bg-white/10 p-6 shadow-xl backdrop-blur-xl dark:border-white/10 dark:bg-black/20">
-            <div className="absolute -bottom-16 left-1/2 h-32 w-[200%] -translate-x-1/2 rounded-full bg-primary/10 blur-3xl"></div>
-
-            <div className="flex items-center justify-between gap-4">
-                <div className="space-y-1">
-                    <p className="font-semibold text-foreground">Platform: {platform}</p>
-                    <p className="text-3xl font-bold font-headline text-foreground">{formatCurrency(revenue)}</p>
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <TrendingUp className="h-4 w-4 text-emerald-500" />
-                        <span>{share.toFixed(1)}% of total units</span>
-                    </div>
-                </div>
-
-                <div className="relative h-24 w-24 shrink-0">
-                    <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                             <Pie
-                                data={aestheticData}
-                                dataKey="value"
-                                cx="50%"
-                                cy="50%"
-                                innerRadius={30}
-                                outerRadius={40}
-                                startAngle={90}
-                                endAngle={450}
-                                strokeWidth={2}
-                                stroke="hsl(var(--background))"
-                            >
-                                <Cell fill={chartColors.color1} />
-                                <Cell fill={chartColors.color2} />
-                            </Pie>
-                        </PieChart>
-                    </ResponsiveContainer>
-                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                        <p className="text-xl font-bold text-foreground">{units.toLocaleString()}</p>
-                        <p className="text-[10px] font-medium tracking-tight text-muted-foreground">Total Orders</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    )
-}
 
   return (
     <div className="p-6 md:p-8 space-y-6 bg-gray-50/50 dark:bg-black/50">
@@ -343,82 +504,8 @@ export default function DashboardPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Revenue Trend Chart */}
-        <Card className="rounded-2xl shadow-md lg:col-span-2 bg-white/70 dark:bg-black/20 backdrop-blur-sm border-0">
-          <CardHeader>
-            <div className="flex justify-between items-center">
-              <div>
-                <CardTitle>Revenue Trend</CardTitle>
-                <CardDescription>Last 30 days performance</CardDescription>
-              </div>
-              {/* UI only toggle for now */}
-              <div className="flex items-center gap-1 rounded-lg bg-gray-200/50 dark:bg-gray-800/50 p-1 text-sm">
-                  <Button size="sm" variant="ghost" className="h-7 px-3 bg-background shadow-sm">30d</Button>
-                  <Button size="sm" variant="ghost" className="h-7 px-3 text-muted-foreground">7d</Button>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="h-[350px] pr-2">
-            {loading ? <Skeleton className="h-full w-full" /> : (
-              <ResponsiveContainer width="100%" height="100%">
-                <ComposedChart data={revenueTrend}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                  <XAxis dataKey="order_date" fontSize={12} tickLine={false} axisLine={false} />
-                  <YAxis yAxisId="left" orientation="left" stroke="hsl(var(--muted-foreground))" fontSize={12} tickFormatter={(value) => formatCurrency(value)} />
-                  <YAxis yAxisId="right" orientation="right" stroke="hsl(var(--muted-foreground))" fontSize={12} />
-                  <Tooltip 
-                    contentStyle={{
-                      backgroundColor: 'hsl(var(--background))',
-                      borderColor: 'hsl(var(--border))',
-                      borderRadius: 'var(--radius)',
-                    }}
-                    formatter={(value: number, name: string) => {
-                      if (name === 'Revenue') return [formatCurrency(value), 'Revenue'];
-                      if (name === 'Units') return [value.toLocaleString(), 'Units'];
-                      return [value, name];
-                    }}
-                  />
-                  <Legend iconType="circle" iconSize={8} />
-                  <Bar yAxisId="left" dataKey="total_revenue" name="Revenue" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} barSize={20} />
-                  <Line yAxisId="right" type="monotone" dataKey="total_units" name="Units" stroke="hsl(var(--foreground))" strokeWidth={2} dot={false} />
-                </ComposedChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Business Insights */}
-        <div className="space-y-6">
-            <Card className="rounded-2xl shadow-md bg-white/70 dark:bg-black/20 backdrop-blur-sm border-0">
-                <CardHeader>
-                    <CardTitle>Best Selling SKU</CardTitle>
-                </CardHeader>
-                <CardContent>
-                     {loading ? <Skeleton className="h-12 w-full" /> : (
-                        <div className="flex items-center justify-between">
-                            <p className="text-2xl font-mono font-bold">{bestSeller?.variant_sku || 'N/A'}</p>
-                            <p className="text-lg"><span className="font-bold">{bestSeller?.total_sold || 0}</span> units</p>
-                        </div>
-                     )}
-                </CardContent>
-            </Card>
-            <Card className="rounded-2xl shadow-md bg-white/70 dark:bg-black/20 backdrop-blur-sm border-0">
-                <CardHeader>
-                    <CardTitle>Low Stock Alert</CardTitle>
-                </CardHeader>
-                <CardContent>
-                     {loading ? <Skeleton className="h-12 w-full" /> : (
-                        <div className="flex items-center justify-between">
-                            <p className="text-lg"><span className="font-bold text-2xl">{lowStock?.low_stock_count || 0}</span> SKUs running low</p>
-                            {(lowStock?.low_stock_count || 0) > 0 ? 
-                                <Badge variant="destructive" className="bg-red-500 text-white"><AlertTriangle className="mr-1 h-3 w-3" /> Action Required</Badge> : 
-                                <Badge className="bg-green-100 text-green-800 border-green-200 dark:bg-green-900/50 dark:text-green-300 dark:border-green-800"><CheckCircle2 className="mr-1 h-3 w-3"/> Healthy</Badge>
-                            }
-                        </div>
-                     )}
-                </CardContent>
-            </Card>
-        </div>
+        <OrdersVsReturnsCard data={ordersReturnsData} loading={loading} />
+        <ChannelPerformanceCard data={platformPerformance} loading={loading} />
       </div>
       
       {/* Recent Orders */}
@@ -471,3 +558,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    
