@@ -30,6 +30,15 @@ export type VendorBalance = {
   balance_due: number;
 };
 
+export type LedgerItem = {
+  id: string;
+  date: string;
+  description: string;
+  debit: number;
+  credit: number;
+  balance: number;
+};
+
 export default function VendorsPage() {
   const supabase = createClient();
   const { toast } = useToast();
@@ -39,7 +48,11 @@ export default function VendorsPage() {
   const [isAddVendorOpen, setIsAddVendorOpen] = useState(false);
   const [isAddPurchaseOpen, setIsAddPurchaseOpen] = useState(false);
   const [isAddPaymentOpen, setIsAddPaymentOpen] = useState(false);
+  
   const [selectedVendor, setSelectedVendor] = useState<VendorBalance | null>(null);
+  const [ledgerData, setLedgerData] = useState<LedgerItem[]>([]);
+  const [loadingLedger, setLoadingLedger] = useState(false);
+
 
   const fetchSummary = useCallback(async () => {
     setLoading(true);
@@ -57,6 +70,75 @@ export default function VendorsPage() {
     setLoading(false);
   }, [supabase, toast]);
 
+  const fetchLedger = useCallback(async (vendor: VendorBalance) => {
+    if (!vendor?.id) return;
+    setLoadingLedger(true);
+
+    const { data: purchases, error: purchaseError } =
+      await supabase
+        .from("vendor_purchases")
+        .select("*")
+        .eq("vendor_id", vendor.id);
+
+    const { data: payments, error: paymentError } =
+      await supabase
+        .from("vendor_payments")
+        .select("*")
+        .eq("vendor_id", vendor.id);
+
+    if (purchaseError || paymentError) {
+      console.error(purchaseError || paymentError);
+      toast({
+        variant: "destructive",
+        title: "Error fetching ledger",
+        description: purchaseError?.message || paymentError?.message || 'An unknown error occurred'
+      });
+      setLoadingLedger(false);
+      return;
+    }
+
+    const purchaseEntries =
+      purchases?.map((p) => ({
+        id: `purchase-${p.id}`,
+        date: p.purchase_date,
+        description: p.product_name,
+        debit: Number(p.total_amount),
+        credit: 0,
+      })) || [];
+
+    const paymentEntries =
+      payments?.map((p) => ({
+        id: `payment-${p.id}`,
+        date: p.payment_date,
+        description: p.notes || "Payment",
+        debit: 0,
+        credit: Number(p.amount),
+      })) || [];
+
+    const combined = [...purchaseEntries, ...paymentEntries];
+
+    combined.sort(
+      (a, b) =>
+        new Date(a.date).getTime() -
+        new Date(b.date).getTime()
+    );
+
+    let runningBalance = 0;
+    const ledgerWithBalance = combined.map((entry) => {
+      runningBalance += entry.debit;
+      runningBalance -= entry.credit;
+
+      return {
+        ...entry,
+        balance: runningBalance,
+      };
+    });
+
+    setLedgerData(ledgerWithBalance);
+    setLoadingLedger(false);
+  }, [supabase, toast]);
+
+
   useEffect(() => {
     fetchSummary();
   }, [fetchSummary]);
@@ -64,12 +146,24 @@ export default function VendorsPage() {
   const handleDataAdded = () => {
     fetchSummary();
     if(selectedVendor) {
-        setSelectedVendor(null);
+      // Re-fetch ledger for the currently selected vendor if any
+      fetchLedger(selectedVendor);
     }
   };
 
+
+  const handleVendorClick = (vendor: VendorBalance) => {
+    setSelectedVendor(vendor);
+    fetchLedger(vendor);
+  };
+  
+  const handleCloseLedger = () => {
+    setSelectedVendor(null);
+    setLedgerData([]);
+  }
+
   const VendorCard = ({ item }: { item: VendorBalance }) => (
-    <Card className="shadow-md hover:shadow-xl transition-shadow cursor-pointer" onClick={() => setSelectedVendor(item)}>
+    <Card className="shadow-md hover:shadow-xl transition-shadow cursor-pointer" onClick={() => handleVendorClick(item)}>
       <CardHeader>
         <CardTitle className="flex justify-between items-center">
           <span>{item.vendor_name}</span>
@@ -139,7 +233,14 @@ export default function VendorsPage() {
         </Card>
       )}
 
-      {selectedVendor && <VendorLedger vendor={selectedVendor} onClose={() => setSelectedVendor(null)} />}
+      {selectedVendor && (
+          <VendorLedger 
+            vendor={selectedVendor} 
+            ledgerItems={ledgerData}
+            loading={loadingLedger}
+            onClose={handleCloseLedger} 
+          />
+      )}
       
     </div>
   );

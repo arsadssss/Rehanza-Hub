@@ -1,10 +1,8 @@
 "use client"
 
-import React, { useEffect, useState, useMemo } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import React from 'react';
 import { format } from 'date-fns';
 import { formatCurrency } from '@/lib/format';
-import { useToast } from '@/hooks/use-toast';
 import {
   Card,
   CardContent,
@@ -24,97 +22,18 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { X } from 'lucide-react';
-import type { VendorBalance } from '../page';
-
-type VendorPurchase = {
-  id: string;
-  purchase_date: string;
-  product_name: string;
-  description: string | null;
-  total_amount: number;
-};
-
-type VendorPayment = {
-  id: string;
-  payment_date: string;
-  notes: string | null;
-  amount: number;
-};
-
-type LedgerItem = {
-  date: Date;
-  description: string;
-  debit: number;
-  credit: number;
-};
+import type { VendorBalance, LedgerItem } from '../page';
 
 interface VendorLedgerProps {
   vendor: VendorBalance;
+  ledgerItems: LedgerItem[];
+  loading: boolean;
   onClose: () => void;
 }
 
-export function VendorLedger({ vendor, onClose }: VendorLedgerProps) {
-  const supabase = createClient();
-  const { toast } = useToast();
-  const [loading, setLoading] = useState(true);
-  const [ledgerItems, setLedgerItems] = useState<LedgerItem[]>([]);
+export function VendorLedger({ vendor, ledgerItems, loading, onClose }: VendorLedgerProps) {
 
-  useEffect(() => {
-    async function fetchLedgerData() {
-      if (!vendor || !vendor.id) {
-        setLoading(false);
-        return;
-      }
-      setLoading(true);
-
-      const [purchasesRes, paymentsRes] = await Promise.all([
-        supabase.from('vendor_purchases').select('id, purchase_date, product_name, description, total_amount').eq('vendor_id', vendor.id),
-        supabase.from('vendor_payments').select('id, payment_date, notes, amount').eq('vendor_id', vendor.id),
-      ]);
-
-      if (purchasesRes.error || paymentsRes.error) {
-        toast({
-          variant: 'destructive',
-          title: 'Error',
-          description: purchasesRes.error?.message || paymentsRes.error?.message || 'Failed to fetch ledger data.',
-        });
-        setLedgerItems([]);
-        setLoading(false);
-        return;
-      }
-      
-      const purchases: LedgerItem[] = ((purchasesRes.data as VendorPurchase[]) || []).map(p => ({
-        date: new Date(p.purchase_date),
-        description: `Purchase: ${p.product_name || p.description || 'N/A'}`,
-        debit: p.total_amount,
-        credit: 0,
-      }));
-
-      const payments: LedgerItem[] = ((paymentsRes.data as VendorPayment[]) || []).map(p => ({
-        date: new Date(p.payment_date),
-        description: `Payment: ${p.notes || 'Payment received'}`,
-        debit: 0,
-        credit: p.amount,
-      }));
-
-      const combined = [...purchases, ...payments].sort((a, b) => a.date.getTime() - b.date.getTime());
-      
-      setLedgerItems(combined);
-      setLoading(false);
-    }
-
-    fetchLedgerData();
-  }, [vendor, supabase, toast]);
-
-  const ledgerWithBalance = useMemo(() => {
-    let runningBalance = 0;
-    return ledgerItems.map(item => {
-      runningBalance = runningBalance + item.debit - item.credit;
-      return { ...item, balance: runningBalance };
-    });
-  }, [ledgerItems]);
-  
-  const finalBalance = ledgerWithBalance[ledgerWithBalance.length - 1]?.balance ?? 0;
+  const finalBalance = ledgerItems[ledgerItems.length - 1]?.balance ?? 0;
 
   return (
     <Card className="shadow-lg bg-white/70 dark:bg-black/20 backdrop-blur-sm border-0 mt-6">
@@ -142,10 +61,10 @@ export function VendorLedger({ vendor, onClose }: VendorLedgerProps) {
                 Array.from({ length: 5 }).map((_, i) => (
                   <TableRow key={i}><TableCell colSpan={5}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
                 ))
-              ) : ledgerWithBalance.length > 0 ? (
-                ledgerWithBalance.map((item, index) => (
-                  <TableRow key={index}>
-                    <TableCell>{format(item.date, 'dd MMM yyyy')}</TableCell>
+              ) : ledgerItems.length > 0 ? (
+                ledgerItems.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell>{format(new Date(item.date), 'dd MMM yyyy')}</TableCell>
                     <TableCell>{item.description}</TableCell>
                     <TableCell className="text-right text-red-600 dark:text-red-500 font-medium">
                       {item.debit > 0 ? formatCurrency(item.debit) : '-'}
