@@ -93,8 +93,7 @@ export function AddPurchaseModal({ isOpen, onClose, onPurchaseAdded }: AddPurcha
   async function onSubmit(values: PurchaseFormValues) {
     setIsSubmitting(true)
     try {
-      const total_amount = values.quantity * values.cost_per_unit;
-      const insertValues = { ...values, total_amount };
+      const insertValues = { ...values };
 
       const { error } = await supabase.from("vendor_purchases").insert([insertValues])
       if (error) throw error
