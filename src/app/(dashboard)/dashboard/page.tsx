@@ -568,17 +568,12 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             {loading ? <Skeleton className="h-10 w-48 bg-white/20" /> : (
-              totalDueAllVendors > 0 ? (
-                <>
-                  <div className="text-3xl font-bold font-headline">{formatCurrency(totalDueAllVendors)}</div>
-                  <p className="text-xs text-white/80">Outstanding Payable</p>
-                </>
-              ) : (
-                <>
-                  <div className="text-2xl font-bold font-headline">All Vendors Settled</div>
-                  <p className="text-xs text-white/80">No outstanding payables.</p>
-                </>
-              )
+              <>
+                <div className="text-3xl font-bold font-headline">{formatCurrency(totalDueAllVendors)}</div>
+                <p className="text-xs text-white/80">
+                  {totalDueAllVendors > 0 ? "Outstanding Payable" : "All Vendors Settled"}
+                </p>
+              </>
             )}
           </CardContent>
         </Card>
@@ -589,17 +584,12 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent>
             {loading ? <Skeleton className="h-10 w-48 bg-white/20" /> : (
-              totalInventoryValue > 0 ? (
-                <>
-                  <div className="text-3xl font-bold font-headline">{formatCurrency(totalInventoryValue)}</div>
-                  <p className="text-xs text-white/80">Capital Invested in Stock</p>
-                </>
-              ) : (
-                <>
-                  <div className="text-2xl font-bold font-headline">No Inventory</div>
-                  <p className="text-xs text-white/80">Your inventory value is zero.</p>
-                </>
-              )
+              <>
+                <div className="text-3xl font-bold font-headline">{formatCurrency(totalInventoryValue)}</div>
+                <p className="text-xs text-white/80">
+                  {totalInventoryValue > 0 ? "Capital Invested in Stock" : "No Inventory in Stock"}
+                </p>
+              </>
             )}
           </CardContent>
         </Card>
