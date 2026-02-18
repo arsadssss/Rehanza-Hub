@@ -445,7 +445,7 @@ const TopSellingProductsCard = ({ products, loading }: { products: TopSellingPro
         ) : products.length > 0 ? (
           <ul className="-mx-2">
             {products.map((product, index) => (
-              <li key={product.variant_sku} className="py-3 px-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+              <li key={`${product.variant_sku}-${index}`} className="py-3 px-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
                 <div className="flex justify-between items-center gap-4">
                   <div className="flex items-center gap-4 flex-1 min-w-0">
                     <div className="flex h-8 w-8 items-center justify-center text-muted-foreground font-semibold flex-shrink-0">
