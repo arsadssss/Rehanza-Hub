@@ -242,7 +242,7 @@ export default function DashboardPage() {
     const config = {
       Meesho: { icon: Store, gradient: 'from-pink-500 to-rose-500' },
       Flipkart: { icon: Store, gradient: 'from-yellow-400 to-amber-500' },
-      Amazon: { icon: Store, gradient: 'from-stone-500 to-neutral-600' }
+      Amazon: { icon: Store, gradient: 'from-stone-400 to-stone-500' }
     };
     const { icon: Icon, gradient } = config[platform as keyof typeof config];
     const share = totalUnits > 0 ? (units / totalUnits) * 100 : 0;
@@ -447,5 +447,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    
