@@ -62,7 +62,10 @@ export function VendorLedger({ vendor, onClose }: VendorLedgerProps) {
 
   useEffect(() => {
     async function fetchLedgerData() {
-      if (!vendor) return;
+      if (!vendor || !vendor.vendor_id) {
+        setLoading(false);
+        return;
+      }
       setLoading(true);
 
       const [purchasesRes, paymentsRes] = await Promise.all([
