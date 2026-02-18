@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useEffect, useState, useMemo } from 'react';
@@ -62,15 +61,15 @@ export function VendorLedger({ vendor, onClose }: VendorLedgerProps) {
 
   useEffect(() => {
     async function fetchLedgerData() {
-      if (!vendor || !vendor.vendor_id) {
+      if (!vendor || !vendor.id) {
         setLoading(false);
         return;
       }
       setLoading(true);
 
       const [purchasesRes, paymentsRes] = await Promise.all([
-        supabase.from('vendor_purchases').select('id, purchase_date, product_name, description, total_amount').eq('vendor_id', vendor.vendor_id),
-        supabase.from('vendor_payments').select('id, payment_date, notes, amount').eq('vendor_id', vendor.vendor_id),
+        supabase.from('vendor_purchases').select('id, purchase_date, product_name, description, total_amount').eq('vendor_id', vendor.id),
+        supabase.from('vendor_payments').select('id, payment_date, notes, amount').eq('vendor_id', vendor.id),
       ]);
 
       if (purchasesRes.error || paymentsRes.error) {

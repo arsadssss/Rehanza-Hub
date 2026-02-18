@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -24,7 +23,7 @@ import { AddPaymentModal } from './components/add-payment-modal';
 import { VendorLedger } from './components/vendor-ledger';
 
 export type VendorBalance = {
-  vendor_id: string;
+  id: string;
   vendor_name: string;
   total_purchase: number;
   total_paid: number;
@@ -122,7 +121,7 @@ export default function VendorsPage() {
         </div>
       ) : summary.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {summary.map(item => <VendorCard key={item.vendor_id} item={item} />)}
+          {summary.map(item => <VendorCard key={item.id} item={item} />)}
         </div>
       ) : (
          <Card>
