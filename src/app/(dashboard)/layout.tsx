@@ -3,6 +3,7 @@ import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
 import { SidebarNav } from './_components/sidebar-nav';
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { MobileHeader } from './_components/mobile-header';
 
 export default async function DashboardLayout({
   children,
@@ -24,6 +25,7 @@ export default async function DashboardLayout({
       <div className="flex min-h-screen bg-gray-50/50 dark:bg-black/50">
         <SidebarNav user={user} />
         <SidebarInset>
+          <MobileHeader />
           {children}
         </SidebarInset>
       </div>
