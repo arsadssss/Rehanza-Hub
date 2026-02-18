@@ -28,7 +28,7 @@ import {
 import { Input } from "@/components/ui/input"
 
 const formSchema = z.object({
-  name: z.string().min(1, "Vendor name is required"),
+  vendor_name: z.string().min(1, "Vendor name is required"),
   contact_person: z.string().optional(),
   email: z.string().email("Invalid email address").optional().or(z.literal('')),
   phone: z.string().optional(),
@@ -50,7 +50,7 @@ export function AddVendorModal({ isOpen, onClose, onVendorAdded }: AddVendorModa
   const form = useForm<VendorFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      name: "",
+      vendor_name: "",
       contact_person: "",
       email: "",
       phone: "",
@@ -72,7 +72,7 @@ export function AddVendorModal({ isOpen, onClose, onVendorAdded }: AddVendorModa
           toast({
             variant: "destructive",
             title: "Error: Vendor exists",
-            description: `A vendor with the name "${values.name}" already exists.`,
+            description: `A vendor with the name "${values.vendor_name}" already exists.`,
           })
           setIsSubmitting(false)
           return
@@ -108,7 +108,7 @@ export function AddVendorModal({ isOpen, onClose, onVendorAdded }: AddVendorModa
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
-              name="name"
+              name="vendor_name"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Vendor Name</FormLabel>
