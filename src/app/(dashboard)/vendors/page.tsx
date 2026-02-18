@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -53,6 +54,11 @@ export default function VendorsPage() {
   const [ledgerData, setLedgerData] = useState<LedgerItem[]>([]);
   const [loadingLedger, setLoadingLedger] = useState(false);
 
+  // New state for frontend calculated totals
+  const [ledgerTotalPurchase, setLedgerTotalPurchase] = useState(0);
+  const [ledgerTotalPaid, setLedgerTotalPaid] = useState(0);
+  const [ledgerFinalBalance, setLedgerFinalBalance] = useState(0);
+
 
   const fetchSummary = useCallback(async () => {
     setLoading(true);
@@ -96,6 +102,15 @@ export default function VendorsPage() {
       setLoadingLedger(false);
       return;
     }
+
+    // Calculate totals safely
+    const totalPurchase = purchases?.reduce((sum, p) => sum + Number(p.total_amount || 0), 0) || 0;
+    const totalPaid = payments?.reduce((sum, p) => sum + Number(p.amount || 0), 0) || 0;
+    const finalBalance = totalPurchase - totalPaid;
+
+    setLedgerTotalPurchase(totalPurchase);
+    setLedgerTotalPaid(totalPaid);
+    setLedgerFinalBalance(finalBalance);
 
     const purchaseEntries =
       purchases?.map((p) => ({
@@ -147,7 +162,10 @@ export default function VendorsPage() {
     fetchSummary();
     if(selectedVendor) {
       // Re-fetch ledger for the currently selected vendor if any
-      fetchLedger(selectedVendor);
+      const currentVendor = summary.find(s => s.id === selectedVendor.id);
+      if (currentVendor) {
+          fetchLedger(currentVendor);
+      }
     }
   };
 
@@ -160,6 +178,9 @@ export default function VendorsPage() {
   const handleCloseLedger = () => {
     setSelectedVendor(null);
     setLedgerData([]);
+    setLedgerTotalPurchase(0);
+    setLedgerTotalPaid(0);
+    setLedgerFinalBalance(0);
   }
 
   const VendorCard = ({ item }: { item: VendorBalance }) => (
@@ -238,7 +259,10 @@ export default function VendorsPage() {
             vendor={selectedVendor} 
             ledgerItems={ledgerData}
             loading={loadingLedger}
-            onClose={handleCloseLedger} 
+            onClose={handleCloseLedger}
+            totalPurchase={ledgerTotalPurchase}
+            totalPaid={ledgerTotalPaid}
+            finalBalance={ledgerFinalBalance}
           />
       )}
       

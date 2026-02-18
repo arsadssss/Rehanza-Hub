@@ -1,3 +1,4 @@
+
 "use client"
 
 import React from 'react';
@@ -21,6 +22,7 @@ import {
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { X } from 'lucide-react';
 import type { VendorBalance, LedgerItem } from '../page';
 
@@ -29,11 +31,22 @@ interface VendorLedgerProps {
   ledgerItems: LedgerItem[];
   loading: boolean;
   onClose: () => void;
+  totalPurchase: number;
+  totalPaid: number;
+  finalBalance: number;
 }
 
-export function VendorLedger({ vendor, ledgerItems, loading, onClose }: VendorLedgerProps) {
+export function VendorLedger({ vendor, ledgerItems, loading, onClose, totalPurchase, totalPaid, finalBalance }: VendorLedgerProps) {
 
-  const finalBalance = ledgerItems[ledgerItems.length - 1]?.balance ?? 0;
+  const getBalanceStatus = (balance: number) => {
+    if (balance === 0) {
+      return <Badge variant="default" className="bg-green-600 hover:bg-green-700">Settled</Badge>;
+    } else if (balance > 0) {
+      return <Badge variant="destructive">Due</Badge>;
+    } else {
+      return <Badge variant="default" className="bg-blue-600 hover:bg-blue-700">Advance</Badge>;
+    }
+  };
 
   return (
     <Card className="shadow-lg bg-white/70 dark:bg-black/20 backdrop-blur-sm border-0 mt-6">
@@ -82,8 +95,24 @@ export function VendorLedger({ vendor, ledgerItems, loading, onClose }: VendorLe
           </Table>
         </div>
       </CardContent>
-      <CardFooter className="justify-end font-bold text-lg border-t pt-4 mt-4">
-        Final Balance Due: {formatCurrency(finalBalance)}
+      <CardFooter className="flex flex-col items-end gap-3 border-t pt-4 mt-4 text-sm">
+        <div className="w-full max-w-xs space-y-1">
+            <div className="flex justify-between">
+                <span className="text-muted-foreground">Total Purchase</span>
+                <span>{formatCurrency(totalPurchase)}</span>
+            </div>
+             <div className="flex justify-between">
+                <span className="text-muted-foreground">Total Paid</span>
+                <span>{formatCurrency(totalPaid)}</span>
+            </div>
+        </div>
+        <div className="flex w-full max-w-xs items-center justify-between font-bold text-base border-t pt-2 mt-1">
+            <span>Final Balance</span>
+            <div className="flex items-center gap-2">
+                <span>{formatCurrency(finalBalance)}</span>
+                {getBalanceStatus(finalBalance)}
+            </div>
+        </div>
       </CardFooter>
     </Card>
   );
