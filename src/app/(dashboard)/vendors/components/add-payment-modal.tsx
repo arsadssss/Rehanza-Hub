@@ -40,7 +40,7 @@ import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 
-type Vendor = { id: string; name: string };
+type Vendor = { id: string; vendor_name: string };
 
 const formSchema = z.object({
   vendor_id: z.string().min(1, "Vendor is required"),
@@ -66,7 +66,7 @@ export function AddPaymentModal({ isOpen, onClose, onPaymentAdded }: AddPaymentM
 
   React.useEffect(() => {
     async function fetchVendors() {
-      const { data, error } = await supabase.from("vendors").select("id, name").order("name")
+      const { data, error } = await supabase.from("vendors").select("id, vendor_name").order("vendor_name")
       if (data) setVendors(data)
     }
     if (isOpen) fetchVendors()
@@ -130,7 +130,7 @@ export function AddPaymentModal({ isOpen, onClose, onPaymentAdded }: AddPaymentM
                       <SelectTrigger><SelectValue placeholder="Select a vendor" /></SelectTrigger>
                     </FormControl>
                     <SelectContent>
-                      {vendors.map((v) => (<SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>))}
+                      {vendors.map((v) => (<SelectItem key={v.id} value={v.id}>{v.vendor_name}</SelectItem>))}
                     </SelectContent>
                   </Select>
                   <FormMessage />

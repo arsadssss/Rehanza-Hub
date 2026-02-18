@@ -40,14 +40,11 @@ import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 
-type Vendor = { id: string; name: string };
-type Product = { id: string; product_name: string };
-type Variant = { id: string; variant_sku: string };
+type Vendor = { id: string; vendor_name: string };
 
 const formSchema = z.object({
   vendor_id: z.string().min(1, "Vendor is required"),
-  product_id: z.string().min(1, "Product is required"),
-  variant_id: z.string().min(1, "Variant is required"),
+  product_name: z.string().min(1, "Product name is required"),
   quantity: z.coerce.number().min(1, "Quantity must be at least 1"),
   cost_per_unit: z.coerce.number().positive("Cost must be a positive number"),
   purchase_date: z.date({ required_error: "Purchase date is required" }),
@@ -66,11 +63,7 @@ export function AddPurchaseModal({ isOpen, onClose, onPurchaseAdded }: AddPurcha
   const supabase = createClient()
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
-  
   const [vendors, setVendors] = React.useState<Vendor[]>([])
-  const [products, setProducts] = React.useState<Product[]>([])
-  const [variants, setVariants] = React.useState<Variant[]>([])
-  const [loadingVariants, setLoadingVariants] = React.useState(false)
 
   const form = useForm<PurchaseFormValues>({
     resolver: zodResolver(formSchema),
@@ -79,47 +72,30 @@ export function AddPurchaseModal({ isOpen, onClose, onPurchaseAdded }: AddPurcha
       cost_per_unit: 0,
       purchase_date: new Date(),
       description: "",
+      product_name: "",
     },
   })
 
-  const selectedProductId = form.watch("product_id")
-
   React.useEffect(() => {
-    async function fetchInitialData() {
-      const { data: vendorData } = await supabase.from("vendors").select("id, name").order("name")
+    async function fetchVendors() {
+      const { data: vendorData } = await supabase.from("vendors").select("id, vendor_name").order("vendor_name")
       if (vendorData) setVendors(vendorData)
-
-      const { data: productData } = await supabase.from("allproducts").select("id, product_name").order("product_name")
-      if (productData) setProducts(productData)
     }
-    if (isOpen) fetchInitialData()
+    if (isOpen) fetchVendors()
   }, [isOpen, supabase])
 
-  React.useEffect(() => {
-    async function fetchVariants() {
-      if (!selectedProductId) {
-        setVariants([])
-        return
-      }
-      setLoadingVariants(true)
-      form.setValue("variant_id", "")
-      const { data, error } = await supabase.from("product_variants").select("id, variant_sku").eq("product_id", selectedProductId).order("variant_sku")
-      if (data) setVariants(data)
-      setLoadingVariants(false)
-    }
-    fetchVariants()
-  }, [selectedProductId, supabase, form])
 
   const handleClose = () => {
     form.reset()
-    setVariants([])
     onClose()
   }
 
   async function onSubmit(values: PurchaseFormValues) {
     setIsSubmitting(true)
     try {
-      const { product_id, ...insertValues } = values;
+      const total_amount = values.quantity * values.cost_per_unit;
+      const insertValues = { ...values, total_amount };
+
       const { error } = await supabase.from("vendor_purchases").insert([insertValues])
       if (error) throw error
 
@@ -142,7 +118,7 @@ export function AddPurchaseModal({ isOpen, onClose, onPurchaseAdded }: AddPurcha
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="sm:max-w-lg">
         <DialogHeader>
           <DialogTitle>Add Vendor Purchase</DialogTitle>
           <DialogDescription>Record a new inventory purchase from a vendor.</DialogDescription>
@@ -157,43 +133,24 @@ export function AddPurchaseModal({ isOpen, onClose, onPurchaseAdded }: AddPurcha
                   <FormLabel>Vendor</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl><SelectTrigger><SelectValue placeholder="Select a vendor" /></SelectTrigger></FormControl>
-                    <SelectContent>{vendors.map((v) => (<SelectItem key={v.id} value={v.id}>{v.name}</SelectItem>))}</SelectContent>
+                    <SelectContent>{vendors.map((v) => (<SelectItem key={v.id} value={v.id}>{v.vendor_name}</SelectItem>))}</SelectContent>
                   </Select>
                   <FormMessage />
                 </FormItem>
               )}
             />
+             <FormField
+                control={form.control}
+                name="product_name"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Product Name</FormLabel>
+                    <FormControl><Input placeholder="e.g. Raw Cotton Fabric" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="product_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Product</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl><SelectTrigger><SelectValue placeholder="Select a product" /></SelectTrigger></FormControl>
-                      <SelectContent>{products.map((p) => (<SelectItem key={p.id} value={p.id}>{p.product_name}</SelectItem>))}</SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="variant_id"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Variant</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value} disabled={loadingVariants || !selectedProductId}>
-                      <FormControl><SelectTrigger><SelectValue placeholder={loadingVariants ? "Loading..." : "Select a variant"} /></SelectTrigger></FormControl>
-                      <SelectContent>{variants.map((v) => (<SelectItem key={v.id} value={v.id}>{v.variant_sku}</SelectItem>))}</SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                <FormField
                 control={form.control}
                 name="quantity"
@@ -216,30 +173,30 @@ export function AddPurchaseModal({ isOpen, onClose, onPurchaseAdded }: AddPurcha
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="purchase_date"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>Purchase Date</FormLabel>
-                     <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
-                            {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
             </div>
+            <FormField
+              control={form.control}
+              name="purchase_date"
+              render={({ field }) => (
+                <FormItem className="flex flex-col">
+                  <FormLabel>Purchase Date</FormLabel>
+                    <Popover>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                          {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+                    </PopoverContent>
+                  </Popover>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
              <FormField
               control={form.control}
               name="description"

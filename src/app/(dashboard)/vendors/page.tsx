@@ -26,7 +26,7 @@ import { VendorLedger } from './components/vendor-ledger';
 export type VendorBalance = {
   vendor_id: string;
   vendor_name: string;
-  total_purchases: number;
+  total_purchase: number;
   total_paid: number;
   balance_due: number;
 };
@@ -53,7 +53,7 @@ export default function VendorsPage() {
       });
       setSummary([]);
     } else {
-      setSummary(data || []);
+      setSummary((data as VendorBalance[]) || []);
     }
     setLoading(false);
   }, [supabase, toast]);
@@ -64,7 +64,6 @@ export default function VendorsPage() {
 
   const handleDataAdded = () => {
     fetchSummary();
-    // If a vendor ledger is open, we close it to ensure the user sees the updated summary card
     if(selectedVendor) {
         setSelectedVendor(null);
     }
@@ -80,14 +79,14 @@ export default function VendorsPage() {
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
         <div className="flex justify-between">
-          <span className="text-muted-foreground">Total Purchases</span>
-          <span className="font-medium">{formatCurrency(item.total_purchases)}</span>
+          <span className="text-muted-foreground">Total Purchase</span>
+          <span className="font-medium">{formatCurrency(item.total_purchase)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-muted-foreground">Total Paid</span>
           <span className="font-medium">{formatCurrency(item.total_paid)}</span>
         </div>
-        <div className="flex justify-between font-bold text-base border-t pt-2">
+        <div className="flex justify-between font-bold text-base border-t pt-2 mt-2">
           <span>Balance Due</span>
           <span>{formatCurrency(item.balance_due)}</span>
         </div>
@@ -109,9 +108,9 @@ export default function VendorsPage() {
               <CardDescription>Oversee vendor purchases, payments, and balances.</CardDescription>
             </div>
             <div className="flex items-center gap-2">
-              <Button variant="outline" onClick={() => setIsAddVendorOpen(true)}><PlusCircle className="mr-2" /> Add Vendor</Button>
-              <Button variant="outline" onClick={() => setIsAddPurchaseOpen(true)}><PlusCircle className="mr-2" /> Add Purchase</Button>
-              <Button onClick={() => setIsAddPaymentOpen(true)}><PlusCircle className="mr-2" /> Add Payment</Button>
+              <Button variant="outline" onClick={() => setIsAddVendorOpen(true)}><PlusCircle className="mr-2 h-4 w-4" /> Add Vendor</Button>
+              <Button variant="outline" onClick={() => setIsAddPurchaseOpen(true)}><PlusCircle className="mr-2 h-4 w-4" /> Add Purchase</Button>
+              <Button onClick={() => setIsAddPaymentOpen(true)}><PlusCircle className="mr-2 h-4 w-4" /> Add Payment</Button>
             </div>
           </div>
         </CardHeader>
@@ -121,16 +120,12 @@ export default function VendorsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {Array.from({ length: 4 }).map((_, i) => (<Skeleton key={i} className="h-48 w-full" />))}
         </div>
-      ) : (
+      ) : summary.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {summary.map(item => <VendorCard key={item.vendor_id} item={item} />)}
         </div>
-      )}
-
-      {selectedVendor && <VendorLedger vendor={selectedVendor} onClose={() => setSelectedVendor(null)} />}
-      
-      {!loading && summary.length === 0 && (
-         <Card className="mt-6">
+      ) : (
+         <Card>
             <CardContent className="pt-6">
                 <div className="text-center py-12">
                     <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
@@ -144,6 +139,9 @@ export default function VendorsPage() {
             </CardContent>
         </Card>
       )}
+
+      {selectedVendor && <VendorLedger vendor={selectedVendor} onClose={() => setSelectedVendor(null)} />}
+      
     </div>
   );
 }

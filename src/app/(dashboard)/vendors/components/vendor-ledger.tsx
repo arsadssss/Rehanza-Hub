@@ -24,15 +24,15 @@ import {
 } from '@/components/ui/table';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
-import { X, ArrowDown, ArrowUp } from 'lucide-react';
+import { X } from 'lucide-react';
 import type { VendorBalance } from '../page';
 
 type VendorPurchase = {
   id: string;
   purchase_date: string;
+  product_name: string;
   description: string | null;
   total_amount: number;
-  product_variants: { variant_sku: string } | null;
 };
 
 type VendorPayment = {
@@ -66,7 +66,7 @@ export function VendorLedger({ vendor, onClose }: VendorLedgerProps) {
       setLoading(true);
 
       const [purchasesRes, paymentsRes] = await Promise.all([
-        supabase.from('vendor_purchases').select('id, purchase_date, description, total_amount, product_variants(variant_sku)').eq('vendor_id', vendor.vendor_id),
+        supabase.from('vendor_purchases').select('id, purchase_date, product_name, description, total_amount').eq('vendor_id', vendor.vendor_id),
         supabase.from('vendor_payments').select('id, payment_date, notes, amount').eq('vendor_id', vendor.vendor_id),
       ]);
 
@@ -81,14 +81,14 @@ export function VendorLedger({ vendor, onClose }: VendorLedgerProps) {
         return;
       }
       
-      const purchases: LedgerItem[] = (purchasesRes.data || []).map(p => ({
+      const purchases: LedgerItem[] = ((purchasesRes.data as VendorPurchase[]) || []).map(p => ({
         date: new Date(p.purchase_date),
-        description: `Purchase: ${p.product_variants?.variant_sku || p.description || 'N/A'}`,
+        description: `Purchase: ${p.product_name || p.description || 'N/A'}`,
         debit: p.total_amount,
         credit: 0,
       }));
 
-      const payments: LedgerItem[] = (paymentsRes.data || []).map(p => ({
+      const payments: LedgerItem[] = ((paymentsRes.data as VendorPayment[]) || []).map(p => ({
         date: new Date(p.payment_date),
         description: `Payment: ${p.notes || 'Payment received'}`,
         debit: 0,
@@ -130,8 +130,8 @@ export function VendorLedger({ vendor, onClose }: VendorLedgerProps) {
               <TableRow>
                 <TableHead>Date</TableHead>
                 <TableHead>Description</TableHead>
-                <TableHead className="text-right">Debit</TableHead>
-                <TableHead className="text-right">Credit</TableHead>
+                <TableHead className="text-right">Debit (Purchase)</TableHead>
+                <TableHead className="text-right">Credit (Paid)</TableHead>
                 <TableHead className="text-right">Balance</TableHead>
               </TableRow>
             </TableHeader>
@@ -161,7 +161,7 @@ export function VendorLedger({ vendor, onClose }: VendorLedgerProps) {
           </Table>
         </div>
       </CardContent>
-      <CardFooter className="justify-end font-bold text-lg">
+      <CardFooter className="justify-end font-bold text-lg border-t pt-4 mt-4">
         Final Balance Due: {formatCurrency(finalBalance)}
       </CardFooter>
     </Card>
