@@ -16,7 +16,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { PlusCircle, FileText } from 'lucide-react';
+import { PlusCircle, FileText, Wallet } from 'lucide-react';
 
 import { AddVendorModal } from './components/add-vendor-modal';
 import { AddPurchaseModal } from './components/add-purchase-modal';
@@ -58,6 +58,7 @@ export default function VendorsPage() {
   const [ledgerTotalPurchase, setLedgerTotalPurchase] = useState(0);
   const [ledgerTotalPaid, setLedgerTotalPaid] = useState(0);
   const [ledgerFinalBalance, setLedgerFinalBalance] = useState(0);
+  const [totalDueAllVendors, setTotalDueAllVendors] = useState(0);
 
 
   const fetchSummary = useCallback(async () => {
@@ -71,7 +72,13 @@ export default function VendorsPage() {
       });
       setSummary([]);
     } else {
-      setSummary((data as VendorBalance[]) || []);
+      const summaryData = (data as VendorBalance[]) || [];
+      setSummary(summaryData);
+
+      const totalDue = summaryData.reduce((acc, vendor) => {
+        return acc + (vendor.balance_due > 0 ? vendor.balance_due : 0);
+      }, 0);
+      setTotalDueAllVendors(totalDue);
     }
     setLoading(false);
   }, [supabase, toast]);
@@ -213,6 +220,29 @@ export default function VendorsPage() {
       <AddVendorModal isOpen={isAddVendorOpen} onClose={() => setIsAddVendorOpen(false)} onVendorAdded={handleDataAdded} />
       <AddPurchaseModal isOpen={isAddPurchaseOpen} onClose={() => setIsAddPurchaseOpen(false)} onPurchaseAdded={handleDataAdded} />
       <AddPaymentModal isOpen={isAddPaymentOpen} onClose={() => setIsAddPaymentOpen(false)} onPaymentAdded={handleDataAdded} />
+
+      <Card className="text-white bg-gradient-to-r from-red-500 to-orange-600 shadow-xl rounded-2xl border-0">
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+              <CardTitle className="text-sm font-medium">Total Due Across All Vendors</CardTitle>
+              <Wallet className="h-5 w-5 text-white/80" />
+          </CardHeader>
+          <CardContent>
+              {loading ? <Skeleton className="h-10 w-48 bg-white/20" /> : (
+                  totalDueAllVendors > 0 ? (
+                      <>
+                          <div className="text-3xl font-bold font-headline">{formatCurrency(totalDueAllVendors)}</div>
+                          <p className="text-xs text-white/80">Total Outstanding Payable</p>
+                      </>
+                  ) : (
+                      <>
+                          <div className="text-2xl font-bold font-headline">All Settled</div>
+                          <p className="text-xs text-white/80">No outstanding payables to any vendor.</p>
+                      </>
+                  )
+              )}
+          </CardContent>
+      </Card>
+
 
       <Card className="bg-background/80 backdrop-blur-sm">
         <CardHeader>
