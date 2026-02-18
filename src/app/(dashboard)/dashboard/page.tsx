@@ -43,7 +43,8 @@ import {
   AlertTriangle,
   CheckCircle2,
   Download,
-  ChevronDown
+  ChevronDown,
+  Medal,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
@@ -77,6 +78,13 @@ type BestSellingSku = {
 
 type LowStockItems = {
   low_stock_count: number;
+};
+
+type TopSellingProduct = {
+  product_name: string;
+  variant_sku: string;
+  total_revenue: number;
+  total_units_sold: number;
 };
 
 type RecentOrder = {
@@ -185,9 +193,9 @@ const ReturnRateCard = ({ rate, loading }: { rate: number; loading: boolean }) =
 const PlatformPerformanceCard = ({ platform, revenue, units, loading, totalUnits }: { platform: 'Meesho' | 'Flipkart' | 'Amazon', revenue: number, units: number, loading: boolean, totalUnits: number }) => {
     
   const chartColors = {
-      Meesho: { color1: '#ec4899', color2: '#f9a8d4' }, // pink-500, pink-300
-      Flipkart: { color1: '#f59e0b', color2: '#fcd34d' }, // amber-500, amber-300
-      Amazon: { color1: '#a16207', color2: '#ca8a04' }, // yellow-700, yellow-600
+      Meesho: { color1: '#ec4899', color2: '#f9a8d4' },
+      Flipkart: { color1: '#f59e0b', color2: '#fcd34d' },
+      Amazon: { color1: '#ca8a04', color2: '#eab308' },
   };
 
   const aestheticData = [{ value: 60 }, { value: 40 }];
@@ -403,6 +411,68 @@ const ChannelPerformanceCard = ({ data, loading }: { data: PlatformPerformance[]
     );
 };
 
+const TopSellingProductsCard = ({ products, loading }: { products: TopSellingProduct[], loading: boolean }) => {
+  const totalRevenue = useMemo(() => products.reduce((acc, p) => acc + p.total_revenue, 0), [products]);
+
+  const rankIcons = [
+    <Medal key="gold" className="h-5 w-5 text-amber-400" />,
+    <Medal key="silver" className="h-5 w-5 text-slate-400" />,
+    <Medal key="bronze" className="h-5 w-5 text-orange-500" />,
+  ];
+
+  return (
+    <Card className="rounded-2xl shadow-lg bg-white/70 dark:bg-black/20 backdrop-blur-sm border-0">
+      <CardHeader>
+        <div className="flex flex-col md:flex-row justify-between items-start md:items-center">
+          <div>
+            <CardTitle>Top Selling Products</CardTitle>
+            <CardDescription>Last 30 Days</CardDescription>
+          </div>
+          {!loading && totalRevenue > 0 && (
+            <Badge variant="secondary" className="mt-2 md:mt-0 bg-background/50">
+              {formatCurrency(totalRevenue)} Total Revenue
+            </Badge>
+          )}
+        </div>
+      </CardHeader>
+      <CardContent>
+        {loading ? (
+          <div className="space-y-3">
+            {Array.from({ length: 5 }).map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full" />
+            ))}
+          </div>
+        ) : products.length > 0 ? (
+          <ul className="-mx-2">
+            {products.map((product, index) => (
+              <li key={product.variant_sku} className="py-3 px-2 rounded-lg hover:bg-black/5 dark:hover:bg-white/5 transition-colors">
+                <div className="flex justify-between items-center gap-4">
+                  <div className="flex items-center gap-4 flex-1 min-w-0">
+                    <div className="flex h-8 w-8 items-center justify-center text-muted-foreground font-semibold flex-shrink-0">
+                      {index < 3 ? rankIcons[index] : index + 1}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-semibold text-foreground truncate">{product.product_name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{product.variant_sku}</p>
+                    </div>
+                  </div>
+                  <div className="text-right flex-shrink-0 ml-4">
+                    <p className="font-semibold">{product.total_units_sold.toLocaleString()} units</p>
+                    <p className="text-sm text-emerald-600 dark:text-emerald-500 font-medium">{formatCurrency(product.total_revenue)}</p>
+                  </div>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <div className="flex items-center justify-center h-40">
+            <p className="text-muted-foreground">Not enough sales data yet</p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+};
 
 // Main Page Component
 export default function DashboardPage() {
@@ -412,6 +482,7 @@ export default function DashboardPage() {
   const [bestSeller, setBestSeller] = useState<BestSellingSku | null>(null);
   const [lowStock, setLowStock] = useState<LowStockItems | null>(null);
   const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([]);
+  const [topSellingProducts, setTopSellingProducts] = useState<TopSellingProduct[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -425,6 +496,7 @@ export default function DashboardPage() {
         bestSellerRes,
         lowStockRes,
         recentOrdersRes,
+        topSellingRes,
       ] = await Promise.all([
         supabase.from('dashboard_summary').select('*').single(),
         supabase.from('platform_performance').select('*'),
@@ -441,6 +513,7 @@ export default function DashboardPage() {
               variant_sku
             )
         `).order('created_at', { ascending: false }).limit(5),
+        supabase.from('top_selling_products').select('*').limit(5),
       ]);
 
       setSummary(summaryRes.data);
@@ -449,6 +522,7 @@ export default function DashboardPage() {
       setBestSeller(bestSellerRes.data);
       setLowStock(lowStockRes.data);
       setRecentOrders(recentOrdersRes.data as RecentOrder[] || []);
+      setTopSellingProducts(topSellingRes.data || []);
 
       setLoading(false);
     }
@@ -507,6 +581,8 @@ export default function DashboardPage() {
         <OrdersVsReturnsCard data={ordersReturnsData} loading={loading} />
         <ChannelPerformanceCard data={platformPerformance} loading={loading} />
       </div>
+
+      <TopSellingProductsCard products={topSellingProducts} loading={loading} />
       
       {/* Recent Orders */}
       <Card className="rounded-2xl shadow-md bg-white/70 dark:bg-black/20 backdrop-blur-sm border-0">
@@ -558,5 +634,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    
