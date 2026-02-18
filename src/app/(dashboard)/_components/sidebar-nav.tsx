@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -18,6 +19,7 @@ import {
   Package,
   Warehouse,
   ShoppingCart,
+  Building,
   BarChart2,
   Settings,
 } from 'lucide-react';
@@ -30,6 +32,7 @@ const navItems = [
   { href: '/products', icon: Package, label: 'Products' },
   { href: '/inventory', icon: Warehouse, label: 'Inventory' },
   { href: '/orders', icon: ShoppingCart, label: 'Orders' },
+  { href: '/vendors', icon: Building, label: 'Vendors' },
   { href: '/analytics', icon: BarChart2, label: 'Report' },
   { href: '/settings', icon: Settings, label: 'Settings' },
 ];
