@@ -577,7 +577,7 @@ export default function DashboardPage() {
             )}
           </CardContent>
         </Card>
-        <Card className="text-white bg-gradient-to-r from-emerald-500 to-teal-600 shadow-lg rounded-2xl border-0">
+        <Card className="text-white bg-gradient-to-r from-emerald-500 to-green-600 shadow-lg rounded-2xl border-0">
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
             <CardTitle className="text-sm font-medium">Total Inventory Purchase Value</CardTitle>
             <Archive className="h-5 w-5 text-white/80" />
