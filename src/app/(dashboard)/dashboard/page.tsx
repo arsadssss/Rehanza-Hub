@@ -238,39 +238,63 @@ export default function DashboardPage() {
     );
   };
   
-  const PlatformCard = ({ platform, units, revenue, totalUnits, loading }: { platform: string, units: number, revenue: number, totalUnits: number, loading: boolean }) => {
-    const config = {
-      Meesho: { icon: Store, gradient: 'from-pink-500 to-rose-500' },
-      Flipkart: { icon: Store, gradient: 'from-yellow-400 to-amber-500' },
-      Amazon: { icon: Store, gradient: 'from-stone-400 to-stone-500' }
-    };
-    const { icon: Icon, gradient } = config[platform as keyof typeof config];
-    const share = totalUnits > 0 ? (units / totalUnits) * 100 : 0;
+  const PlatformPerformanceCard = ({ platform, revenue, units, loading, totalUnits }: { platform: 'Meesho' | 'Flipkart' | 'Amazon', revenue: number, units: number, loading: boolean, totalUnits: number }) => {
     
+    const chartColors = {
+        color1: '#22d3ee', // cyan-400
+        color2: '#8b5cf6', // violet-500
+    }
+
+    const aestheticData = [{ value: 60 }, { value: 40 }];
+    const share = totalUnits > 0 ? (units / totalUnits) * 100 : 0;
+
+    if (loading) {
+        return <Skeleton className="h-[140px] w-full rounded-3xl bg-white/20 dark:bg-black/20" />
+    }
+
     return (
-        <Card className="rounded-2xl shadow-md bg-white/70 dark:bg-black/20 backdrop-blur-sm border-0">
-             {loading ? (
-                <CardContent className="p-4">
-                    <Skeleton className="h-24 w-full" />
-                </CardContent>
-             ) : (
-                <CardContent className="p-4 flex items-center gap-4">
-                    <div className={cn('p-3 rounded-lg text-white', gradient)}>
-                        <Icon className="h-6 w-6" />
+        <div className="relative overflow-hidden rounded-3xl border border-white/20 bg-white/10 p-6 shadow-xl backdrop-blur-xl dark:border-white/10 dark:bg-black/20">
+            <div className="absolute -bottom-16 left-1/2 h-32 w-[200%] -translate-x-1/2 rounded-full bg-primary/10 blur-3xl"></div>
+
+            <div className="flex items-center justify-between gap-4">
+                <div className="space-y-1">
+                    <p className="font-semibold text-foreground">Platform: {platform}</p>
+                    <p className="text-3xl font-bold font-headline text-foreground">{formatCurrency(revenue)}</p>
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <TrendingUp className="h-4 w-4 text-emerald-500" />
+                        <span>{share.toFixed(1)}% of total units</span>
                     </div>
-                    <div className="flex-1">
-                        <p className="text-sm text-muted-foreground">{platform}</p>
-                        <p className="text-xl font-bold font-headline">{units.toLocaleString('en-IN')} <span className="text-xs font-normal text-muted-foreground">units</span></p>
+                </div>
+
+                <div className="relative h-24 w-24 shrink-0">
+                    <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                             <Pie
+                                data={aestheticData}
+                                dataKey="value"
+                                cx="50%"
+                                cy="50%"
+                                innerRadius={30}
+                                outerRadius={40}
+                                startAngle={90}
+                                endAngle={450}
+                                strokeWidth={2}
+                                stroke="hsl(var(--background))"
+                            >
+                                <Cell fill={chartColors.color1} />
+                                <Cell fill={chartColors.color2} />
+                            </Pie>
+                        </PieChart>
+                    </ResponsiveContainer>
+                    <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+                        <p className="text-xl font-bold text-foreground">{units.toLocaleString()}</p>
+                        <p className="text-[10px] font-medium tracking-tight text-muted-foreground">Total Orders</p>
                     </div>
-                    <div className="text-right">
-                         <p className="font-semibold">{formatCurrency(revenue)}</p>
-                         <p className="text-xs text-muted-foreground">{share.toFixed(1)}% of total</p>
-                    </div>
-                </CardContent>
-             )}
-        </Card>
+                </div>
+            </div>
+        </div>
     )
-  };
+}
 
   return (
     <div className="p-6 md:p-8 space-y-6 bg-gray-50/50 dark:bg-black/50">
@@ -304,11 +328,11 @@ export default function DashboardPage() {
       <div className="grid gap-6 md:grid-cols-3">
           {['Meesho', 'Flipkart', 'Amazon'].map(p => {
               const data = platformPerformance.find(item => item.platform === p);
-              const totalUnits = summary?.total_units || 1; // Avoid division by zero
+              const totalUnits = summary?.total_units || 1;
               return (
-                  <PlatformCard 
+                  <PlatformPerformanceCard 
                       key={p}
-                      platform={p}
+                      platform={p as 'Meesho' | 'Flipkart' | 'Amazon'}
                       units={data?.total_units || 0}
                       revenue={data?.total_revenue || 0}
                       totalUnits={totalUnits}
