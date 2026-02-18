@@ -16,7 +16,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { PlusCircle, FileText, Wallet } from 'lucide-react';
+import { PlusCircle, FileText, Wallet, Archive } from 'lucide-react';
 
 import { AddVendorModal } from './components/add-vendor-modal';
 import { AddPurchaseModal } from './components/add-purchase-modal';
@@ -59,12 +59,19 @@ export default function VendorsPage() {
   const [ledgerTotalPaid, setLedgerTotalPaid] = useState(0);
   const [ledgerFinalBalance, setLedgerFinalBalance] = useState(0);
   const [totalDueAllVendors, setTotalDueAllVendors] = useState(0);
+  const [totalInventoryValue, setTotalInventoryValue] = useState(0);
 
 
   const fetchSummary = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase.from('vendor_balance_summary').select('*');
-    if (error) {
+
+    const [summaryRes, productsRes] = await Promise.all([
+        supabase.from('vendor_balance_summary').select('*'),
+        supabase.from('allproducts').select('cost_price, stock')
+    ]);
+    
+    // Process Vendor Summary
+    if (summaryRes.error) {
       toast({
         variant: 'destructive',
         title: 'Error',
@@ -72,7 +79,7 @@ export default function VendorsPage() {
       });
       setSummary([]);
     } else {
-      const summaryData = (data as VendorBalance[]) || [];
+      const summaryData = (summaryRes.data as VendorBalance[]) || [];
       setSummary(summaryData);
 
       const totalDue = summaryData.reduce((acc, vendor) => {
@@ -80,6 +87,25 @@ export default function VendorsPage() {
       }, 0);
       setTotalDueAllVendors(totalDue);
     }
+
+    // Process Inventory Value
+    if (productsRes.error) {
+      toast({
+        variant: 'destructive',
+        title: 'Error fetching inventory value',
+        description: productsRes.error.message,
+      });
+      setTotalInventoryValue(0);
+    } else {
+      const products = productsRes.data || [];
+      const totalValue = products.reduce((sum, product) => {
+        const cost = Number(product.cost_price || 0);
+        const stock = Number(product.stock || 0);
+        return sum + (cost * stock);
+      }, 0);
+      setTotalInventoryValue(totalValue);
+    }
+
     setLoading(false);
   }, [supabase, toast]);
 
@@ -221,27 +247,50 @@ export default function VendorsPage() {
       <AddPurchaseModal isOpen={isAddPurchaseOpen} onClose={() => setIsAddPurchaseOpen(false)} onPurchaseAdded={handleDataAdded} />
       <AddPaymentModal isOpen={isAddPaymentOpen} onClose={() => setIsAddPaymentOpen(false)} onPaymentAdded={handleDataAdded} />
 
-      <Card className="text-white bg-gradient-to-r from-red-500 to-orange-600 shadow-xl rounded-2xl border-0">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-              <CardTitle className="text-sm font-medium">Total Due Across All Vendors</CardTitle>
-              <Wallet className="h-5 w-5 text-white/80" />
-          </CardHeader>
-          <CardContent>
-              {loading ? <Skeleton className="h-10 w-48 bg-white/20" /> : (
-                  totalDueAllVendors > 0 ? (
-                      <>
-                          <div className="text-3xl font-bold font-headline">{formatCurrency(totalDueAllVendors)}</div>
-                          <p className="text-xs text-white/80">Total Outstanding Payable</p>
-                      </>
-                  ) : (
-                      <>
-                          <div className="text-2xl font-bold font-headline">All Settled</div>
-                          <p className="text-xs text-white/80">No outstanding payables to any vendor.</p>
-                      </>
-                  )
-              )}
-          </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <Card className="text-white bg-gradient-to-r from-red-500 to-orange-600 shadow-xl rounded-2xl border-0">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Due Across All Vendors</CardTitle>
+                <Wallet className="h-5 w-5 text-white/80" />
+            </CardHeader>
+            <CardContent>
+                {loading ? <Skeleton className="h-10 w-48 bg-white/20" /> : (
+                    totalDueAllVendors > 0 ? (
+                        <>
+                            <div className="text-3xl font-bold font-headline">{formatCurrency(totalDueAllVendors)}</div>
+                            <p className="text-xs text-white/80">Total Outstanding Payable</p>
+                        </>
+                    ) : (
+                        <>
+                            <div className="text-2xl font-bold font-headline">All Settled</div>
+                            <p className="text-xs text-white/80">No outstanding payables to any vendor.</p>
+                        </>
+                    )
+                )}
+            </CardContent>
+        </Card>
+        <Card className="text-white bg-gradient-to-r from-emerald-500 to-teal-600 shadow-xl rounded-2xl border-0">
+            <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+                <CardTitle className="text-sm font-medium">Total Inventory Purchase Value</CardTitle>
+                <Archive className="h-5 w-5 text-white/80" />
+            </CardHeader>
+            <CardContent>
+                {loading ? <Skeleton className="h-10 w-48 bg-white/20" /> : (
+                    totalInventoryValue > 0 ? (
+                        <>
+                            <div className="text-3xl font-bold font-headline">{formatCurrency(totalInventoryValue)}</div>
+                            <p className="text-xs text-white/80">Total Capital Invested in Stock</p>
+                        </>
+                    ) : (
+                        <>
+                            <div className="text-2xl font-bold font-headline">No Inventory</div>
+                            <p className="text-xs text-white/80">Your inventory value is currently zero.</p>
+                        </>
+                    )
+                )}
+            </CardContent>
+        </Card>
+      </div>
 
 
       <Card className="bg-background/80 backdrop-blur-sm">
