@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 
-import { supabase } from "@/lib/supabase"
+import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import {
@@ -62,6 +62,7 @@ interface AddOrderModalProps {
 }
 
 export function AddOrderModal({ isOpen, onClose, onOrderAdded }: AddOrderModalProps) {
+  const supabase = createClient();
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [variants, setVariants] = React.useState<VariantWithProduct[]>([])
@@ -100,7 +101,7 @@ export function AddOrderModal({ isOpen, onClose, onOrderAdded }: AddOrderModalPr
     if (isOpen) {
       fetchVariants();
     }
-  }, [isOpen]);
+  }, [isOpen, supabase]);
 
   React.useEffect(() => {
     if (platform && variantId) {

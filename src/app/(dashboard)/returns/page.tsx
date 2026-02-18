@@ -2,7 +2,7 @@
 "use client"
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { formatCurrency } from '@/lib/format';
@@ -42,6 +42,7 @@ export type Return = {
 };
 
 export default function ReturnsPage() {
+  const supabase = createClient();
   const [returns, setReturns] = useState<Return[]>([]);
   const [loading, setLoading] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);

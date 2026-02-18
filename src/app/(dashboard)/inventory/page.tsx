@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { formatCurrency } from '@/lib/format';
 
@@ -37,6 +37,7 @@ type InventoryItem = {
 };
 
 export default function InventoryPage() {
+  const supabase = createClient();
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -70,7 +71,7 @@ export default function InventoryPage() {
       setLoading(false);
     }
     fetchInventory();
-  }, [toast]);
+  }, [toast, supabase]);
 
   const filteredInventory = useMemo(() => {
     let filtered = inventory;

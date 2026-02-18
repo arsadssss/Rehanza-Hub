@@ -2,7 +2,7 @@
 "use client"
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { subDays, format, parseISO, addDays } from 'date-fns';
 import {
@@ -91,6 +91,7 @@ const SalesTooltip = ({ active, payload, label }: any) => {
 
 
 export default function AnalyticsPage() {
+  const supabase = createClient();
   const [loading, setLoading] = useState(true);
   const [returnsData, setReturnsData] = useState<ReturnsSummary[]>([]);
   const [platformOrders, setPlatformOrders] = useState<{ name: string; value: number }[]>([]);
@@ -189,7 +190,7 @@ export default function AnalyticsPage() {
       setLoading(false);
     }
     fetchSummaryData();
-  }, [toast]);
+  }, [toast, supabase]);
 
   useEffect(() => {
     async function fetchSalesData() {
@@ -216,7 +217,7 @@ export default function AnalyticsPage() {
         setLoadingSales(false);
     }
     fetchSalesData();
-  }, [toast]);
+  }, [toast, supabase]);
 
 
   const kpiStats = useMemo(() => {

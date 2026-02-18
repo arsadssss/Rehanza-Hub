@@ -6,7 +6,7 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 
-import { supabase } from "@/lib/supabase"
+import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import {
@@ -55,6 +55,7 @@ interface AddReturnModalProps {
 }
 
 export function AddReturnModal({ isOpen, onClose, onReturnAdded }: AddReturnModalProps) {
+  const supabase = createClient();
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [variants, setVariants] = React.useState<Pick<Variant, 'id' | 'variant_sku' | 'stock'>[]>([])
@@ -84,7 +85,7 @@ export function AddReturnModal({ isOpen, onClose, onReturnAdded }: AddReturnModa
     if (isOpen) {
       fetchVariants();
     }
-  }, [isOpen]);
+  }, [isOpen, supabase]);
 
   const handleClose = () => {
     form.reset()

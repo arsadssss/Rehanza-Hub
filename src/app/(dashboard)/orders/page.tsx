@@ -1,7 +1,7 @@
 "use client"
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { formatCurrency } from '@/lib/format';
@@ -64,6 +64,7 @@ export type Return = {
 };
 
 export default function OrdersPage() {
+  const supabase = createClient();
   const [orders, setOrders] = useState<Order[]>([]);
   const [loadingOrders, setLoadingOrders] = useState(true);
   const [isAddOrderModalOpen, setIsAddOrderModalOpen] = useState(false);

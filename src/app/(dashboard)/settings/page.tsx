@@ -5,7 +5,7 @@ import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import {
   Card,
@@ -108,6 +108,7 @@ const DEFAULT_SETTINGS: Settings = {
 // --- Main Settings Page ---
 
 export default function SettingsPage() {
+  const supabase = createClient();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
@@ -137,7 +138,7 @@ export default function SettingsPage() {
     }
 
     fetchSettings();
-  }, [toast]);
+  }, [toast, supabase]);
 
   const handleSave = async (setting_key: keyof Settings, setting_value: any) => {
     const { error } = await supabase.from('app_settings').upsert(

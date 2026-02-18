@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { supabase } from '@/lib/supabase';
+import { createClient } from '@/lib/supabase/client';
 import { formatCurrency } from '@/lib/format';
 import {
   Card,
@@ -476,6 +476,7 @@ const TopSellingProductsCard = ({ products, loading }: { products: TopSellingPro
 
 // Main Page Component
 export default function DashboardPage() {
+  const supabase = createClient();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [platformPerformance, setPlatformPerformance] = useState<PlatformPerformance[]>([]);
   const [ordersReturnsData, setOrdersReturnsData] = useState<WeeklyOrdersVsReturns[]>([]);
@@ -528,7 +529,7 @@ export default function DashboardPage() {
     }
 
     fetchData();
-  }, []);
+  }, [supabase]);
   
 
   return (

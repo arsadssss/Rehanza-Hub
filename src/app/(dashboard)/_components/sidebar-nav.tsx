@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import React from 'react';
+import type { User } from '@supabase/supabase-js';
 import {
   Sidebar,
   SidebarHeader,
@@ -21,6 +22,8 @@ import {
   Settings,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import LogoutButton from '@/components/LogoutButton';
 
 const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -31,7 +34,7 @@ const navItems = [
   { href: '/settings', icon: Settings, label: 'Settings' },
 ];
 
-export function SidebarNav() {
+export function SidebarNav({ user }: { user: User }) {
   const pathname = usePathname();
 
   return (
@@ -64,7 +67,15 @@ export function SidebarNav() {
       </SidebarContent>
       <Separator className="my-2" />
       <SidebarFooter className="p-4 space-y-4">
-        
+        <div className="flex items-center gap-3">
+          <Avatar className="h-9 w-9">
+            <AvatarFallback>{user.email?.[0].toUpperCase() ?? 'U'}</AvatarFallback>
+          </Avatar>
+          <div className="flex flex-col overflow-hidden">
+            <span className="text-sm font-medium text-sidebar-foreground truncate">{user.email}</span>
+          </div>
+        </div>
+        <LogoutButton />
       </SidebarFooter>
     </Sidebar>
   );
