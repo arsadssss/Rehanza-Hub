@@ -108,7 +108,9 @@ const KpiCard = ({ title, value, icon: Icon, gradient, loading }: { title: strin
                     <Skeleton className="h-5 w-32 bg-white/20" />
                     <Skeleton className="h-10 w-40 mt-2 bg-white/20" />
                 </div>
-                <Skeleton className="h-14 w-14 rounded-full bg-white/20" />
+                <div className="p-3 bg-white/20 rounded-full opacity-20">
+                   <Icon className="h-6 w-6 text-white" />
+                </div>
             </div>
         ) : (
             <div className="p-6 flex items-center justify-between">
@@ -145,9 +147,12 @@ const ReturnRateCard = ({ rate, loading }: { rate: number; loading: boolean }) =
   return (
     <Card className="text-white shadow-lg rounded-2xl border-0 overflow-hidden bg-gradient-to-br from-amber-500 to-orange-600">
       {loading ? (
-         <div className="p-6 h-full flex flex-col justify-between">
-            <Skeleton className="h-6 w-3/4 bg-white/20" />
-            <Skeleton className="h-10 w-1/2 mt-2 bg-white/20" />
+         <div className="p-6 h-full flex items-center justify-between">
+            <div>
+                <Skeleton className="h-5 w-32 bg-white/20" />
+                <Skeleton className="h-10 w-24 mt-2 bg-white/20" />
+            </div>
+            <Skeleton className="h-24 w-24 rounded-full bg-white/20" />
           </div>
       ) : (
         <div className="p-6 h-full flex items-center justify-between">
@@ -502,6 +507,7 @@ export default function DashboardPage() {
         topSellingRes,
         vendorSummaryRes,
         allProductsRes,
+        allOrdersRes,
       ] = await Promise.all([
         supabase.from('dashboard_summary').select('*').single(),
         supabase.from('platform_performance').select('*'),
@@ -521,10 +527,29 @@ export default function DashboardPage() {
         supabase.from('top_selling_products').select('*').limit(5),
         supabase.from('vendor_balance_summary').select('balance_due'),
         supabase.from('allproducts').select('cost_price, stock'),
+        supabase.from('orders').select('platform, quantity, selling_price'),
       ]);
 
       setSummary(summaryRes.data);
-      setPlatformPerformance(platformRes.data || []);
+
+      const allOrders = allOrdersRes.data || [];
+      const platformRevenues = allOrders.reduce((acc: any, order: any) => {
+        const platform = order.platform;
+        if (!acc[platform]) {
+          acc[platform] = 0;
+        }
+        const price = Number(order.selling_price || 0);
+        const qty = Number(order.quantity || 0);
+        acc[platform] += price * qty;
+        return acc;
+      }, { Meesho: 0, Flipkart: 0, Amazon: 0 });
+
+      const updatedPlatformPerformance = (platformRes.data || []).map((p: PlatformPerformance) => ({
+        ...p,
+        total_revenue: platformRevenues[p.platform] || 0,
+      }));
+      setPlatformPerformance(updatedPlatformPerformance);
+
       setOrdersReturnsData(ordersReturnsRes.data || []);
       setBestSeller(bestSellerRes.data);
       setLowStock(lowStockRes.data);
@@ -560,60 +585,57 @@ export default function DashboardPage() {
     <div className="p-6 md:p-8 space-y-6 bg-gray-50/50 dark:bg-black/50">
        {/* New Financial Summary Cards */}
        <div className="grid gap-6 md:grid-cols-2">
-        <Card className="text-white bg-gradient-to-r from-red-500 to-orange-600 shadow-lg rounded-2xl border-0">
-            <div className="p-6">
-                {loading ? (
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <Skeleton className="h-5 w-48 bg-white/20" />
-                            <Skeleton className="h-10 w-32 mt-2 bg-white/20" />
-                            <Skeleton className="h-4 w-36 mt-2 bg-white/20" />
-                        </div>
-                        <Skeleton className="h-14 w-14 rounded-full bg-white/20" />
-                    </div>
-                ) : (
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h3 className="text-sm font-medium">Total Due Across Vendors</h3>
-                            <div className="text-4xl font-bold font-headline mt-1">{formatCurrency(totalDueAllVendors)}</div>
-                            <p className="text-xs text-white/80">
-                              {totalDueAllVendors > 0 ? "Outstanding Payable" : "All Vendors Settled"}
-                            </p>
-                        </div>
-                        <div className="p-3 bg-white/20 rounded-full">
-                            <Wallet className="h-6 w-6 text-white" />
-                        </div>
-                    </div>
-                )}
+        <div className="bg-gradient-to-r from-red-500 to-orange-600 text-white rounded-2xl p-6 shadow-lg">
+          {loading ? (
+            <div className="flex items-center justify-between">
+              <div>
+                <Skeleton className="h-5 w-48 bg-white/20" />
+                <Skeleton className="h-10 w-32 mt-2 bg-white/20" />
+                <Skeleton className="h-4 w-36 mt-2 bg-white/20" />
+              </div>
+              <Skeleton className="h-14 w-14 rounded-full bg-white/20 opacity-20" />
             </div>
-        </Card>
-        <Card className="text-white bg-gradient-to-r from-emerald-500 to-green-600 shadow-lg rounded-2xl border-0">
-             <div className="p-6">
-                {loading ? (
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <Skeleton className="h-5 w-56 bg-white/20" />
-                            <Skeleton className="h-10 w-32 mt-2 bg-white/20" />
-                            <Skeleton className="h-4 w-48 mt-2 bg-white/20" />
-                        </div>
-                        <Skeleton className="h-14 w-14 rounded-full bg-white/20" />
-                    </div>
-                ) : (
-                    <div className="flex items-center justify-between">
-                        <div>
-                            <h3 className="text-sm font-medium">Total Inventory Purchase Value</h3>
-                            <div className="text-4xl font-bold font-headline mt-1">{formatCurrency(totalInventoryValue)}</div>
-                            <p className="text-xs text-white/80">
-                                {totalInventoryValue > 0 ? "Capital Invested in Stock" : "No Inventory in Stock"}
-                            </p>
-                        </div>
-                        <div className="p-3 bg-white/20 rounded-full">
-                            <Archive className="h-6 w-6 text-white" />
-                        </div>
-                    </div>
-                )}
+          ) : (
+            <div className="flex items-center justify-between">
+              <div>
+                  <h3 className="text-sm font-medium">Total Due Across Vendors</h3>
+                  <div className="text-4xl font-bold font-headline mt-1">{formatCurrency(totalDueAllVendors)}</div>
+                  <p className="text-xs text-white/80">
+                    {totalDueAllVendors > 0 ? "Outstanding Payable" : "All Vendors Settled"}
+                  </p>
+              </div>
+              <div className="p-3 bg-white/20 rounded-full">
+                  <Wallet className="h-6 w-6 text-white" />
+              </div>
             </div>
-        </Card>
+          )}
+        </div>
+
+        <div className="bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-2xl p-6 shadow-lg">
+          {loading ? (
+            <div className="flex items-center justify-between">
+              <div>
+                <Skeleton className="h-5 w-56 bg-white/20" />
+                <Skeleton className="h-10 w-32 mt-2 bg-white/20" />
+                <Skeleton className="h-4 w-48 mt-2 bg-white/20" />
+              </div>
+              <Skeleton className="h-14 w-14 rounded-full bg-white/20 opacity-20" />
+            </div>
+          ) : (
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-medium">Total Inventory Purchase Value</h3>
+                <div className="text-4xl font-bold font-headline mt-1">{formatCurrency(totalInventoryValue)}</div>
+                <p className="text-xs text-white/80">
+                    {totalInventoryValue > 0 ? "Capital Invested in Stock" : "No Inventory in Stock"}
+                </p>
+              </div>
+               <div className="p-3 bg-white/20 rounded-full">
+                  <Archive className="h-6 w-6 text-white" />
+              </div>
+            </div>
+          )}
+        </div>
       </div>
       
       {/* KPI Row */}
@@ -717,7 +739,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-    
-
-    
