@@ -100,29 +100,28 @@ type RecentOrder = {
 
 // --- SUB-COMPONENTS ---
 
-const KpiCard = ({ title, value, icon: Icon, gradient, children, loading }: { title: string; value: string; icon: React.ElementType; gradient: string; children?: React.ReactNode; loading: boolean }) => (
-  <Card className={cn('text-white shadow-lg rounded-2xl border-0 overflow-hidden bg-gradient-to-br', gradient)}>
-    {loading ? (
-      <div className="p-6 h-full flex flex-col justify-between">
-        <Skeleton className="h-6 w-3/4 bg-white/20" />
-        <Skeleton className="h-10 w-1/2 mt-2 bg-white/20" />
-        <Skeleton className="h-4 w-full mt-4 bg-white/20" />
-      </div>
-    ) : (
-      <div className="p-6 h-full flex flex-col">
-          <div className="flex justify-between items-start">
-            <h3 className="text-sm font-medium uppercase tracking-wider">{title}</h3>
-            <div className="p-2 bg-white/20 rounded-lg">
-              <Icon className="h-5 w-5" />
+const KpiCard = ({ title, value, icon: Icon, gradient, loading }: { title: string; value: string; icon: React.ElementType; gradient: string; loading: boolean }) => (
+    <Card className={cn('text-white shadow-lg rounded-2xl border-0 overflow-hidden bg-gradient-to-br', gradient)}>
+        {loading ? (
+            <div className="p-6 flex items-center justify-between">
+                <div>
+                    <Skeleton className="h-5 w-32 bg-white/20" />
+                    <Skeleton className="h-10 w-40 mt-2 bg-white/20" />
+                </div>
+                <Skeleton className="h-14 w-14 rounded-full bg-white/20" />
             </div>
-          </div>
-          <div className="mt-2 flex-grow flex items-center">
-            <p className="text-4xl font-bold font-headline">{value}</p>
-          </div>
-          {children && <div className="mt-4">{children}</div>}
-      </div>
-    )}
-  </Card>
+        ) : (
+            <div className="p-6 flex items-center justify-between">
+                <div>
+                    <h3 className="text-sm font-medium uppercase tracking-wider">{title}</h3>
+                    <p className="text-4xl font-bold font-headline mt-2">{value}</p>
+                </div>
+                <div className="p-3 bg-white/20 rounded-full">
+                    <Icon className="h-6 w-6 text-white" />
+                </div>
+            </div>
+        )}
+    </Card>
 );
 
 const ReturnRateCard = ({ rate, loading }: { rate: number; loading: boolean }) => {
@@ -562,36 +561,58 @@ export default function DashboardPage() {
        {/* New Financial Summary Cards */}
        <div className="grid gap-6 md:grid-cols-2">
         <Card className="text-white bg-gradient-to-r from-red-500 to-orange-600 shadow-lg rounded-2xl border-0">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Due Across Vendors</CardTitle>
-            <Wallet className="h-5 w-5 text-white/80" />
-          </CardHeader>
-          <CardContent>
-            {loading ? <Skeleton className="h-10 w-48 bg-white/20" /> : (
-              <>
-                <div className="text-3xl font-bold font-headline">{formatCurrency(totalDueAllVendors)}</div>
-                <p className="text-xs text-white/80">
-                  {totalDueAllVendors > 0 ? "Outstanding Payable" : "All Vendors Settled"}
-                </p>
-              </>
-            )}
-          </CardContent>
+            <div className="p-6">
+                {loading ? (
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <Skeleton className="h-5 w-48 bg-white/20" />
+                            <Skeleton className="h-10 w-32 mt-2 bg-white/20" />
+                            <Skeleton className="h-4 w-36 mt-2 bg-white/20" />
+                        </div>
+                        <Skeleton className="h-14 w-14 rounded-full bg-white/20" />
+                    </div>
+                ) : (
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h3 className="text-sm font-medium">Total Due Across Vendors</h3>
+                            <div className="text-4xl font-bold font-headline mt-1">{formatCurrency(totalDueAllVendors)}</div>
+                            <p className="text-xs text-white/80">
+                              {totalDueAllVendors > 0 ? "Outstanding Payable" : "All Vendors Settled"}
+                            </p>
+                        </div>
+                        <div className="p-3 bg-white/20 rounded-full">
+                            <Wallet className="h-6 w-6 text-white" />
+                        </div>
+                    </div>
+                )}
+            </div>
         </Card>
         <Card className="text-white bg-gradient-to-r from-emerald-500 to-green-600 shadow-lg rounded-2xl border-0">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total Inventory Purchase Value</CardTitle>
-            <Archive className="h-5 w-5 text-white/80" />
-          </CardHeader>
-          <CardContent>
-            {loading ? <Skeleton className="h-10 w-48 bg-white/20" /> : (
-              <>
-                <div className="text-3xl font-bold font-headline">{formatCurrency(totalInventoryValue)}</div>
-                <p className="text-xs text-white/80">
-                  {totalInventoryValue > 0 ? "Capital Invested in Stock" : "No Inventory in Stock"}
-                </p>
-              </>
-            )}
-          </CardContent>
+             <div className="p-6">
+                {loading ? (
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <Skeleton className="h-5 w-56 bg-white/20" />
+                            <Skeleton className="h-10 w-32 mt-2 bg-white/20" />
+                            <Skeleton className="h-4 w-48 mt-2 bg-white/20" />
+                        </div>
+                        <Skeleton className="h-14 w-14 rounded-full bg-white/20" />
+                    </div>
+                ) : (
+                    <div className="flex items-center justify-between">
+                        <div>
+                            <h3 className="text-sm font-medium">Total Inventory Purchase Value</h3>
+                            <div className="text-4xl font-bold font-headline mt-1">{formatCurrency(totalInventoryValue)}</div>
+                            <p className="text-xs text-white/80">
+                                {totalInventoryValue > 0 ? "Capital Invested in Stock" : "No Inventory in Stock"}
+                            </p>
+                        </div>
+                        <div className="p-3 bg-white/20 rounded-full">
+                            <Archive className="h-6 w-6 text-white" />
+                        </div>
+                    </div>
+                )}
+            </div>
         </Card>
       </div>
       
@@ -696,5 +717,7 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+    
 
     
