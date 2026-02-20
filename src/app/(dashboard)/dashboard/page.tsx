@@ -3,7 +3,7 @@
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import { formatCurrency } from '@/lib/format';
+import { formatINR } from '@/lib/format';
 import {
   Card,
   CardHeader,
@@ -216,7 +216,7 @@ const PlatformPerformanceCard = ({ platform, revenue, units, loading, totalUnits
           <div className="flex items-center justify-between gap-4">
               <div className="space-y-1">
                   <p className="font-semibold text-foreground">Platform: {platform}</p>
-                  <p className="text-3xl font-bold font-headline text-foreground">{formatCurrency(revenue)}</p>
+                  <p className="text-3xl font-bold font-headline text-foreground">{formatINR(revenue)}</p>
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <TrendingUp className="h-4 w-4 text-emerald-500" />
                       <span>{share.toFixed(1)}% of total units</span>
@@ -434,7 +434,7 @@ const TopSellingProductsCard = ({ products, loading }: { products: TopSellingPro
           </div>
           {!loading && totalRevenue > 0 && (
             <Badge variant="secondary" className="mt-2 md:mt-0 bg-background/50">
-              {formatCurrency(totalRevenue)} Total Revenue
+              {formatINR(totalRevenue)} Total Revenue
             </Badge>
           )}
         </div>
@@ -462,7 +462,7 @@ const TopSellingProductsCard = ({ products, loading }: { products: TopSellingPro
                   </div>
                   <div className="text-right flex-shrink-0 ml-4">
                     <p className="font-semibold">{product.total_units_sold.toLocaleString()} units</p>
-                    <p className="text-sm text-emerald-600 dark:text-emerald-500 font-medium">{formatCurrency(product.total_revenue)}</p>
+                    <p className="text-sm text-emerald-600 dark:text-emerald-500 font-medium">{formatINR(product.total_revenue)}</p>
                   </div>
                 </div>
               </li>
@@ -606,7 +606,7 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between">
               <div>
                   <h3 className="text-sm font-medium">Total Due Across Vendors</h3>
-                  <div className="text-4xl font-bold font-headline mt-1">{formatCurrency(totalDueAllVendors)}</div>
+                  <div className="text-4xl font-bold font-headline mt-1">{formatINR(totalDueAllVendors)}</div>
                   <p className="text-xs text-white/80">
                     {totalDueAllVendors > 0 ? "Outstanding Payable" : "All Vendors Settled"}
                   </p>
@@ -632,7 +632,7 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-medium">Total Inventory Purchase Value</h3>
-                <div className="text-4xl font-bold font-headline mt-1">{formatCurrency(totalInventoryValue)}</div>
+                <div className="text-4xl font-bold font-headline mt-1">{formatINR(totalInventoryValue)}</div>
                 <p className="text-xs text-white/80">
                     {totalInventoryValue > 0 ? "Capital Invested in Stock" : "No Inventory in Stock"}
                 </p>
@@ -656,14 +656,14 @@ export default function DashboardPage() {
         />
         <KpiCard
           title="Gross Revenue"
-          value={loading ? '...' : formatCurrency(summary?.gross_revenue || 0)}
+          value={loading ? '...' : formatINR(summary?.gross_revenue || 0)}
           icon={CircleDollarSign}
           gradient="from-cyan-500 to-blue-600"
           loading={loading}
         />
         <KpiCard
           title="Net Profit"
-          value={loading ? '...' : formatCurrency(summary?.net_profit || 0)}
+          value={loading ? '...' : formatINR(summary?.net_profit || 0)}
           icon={TrendingUp}
           gradient="from-emerald-500 to-green-600"
           loading={loading}
@@ -729,7 +729,7 @@ export default function DashboardPage() {
                       <TableCell><Badge variant="secondary">{order.platform}</Badge></TableCell>
                       <TableCell className="font-medium">{order.product_variants?.variant_sku || 'N/A'}</TableCell>
                       <TableCell className="text-center">{order.quantity}</TableCell>
-                      <TableCell className="text-right">{formatCurrency(order.total_amount)}</TableCell>
+                      <TableCell className="text-right">{formatINR(order.total_amount)}</TableCell>
                       <TableCell className="text-center"><Badge>Shipped</Badge></TableCell>
                     </TableRow>
                   ))

@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { formatCurrency } from '@/lib/format';
+import { formatINR } from '@/lib/format';
 
 import {
   Card,
@@ -163,7 +163,7 @@ export default function InventoryPage() {
                   {/* Left Side */}
                   <div>
                     <p className="font-bold text-lg">SKU: {item.sku}</p>
-                    <p className="font-headline text-5xl font-bold mt-2">{isMounted ? formatCurrency(item.total_revenue) : '...'}</p>
+                    <p className="font-headline text-5xl font-bold mt-2">{isMounted ? formatINR(item.total_revenue) : '...'}</p>
                     <p className="text-sm opacity-70 mt-1">{item.product_name}</p>
                   </div>
                   {/* Right Side */}

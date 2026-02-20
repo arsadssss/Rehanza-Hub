@@ -4,7 +4,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
-import { formatCurrency } from '@/lib/format';
+import { formatINR } from '@/lib/format';
 
 import {
   Card,
@@ -220,8 +220,8 @@ export default function OrdersPage() {
                             <TableCell className="font-medium">{order.product_variants?.variant_sku}</TableCell>
                             <TableCell>{order.product_variants?.allproducts?.product_name}</TableCell>
                             <TableCell>{order.quantity}</TableCell>
-                            <TableCell>{formatCurrency(order.selling_price)}</TableCell>
-                            <TableCell>{formatCurrency(order.total_amount)}</TableCell>
+                            <TableCell>{formatINR(order.selling_price)}</TableCell>
+                            <TableCell>{formatINR(order.total_amount)}</TableCell>
                           </TableRow>
                         ))
                     ) : (
@@ -288,7 +288,7 @@ export default function OrdersPage() {
                                 {item.restockable ? 'Yes' : 'No'}
                               </Badge>
                             </TableCell>
-                            <TableCell>{formatCurrency(item.total_loss)}</TableCell>
+                            <TableCell>{formatINR(item.total_loss)}</TableCell>
                           </TableRow>
                         ))
                     ) : (

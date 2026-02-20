@@ -3,7 +3,7 @@
 
 import React from 'react';
 import { format } from 'date-fns';
-import { formatCurrency } from '@/lib/format';
+import { formatINR } from '@/lib/format';
 import {
   Card,
   CardContent,
@@ -83,12 +83,12 @@ export function VendorLedger({ vendor, ledgerItems, loading, onClose, totalPurch
                     <TableCell>{format(new Date(item.date), 'dd MMM yyyy')}</TableCell>
                     <TableCell>{item.description}</TableCell>
                     <TableCell className="text-right text-red-600 dark:text-red-500 font-medium">
-                      {item.debit > 0 ? formatCurrency(item.debit) : '-'}
+                      {item.debit > 0 ? formatINR(item.debit) : '-'}
                     </TableCell>
                     <TableCell className="text-right text-green-600 dark:text-green-500 font-medium">
-                      {item.credit > 0 ? formatCurrency(item.credit) : '-'}
+                      {item.credit > 0 ? formatINR(item.credit) : '-'}
                     </TableCell>
-                    <TableCell className="text-right font-semibold">{formatCurrency(item.balance)}</TableCell>
+                    <TableCell className="text-right font-semibold">{formatINR(item.balance)}</TableCell>
                     <TableCell>
                         <div className="flex justify-end gap-1">
                             <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEditItem(item.original, item.type)}><Pencil className="h-4 w-4" /></Button>
@@ -108,17 +108,17 @@ export function VendorLedger({ vendor, ledgerItems, loading, onClose, totalPurch
         <div className="w-full max-w-xs space-y-1">
             <div className="flex justify-between">
                 <span className="text-muted-foreground">Total Purchase</span>
-                <span>{formatCurrency(totalPurchase)}</span>
+                <span>{formatINR(totalPurchase)}</span>
             </div>
              <div className="flex justify-between">
                 <span className="text-muted-foreground">Total Paid</span>
-                <span>{formatCurrency(totalPaid)}</span>
+                <span>{formatINR(totalPaid)}</span>
             </div>
         </div>
         <div className="flex w-full max-w-xs items-center justify-between font-bold text-base border-t pt-2 mt-1">
             <span>Final Balance</span>
             <div className="flex items-center gap-2">
-                <span>{formatCurrency(finalBalance)}</span>
+                <span>{formatINR(finalBalance)}</span>
                 {getBalanceStatus(finalBalance)}
             </div>
         </div>

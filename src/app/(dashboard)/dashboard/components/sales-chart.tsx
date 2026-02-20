@@ -5,7 +5,7 @@ import {
   ChartContainer,
   ChartTooltipContent,
 } from '@/components/ui/chart';
-import { formatCurrency } from '@/lib/format';
+import { formatINR } from '@/lib/format';
 
 const chartData = [
   { date: '2024-07-15', revenue: 12345 },
@@ -43,9 +43,9 @@ export function SalesChart() {
             tickLine={false}
             axisLine={false}
             tickMargin={8}
-            tickFormatter={(value) => formatCurrency(value as number)}
+            tickFormatter={(value) => formatINR(value as number)}
           />
-          <Tooltip cursor={false} content={<ChartTooltipContent indicator="dot" formatter={(value) => formatCurrency(value as number)} />} />
+          <Tooltip cursor={false} content={<ChartTooltipContent indicator="dot" formatter={(value) => formatINR(value as number)} />} />
           <Bar dataKey="revenue" fill="var(--color-revenue)" radius={8} />
         </BarChart>
       </ChartContainer>

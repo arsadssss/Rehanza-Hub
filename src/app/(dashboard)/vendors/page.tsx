@@ -4,7 +4,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { formatCurrency } from '@/lib/format';
+import { formatINR } from '@/lib/format';
 
 import {
   Card,
@@ -229,7 +229,7 @@ export default function VendorsPage() {
   };
 
   const handleDeleteItem = (item: VendorPurchase | VendorPayment, type: 'purchase' | 'payment') => {
-      const description = type === 'purchase' ? (item as VendorPurchase).product_name : `Payment of ${formatCurrency((item as VendorPayment).amount)}`;
+      const description = type === 'purchase' ? (item as VendorPurchase).product_name : `Payment of ${formatINR((item as VendorPayment).amount)}`;
       setItemToDelete({ id: item.id, type, description: description || "this item" });
   };
 
@@ -259,15 +259,15 @@ export default function VendorsPage() {
       <CardContent className="space-y-3 text-sm">
         <div className="flex justify-between">
           <span className="text-muted-foreground">Total Purchase</span>
-          <span className="font-medium">{formatCurrency(item.total_purchase)}</span>
+          <span className="font-medium">{formatINR(item.total_purchase)}</span>
         </div>
         <div className="flex justify-between">
           <span className="text-muted-foreground">Total Paid</span>
-          <span className="font-medium">{formatCurrency(item.total_paid)}</span>
+          <span className="font-medium">{formatINR(item.total_paid)}</span>
         </div>
         <div className="flex justify-between font-bold text-base border-t pt-2 mt-2">
           <span>Balance Due</span>
-          <span>{formatCurrency(item.balance_due)}</span>
+          <span>{formatINR(item.balance_due)}</span>
         </div>
       </CardContent>
     </Card>
@@ -304,7 +304,7 @@ export default function VendorsPage() {
             <CardContent>
                 {loading ? <Skeleton className="h-10 w-48 bg-white/20" /> : (
                     <>
-                        <div className="text-3xl font-bold font-headline">{formatCurrency(totalDueAllVendors)}</div>
+                        <div className="text-3xl font-bold font-headline">{formatINR(totalDueAllVendors)}</div>
                         <p className="text-xs text-white/80">
                            {totalDueAllVendors > 0 ? "Outstanding Payable" : "All Vendors Settled"}
                         </p>
@@ -320,7 +320,7 @@ export default function VendorsPage() {
             <CardContent>
                 {loading ? <Skeleton className="h-10 w-48 bg-white/20" /> : (
                     <>
-                        <div className="text-3xl font-bold font-headline">{formatCurrency(totalInventoryValue)}</div>
+                        <div className="text-3xl font-bold font-headline">{formatINR(totalInventoryValue)}</div>
                         <p className="text-xs text-white/80">
                             {totalInventoryValue > 0 ? "Total Capital Invested in Stock" : "No purchases made yet"}
                         </p>

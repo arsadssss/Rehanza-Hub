@@ -3,7 +3,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { formatCurrency } from '@/lib/format';
+import { formatINR } from '@/lib/format';
 
 import {
   Card,
@@ -407,11 +407,11 @@ export default function ProductsPage() {
                             </TableCell>
                             <TableCell className="font-medium">{product.sku}</TableCell>
                             <TableCell>{product.product_name}</TableCell>
-                            <TableCell>{formatCurrency(product.cost_price)}</TableCell>
-                            <TableCell>{formatCurrency(product.margin)}</TableCell>
-                            <TableCell>{formatCurrency(product.meesho_price)}</TableCell>
-                            <TableCell>{formatCurrency(product.flipkart_price)}</TableCell>
-                            <TableCell>{formatCurrency(product.amazon_price)}</TableCell>
+                            <TableCell>{formatINR(product.cost_price)}</TableCell>
+                            <TableCell>{formatINR(product.margin)}</TableCell>
+                            <TableCell>{formatINR(product.meesho_price)}</TableCell>
+                            <TableCell>{formatINR(product.flipkart_price)}</TableCell>
+                            <TableCell>{formatINR(product.amazon_price)}</TableCell>
                             <TableCell>{stock}</TableCell>
                             <TableCell>
                               <Badge

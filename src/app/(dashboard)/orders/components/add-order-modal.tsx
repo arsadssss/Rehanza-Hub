@@ -34,7 +34,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type { Variant } from "../../products/page"
-import { formatCurrency } from "@/lib/format"
+import { formatINR } from "@/lib/format"
 
 // A more detailed type for variants that includes the parent product's prices
 type VariantWithProduct = Variant & {
@@ -251,7 +251,7 @@ export function AddOrderModal({ isOpen, onClose, onOrderAdded }: AddOrderModalPr
                     <FormLabel>Selling Price</FormLabel>
                     <Input
                         type="text"
-                        value={sellingPrice !== null ? formatCurrency(sellingPrice) : 'N/A'}
+                        value={sellingPrice !== null ? formatINR(sellingPrice) : 'N/A'}
                         disabled
                         className="bg-muted"
                     />

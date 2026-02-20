@@ -5,7 +5,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
-import { formatCurrency } from '@/lib/format';
+import { formatINR } from '@/lib/format';
 
 import {
   Card,
@@ -147,7 +147,7 @@ export default function ReturnsPage() {
                             {item.restockable ? 'Yes' : 'No'}
                           </Badge>
                         </TableCell>
-                        <TableCell>{formatCurrency(item.total_loss)}</TableCell>
+                        <TableCell>{formatINR(item.total_loss)}</TableCell>
                       </TableRow>
                     ))
                 ) : (

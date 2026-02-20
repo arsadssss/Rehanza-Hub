@@ -5,7 +5,7 @@ import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
-import { formatCurrency } from '@/lib/format';
+import { formatINR } from '@/lib/format';
 
 import {
   Card,
@@ -203,21 +203,21 @@ export default function ExpensesPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <StatCard 
                 title="Total Expenses"
-                value={formatCurrency(totalExpenses)}
+                value={formatINR(totalExpenses)}
                 icon={ArrowDownCircle}
                 gradient="from-red-500 to-orange-500"
                 loading={loading}
             />
             <StatCard 
                 title="Total Platform Receipts"
-                value={formatCurrency(totalPayouts)}
+                value={formatINR(totalPayouts)}
                 icon={ArrowUpCircle}
                 gradient="from-emerald-500 to-green-500"
                 loading={loading}
             />
              <StatCard 
                 title="Net Cash Flow"
-                value={formatCurrency(netFlow)}
+                value={formatINR(netFlow)}
                 icon={Scale}
                 gradient={netFlow >= 0 ? "from-blue-500 to-indigo-500" : "from-amber-500 to-yellow-500"}
                 loading={loading}
@@ -240,7 +240,7 @@ export default function ExpensesPage() {
                                     <TableRow key={e.id}>
                                         <TableCell>{format(new Date(e.expense_date), 'dd MMM yyyy')}</TableCell>
                                         <TableCell>{e.description}</TableCell>
-                                        <TableCell className="text-right font-medium">{formatCurrency(e.amount)}</TableCell>
+                                        <TableCell className="text-right font-medium">{formatINR(e.amount)}</TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex justify-end gap-1">
                                                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setExpenseToEdit(e)}><Pencil className="h-4 w-4" /></Button>
@@ -273,7 +273,7 @@ export default function ExpensesPage() {
                                         <TableCell><Badge variant="secondary">{p.gst_account}</Badge></TableCell>
                                         <TableCell><Badge variant="outline">{p.platform}</Badge></TableCell>
                                         <TableCell>{p.reference || 'N/A'}</TableCell>
-                                        <TableCell className="text-right font-medium">{formatCurrency(p.amount)}</TableCell>
+                                        <TableCell className="text-right font-medium">{formatINR(p.amount)}</TableCell>
                                          <TableCell className="text-right">
                                             <div className="flex justify-end gap-1">
                                                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setPayoutToEdit(p)}><Pencil className="h-4 w-4" /></Button>
