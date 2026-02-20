@@ -22,7 +22,7 @@ export default async function DashboardLayout({
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen bg-gray-50/50 dark:bg-black/50">
+      <div className="flex min-h-screen">
         <SidebarNav user={user} />
         <SidebarInset>
           <MobileHeader />
