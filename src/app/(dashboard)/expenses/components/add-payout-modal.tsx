@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -204,7 +203,9 @@ export function AddPayoutModal({ isOpen, onClose, onSuccess, payout }: AddPayout
                             mode="single"
                             selected={field.value}
                             onSelect={(date) => {
-                              field.onChange(date)
+                              if (date) {
+                                field.onChange(date)
+                              }
                               setIsCalendarOpen(false)
                             }}
                             initialFocus

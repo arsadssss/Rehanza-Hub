@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -154,7 +153,9 @@ export function AddExpenseModal({ isOpen, onClose, onSuccess, expense }: AddExpe
                         mode="single"
                         selected={field.value}
                         onSelect={(date) => {
-                          field.onChange(date)
+                          if (date) {
+                            field.onChange(date)
+                          }
                           setIsCalendarOpen(false)
                         }}
                         initialFocus
