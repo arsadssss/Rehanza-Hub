@@ -505,7 +505,9 @@ export default function DashboardPage() {
         lowStockRes,
         recentOrdersRes,
         topSellingRes,
-        vendorSummaryRes,
+        vendorsRes,
+        vendorPurchasesRes,
+        vendorPaymentsRes,
         allProductsRes,
         allOrdersRes,
       ] = await Promise.all([
@@ -525,7 +527,9 @@ export default function DashboardPage() {
             )
         `).order('created_at', { ascending: false }).limit(5),
         supabase.from('top_selling_products').select('*').limit(5),
-        supabase.from('vendor_balance_summary').select('balance_due'),
+        supabase.from('vendors').select('id, vendor_name'),
+        supabase.from('vendor_purchases').select('vendor_id, quantity, cost_per_unit'),
+        supabase.from('vendor_payments').select('vendor_id, amount'),
         supabase.from('allproducts').select('cost_price, stock'),
         supabase.from('orders').select('platform, quantity, selling_price'),
       ]);
@@ -556,10 +560,25 @@ export default function DashboardPage() {
       setRecentOrders(recentOrdersRes.data as RecentOrder[] || []);
       setTopSellingProducts(topSellingRes.data || []);
 
-      // Calculate total due
-      if (vendorSummaryRes.data) {
-          const totalDue = vendorSummaryRes.data.reduce((acc, vendor) => {
-              return acc + (vendor.balance_due > 0 ? vendor.balance_due : 0);
+      // Calculate total due from frontend
+      if (vendorsRes.data) {
+          const vendors = vendorsRes.data || [];
+          const purchases = vendorPurchasesRes.data || [];
+          const payments = vendorPaymentsRes.data || [];
+
+          const totalDue = vendors.reduce((sum, vendor) => {
+            const vendorPurchases = purchases.filter(p => p.vendor_id === vendor.id);
+            const totalPurchase = vendorPurchases.reduce((vendorSum, p) => {
+              const qty = Number(p.quantity || 0);
+              const cost = Number(p.cost_per_unit || 0);
+              return vendorSum + (qty * cost);
+            }, 0);
+    
+            const vendorPayments = payments.filter(p => p.vendor_id === vendor.id);
+            const totalPaid = vendorPayments.reduce((vendorSum, p) => vendorSum + Number(p.amount || 0), 0);
+            
+            const balance = totalPurchase - totalPaid;
+            return balance > 0 ? sum + balance : sum;
           }, 0);
           setTotalDueAllVendors(totalDue);
       }

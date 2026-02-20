@@ -65,13 +65,15 @@ export default function VendorsPage() {
   const fetchSummary = useCallback(async () => {
     setLoading(true);
 
-    const [summaryRes, productsRes] = await Promise.all([
-        supabase.from('vendor_balance_summary').select('*'),
+    const [vendorsRes, purchasesRes, paymentsRes, productsRes] = await Promise.all([
+        supabase.from('vendors').select('id, vendor_name'),
+        supabase.from('vendor_purchases').select('vendor_id, quantity, cost_per_unit'),
+        supabase.from('vendor_payments').select('vendor_id, amount'),
         supabase.from('allproducts').select('cost_price, stock')
     ]);
     
     // Process Vendor Summary
-    if (summaryRes.error) {
+    if (vendorsRes.error || purchasesRes.error || paymentsRes.error) {
       toast({
         variant: 'destructive',
         title: 'Error',
@@ -79,7 +81,32 @@ export default function VendorsPage() {
       });
       setSummary([]);
     } else {
-      const summaryData = (summaryRes.data as VendorBalance[]) || [];
+      const vendors = vendorsRes.data || [];
+      const purchases = purchasesRes.data || [];
+      const payments = paymentsRes.data || [];
+
+      const summaryData = vendors.map(vendor => {
+        const vendorPurchases = purchases.filter(p => p.vendor_id === vendor.id);
+        const vendorPayments = payments.filter(p => p.vendor_id === vendor.id);
+
+        const total_purchase = vendorPurchases.reduce((sum, p) => {
+            const qty = Number(p.quantity || 0);
+            const cost = Number(p.cost_per_unit || 0);
+            return sum + (qty * cost);
+        }, 0);
+
+        const total_paid = vendorPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+        
+        const balance_due = total_purchase - total_paid;
+
+        return {
+            id: vendor.id,
+            vendor_name: vendor.vendor_name,
+            total_purchase,
+            total_paid,
+            balance_due
+        };
+      });
       setSummary(summaryData);
 
       const totalDue = summaryData.reduce((acc, vendor) => {
@@ -116,13 +143,13 @@ export default function VendorsPage() {
     const { data: purchases, error: purchaseError } =
       await supabase
         .from("vendor_purchases")
-        .select("*")
+        .select("id, purchase_date, product_name, quantity, cost_per_unit")
         .eq("vendor_id", vendor.id);
 
     const { data: payments, error: paymentError } =
       await supabase
         .from("vendor_payments")
-        .select("*")
+        .select("id, payment_date, amount, notes")
         .eq("vendor_id", vendor.id);
 
     if (purchaseError || paymentError) {
@@ -136,8 +163,13 @@ export default function VendorsPage() {
       return;
     }
 
-    // Calculate totals safely
-    const totalPurchase = purchases?.reduce((sum, p) => sum + Number(p.total_amount || 0), 0) || 0;
+    // Calculate totals safely from raw data
+    const totalPurchase = purchases?.reduce((sum, p) => {
+        const qty = Number(p.quantity || 0);
+        const cost = Number(p.cost_per_unit || 0);
+        return sum + (qty * cost);
+    }, 0) || 0;
+    
     const totalPaid = payments?.reduce((sum, p) => sum + Number(p.amount || 0), 0) || 0;
     const finalBalance = totalPurchase - totalPaid;
 
@@ -150,7 +182,7 @@ export default function VendorsPage() {
         id: `purchase-${p.id}`,
         date: p.purchase_date,
         description: p.product_name,
-        debit: Number(p.total_amount),
+        debit: Number(p.quantity || 0) * Number(p.cost_per_unit || 0),
         credit: 0,
       })) || [];
 
