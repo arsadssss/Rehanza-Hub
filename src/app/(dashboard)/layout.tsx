@@ -1,5 +1,5 @@
 import React from 'react';
-import { SidebarProvider, SidebarInset } from '@/components/ui/sidebar';
+import { SidebarProvider } from '@/components/ui/sidebar';
 import { SidebarNav } from './_components/sidebar-nav';
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
@@ -24,10 +24,10 @@ export default async function DashboardLayout({
     <SidebarProvider>
       <div className="flex min-h-screen">
         <SidebarNav user={user} />
-        <SidebarInset>
+        <main className="flex-1 min-w-0 bg-background">
           <MobileHeader />
           {children}
-        </SidebarInset>
+        </main>
       </div>
     </SidebarProvider>
   );
