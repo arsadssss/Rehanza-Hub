@@ -508,7 +508,6 @@ export default function DashboardPage() {
         vendorsRes,
         vendorPurchasesRes,
         vendorPaymentsRes,
-        allProductsRes,
         allOrdersRes,
       ] = await Promise.all([
         supabase.from('dashboard_summary').select('*').single(),
@@ -530,7 +529,6 @@ export default function DashboardPage() {
         supabase.from('vendors').select('id, vendor_name'),
         supabase.from('vendor_purchases').select('vendor_id, quantity, cost_per_unit'),
         supabase.from('vendor_payments').select('vendor_id, amount'),
-        supabase.from('allproducts').select('cost_price, stock'),
         supabase.from('orders').select('platform, quantity, selling_price'),
       ]);
 
@@ -561,37 +559,33 @@ export default function DashboardPage() {
       setTopSellingProducts(topSellingRes.data || []);
 
       // Calculate total due from frontend
-      if (vendorsRes.data) {
-          const vendors = vendorsRes.data || [];
-          const purchases = vendorPurchasesRes.data || [];
-          const payments = vendorPaymentsRes.data || [];
-
-          const totalDue = vendors.reduce((sum, vendor) => {
-            const vendorPurchases = purchases.filter(p => p.vendor_id === vendor.id);
-            const totalPurchase = vendorPurchases.reduce((vendorSum, p) => {
-              const qty = Number(p.quantity || 0);
-              const cost = Number(p.cost_per_unit || 0);
-              return vendorSum + (qty * cost);
-            }, 0);
-    
-            const vendorPayments = payments.filter(p => p.vendor_id === vendor.id);
-            const totalPaid = vendorPayments.reduce((vendorSum, p) => vendorSum + Number(p.amount || 0), 0);
-            
-            const balance = totalPurchase - totalPaid;
-            return balance > 0 ? sum + balance : sum;
-          }, 0);
-          setTotalDueAllVendors(totalDue);
-      }
+      const vendors = vendorsRes.data || [];
+      const purchases = vendorPurchasesRes.data || [];
+      const payments = vendorPaymentsRes.data || [];
       
-      // Calculate inventory value
-      if (allProductsRes.data) {
-          const totalValue = allProductsRes.data.reduce((sum, product) => {
-              const cost = Number(product.cost_price || 0);
-              const stock = Number(product.stock || 0);
-              return sum + (cost * stock);
-          }, 0);
-          setTotalInventoryValue(totalValue);
-      }
+      const totalDue = vendors.reduce((sum, vendor) => {
+        const vendorPurchases = purchases.filter(p => p.vendor_id === vendor.id);
+        const totalPurchase = vendorPurchases.reduce((vendorSum, p) => {
+          const qty = Number(p.quantity || 0);
+          const cost = Number(p.cost_per_unit || 0);
+          return vendorSum + (qty * cost);
+        }, 0);
+
+        const vendorPayments = payments.filter(p => p.vendor_id === vendor.id);
+        const totalPaid = vendorPayments.reduce((vendorSum, p) => vendorSum + Number(p.amount || 0), 0);
+        
+        const balance = totalPurchase - totalPaid;
+        return balance > 0 ? sum + balance : sum;
+      }, 0);
+      setTotalDueAllVendors(totalDue);
+      
+      // Calculate inventory purchase value from all purchases
+      const totalValue = purchases.reduce((sum, purchase) => {
+          const qty = Number(purchase.quantity || 0);
+          const cost = Number(purchase.cost_per_unit || 0);
+          return sum + (qty * cost);
+      }, 0);
+      setTotalInventoryValue(totalValue);
 
       setLoading(false);
     }
