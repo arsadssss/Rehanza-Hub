@@ -34,10 +34,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Calendar } from "@/components/ui/calendar"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { CalendarIcon } from "lucide-react"
-import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 import type { VendorPayment } from "../page"
 
@@ -46,7 +42,7 @@ type Vendor = { id: string; vendor_name: string };
 const formSchema = z.object({
   vendor_id: z.string().min(1, "Vendor is required"),
   amount: z.coerce.number().positive("Amount must be a positive number"),
-  payment_date: z.date({ required_error: "Payment date is required" }),
+  payment_date: z.string({ required_error: "Payment date is required" }).min(1, "Payment date is required"),
   payment_mode: z.enum(["Bank Transfer", "Cash", "UPI", "Other"], { required_error: "Payment mode is required" }),
   notes: z.string().optional(),
 })
@@ -65,14 +61,13 @@ export function AddPaymentModal({ isOpen, onClose, onSuccess, payment }: AddPaym
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [vendors, setVendors] = React.useState<Vendor[]>([])
-  const [isCalendarOpen, setIsCalendarOpen] = React.useState(false)
   const isEditMode = !!payment;
 
   const form = useForm<PaymentFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       amount: 0,
-      payment_date: new Date(),
+      payment_date: format(new Date(), 'yyyy-MM-dd'),
       notes: "",
     },
   })
@@ -88,7 +83,7 @@ export function AddPaymentModal({ isOpen, onClose, onSuccess, payment }: AddPaym
             form.reset({
                 vendor_id: payment.vendor_id,
                 amount: payment.amount,
-                payment_date: new Date(payment.payment_date),
+                payment_date: format(new Date(payment.payment_date), 'yyyy-MM-dd'),
                 payment_mode: payment.payment_mode,
                 notes: payment.notes || "",
             });
@@ -96,7 +91,7 @@ export function AddPaymentModal({ isOpen, onClose, onSuccess, payment }: AddPaym
             form.reset({
                 vendor_id: undefined,
                 amount: 0,
-                payment_date: new Date(),
+                payment_date: format(new Date(), 'yyyy-MM-dd'),
                 payment_mode: undefined,
                 notes: "",
             });
@@ -109,7 +104,7 @@ export function AddPaymentModal({ isOpen, onClose, onSuccess, payment }: AddPaym
     try {
       const paymentData = { 
         ...values, 
-        payment_date: format(values.payment_date, 'yyyy-MM-dd') 
+        payment_date: values.payment_date
       };
 
       let error;
@@ -185,32 +180,11 @@ export function AddPaymentModal({ isOpen, onClose, onSuccess, payment }: AddPaym
                 control={form.control}
                 name="payment_date"
                 render={({ field }) => (
-                  <FormItem className="flex flex-col">
+                  <FormItem>
                     <FormLabel>Payment Date</FormLabel>
-                    <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant={"outline"}
-                            className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
-                          >
-                            {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0 z-50" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={field.value}
-                          onSelect={(date) => {
-                            if (date) field.onChange(date)
-                            setIsCalendarOpen(false)
-                          }}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
+                    <FormControl>
+                        <Input type="date" {...field} />
+                    </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}

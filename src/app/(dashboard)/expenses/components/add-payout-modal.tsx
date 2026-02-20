@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -31,10 +32,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Calendar } from "@/components/ui/calendar"
-import { CalendarIcon } from "lucide-react"
-import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 import type { PlatformPayout } from "../page"
 
@@ -48,7 +45,7 @@ const formSchema = z.object({
     "Cosmetics-Amazon",
   ], { required_error: "An account is required" }),
   amount: z.coerce.number().positive("Amount must be a positive number"),
-  payout_date: z.date({ required_error: "Payout date is required" }),
+  payout_date: z.string({ required_error: "Payout date is required" }).min(1, "Payout date is required"),
   reference: z.string().optional(),
 })
 
@@ -65,14 +62,13 @@ export function AddPayoutModal({ isOpen, onClose, onSuccess, payout }: AddPayout
   const supabase = createClient()
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [isCalendarOpen, setIsCalendarOpen] = React.useState(false)
   const isEditMode = !!payout;
 
   const form = useForm<PayoutFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       amount: 0,
-      payout_date: new Date(),
+      payout_date: format(new Date(), 'yyyy-MM-dd'),
       reference: "",
     },
   })
@@ -82,14 +78,14 @@ export function AddPayoutModal({ isOpen, onClose, onSuccess, payout }: AddPayout
       form.reset({
         account_platform: `${payout.gst_account}-${payout.platform}` as any,
         amount: payout.amount,
-        payout_date: new Date(payout.payout_date),
+        payout_date: format(new Date(payout.payout_date), 'yyyy-MM-dd'),
         reference: payout.reference || "",
       });
     } else if (isOpen && !isEditMode) {
       form.reset({
         account_platform: undefined,
         amount: 0,
-        payout_date: new Date(),
+        payout_date: format(new Date(), 'yyyy-MM-dd'),
         reference: "",
       });
     }
@@ -104,7 +100,7 @@ export function AddPayoutModal({ isOpen, onClose, onSuccess, payout }: AddPayout
         gst_account,
         platform,
         amount: values.amount,
-        payout_date: format(values.payout_date, 'yyyy-MM-dd'),
+        payout_date: values.payout_date,
         reference: values.reference
       }
 
@@ -184,34 +180,11 @@ export function AddPayoutModal({ isOpen, onClose, onSuccess, payout }: AddPayout
                   control={form.control}
                   name="payout_date"
                   render={({ field }) => (
-                    <FormItem className="flex flex-col">
+                    <FormItem>
                       <FormLabel>Payout Date</FormLabel>
-                      <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-                        <PopoverTrigger asChild>
-                          <FormControl>
-                            <Button
-                              variant={"outline"}
-                              className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
-                            >
-                              {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                              <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                            </Button>
-                          </FormControl>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0 z-50" align="start">
-                          <Calendar
-                            mode="single"
-                            selected={field.value}
-                            onSelect={(date) => {
-                              if (date) {
-                                field.onChange(date)
-                              }
-                              setIsCalendarOpen(false)
-                            }}
-                            initialFocus
-                          />
-                        </PopoverContent>
-                      </Popover>
+                      <FormControl>
+                        <Input type="date" {...field} />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}

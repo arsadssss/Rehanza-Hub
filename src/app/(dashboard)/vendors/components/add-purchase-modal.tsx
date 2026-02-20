@@ -34,10 +34,6 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Calendar } from "@/components/ui/calendar"
-import { CalendarIcon } from "lucide-react"
-import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 import type { VendorPurchase } from "../page"
 
@@ -48,7 +44,7 @@ const formSchema = z.object({
   product_name: z.string().min(1, "Product name is required"),
   quantity: z.coerce.number().min(1, "Quantity must be at least 1"),
   cost_per_unit: z.coerce.number().positive("Cost must be a positive number"),
-  purchase_date: z.date({ required_error: "Purchase date is required" }),
+  purchase_date: z.string({ required_error: "Purchase date is required" }).min(1, "Purchase date is required"),
   description: z.string().optional(),
 })
 
@@ -66,7 +62,6 @@ export function AddPurchaseModal({ isOpen, onClose, onSuccess, purchase }: AddPu
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [vendors, setVendors] = React.useState<Vendor[]>([])
-  const [isCalendarOpen, setIsCalendarOpen] = React.useState(false)
   const isEditMode = !!purchase;
 
   const form = useForm<PurchaseFormValues>({
@@ -74,7 +69,7 @@ export function AddPurchaseModal({ isOpen, onClose, onSuccess, purchase }: AddPu
     defaultValues: {
       quantity: 1,
       cost_per_unit: 0,
-      purchase_date: new Date(),
+      purchase_date: format(new Date(), 'yyyy-MM-dd'),
       description: "",
       product_name: "",
     },
@@ -93,7 +88,7 @@ export function AddPurchaseModal({ isOpen, onClose, onSuccess, purchase }: AddPu
                 product_name: purchase.product_name,
                 quantity: purchase.quantity,
                 cost_per_unit: purchase.cost_per_unit,
-                purchase_date: new Date(purchase.purchase_date),
+                purchase_date: format(new Date(purchase.purchase_date), 'yyyy-MM-dd'),
                 description: purchase.description || "",
             })
         } else {
@@ -102,7 +97,7 @@ export function AddPurchaseModal({ isOpen, onClose, onSuccess, purchase }: AddPu
                 product_name: "",
                 quantity: 1,
                 cost_per_unit: 0,
-                purchase_date: new Date(),
+                purchase_date: format(new Date(), 'yyyy-MM-dd'),
                 description: "",
             })
         }
@@ -114,7 +109,7 @@ export function AddPurchaseModal({ isOpen, onClose, onSuccess, purchase }: AddPu
     try {
       const purchaseData = { 
         ...values,
-        purchase_date: format(values.purchase_date, 'yyyy-MM-dd'),
+        purchase_date: values.purchase_date,
       };
 
       let error;
@@ -209,29 +204,11 @@ export function AddPurchaseModal({ isOpen, onClose, onSuccess, purchase }: AddPu
               control={form.control}
               name="purchase_date"
               render={({ field }) => (
-                <FormItem className="flex flex-col">
+                <FormItem>
                   <FormLabel>Purchase Date</FormLabel>
-                    <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
-                          {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 z-50" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={(date) => {
-                          if (date) field.onChange(date);
-                          setIsCalendarOpen(false)
-                        }}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
+                    <FormControl>
+                        <Input type="date" {...field} />
+                    </FormControl>
                   <FormMessage />
                 </FormItem>
               )}

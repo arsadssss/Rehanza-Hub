@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -25,17 +26,13 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Calendar } from "@/components/ui/calendar"
-import { CalendarIcon } from "lucide-react"
-import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 import type { BusinessExpense } from "../page"
 
 const formSchema = z.object({
   description: z.string().min(1, "Description is required"),
   amount: z.coerce.number().positive("Amount must be a positive number"),
-  expense_date: z.date({ required_error: "Expense date is required" }),
+  expense_date: z.string({ required_error: "Expense date is required" }).min(1, "Expense date is required"),
 })
 
 type ExpenseFormValues = z.infer<typeof formSchema>
@@ -51,7 +48,6 @@ export function AddExpenseModal({ isOpen, onClose, onSuccess, expense }: AddExpe
   const supabase = createClient()
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [isCalendarOpen, setIsCalendarOpen] = React.useState(false)
   const isEditMode = !!expense;
 
   const form = useForm<ExpenseFormValues>({
@@ -59,7 +55,7 @@ export function AddExpenseModal({ isOpen, onClose, onSuccess, expense }: AddExpe
     defaultValues: {
       description: "",
       amount: 0,
-      expense_date: new Date(),
+      expense_date: format(new Date(), 'yyyy-MM-dd'),
     },
   })
 
@@ -68,13 +64,13 @@ export function AddExpenseModal({ isOpen, onClose, onSuccess, expense }: AddExpe
       form.reset({
         description: expense.description,
         amount: expense.amount,
-        expense_date: new Date(expense.expense_date),
+        expense_date: format(new Date(expense.expense_date), "yyyy-MM-dd"),
       });
     } else if (isOpen && !isEditMode) {
       form.reset({
         description: "",
         amount: 0,
-        expense_date: new Date(),
+        expense_date: format(new Date(), "yyyy-MM-dd"),
       });
     }
   }, [isOpen, expense, form, isEditMode]);
@@ -86,7 +82,7 @@ export function AddExpenseModal({ isOpen, onClose, onSuccess, expense }: AddExpe
       const expenseData = {
         description: values.description,
         amount: values.amount,
-        expense_date: format(values.expense_date, "yyyy-MM-dd"),
+        expense_date: values.expense_date,
         gst_account: 'Fashion', // Default value
         category: 'General',   // Default value
       }
@@ -134,34 +130,11 @@ export function AddExpenseModal({ isOpen, onClose, onSuccess, expense }: AddExpe
               control={form.control}
               name="expense_date"
               render={({ field }) => (
-                <FormItem className="flex flex-col">
+                <FormItem>
                   <FormLabel>Expense Date</FormLabel>
-                  <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button
-                          variant={"outline"}
-                          className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}
-                        >
-                          {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0 z-50" align="start">
-                      <Calendar
-                        mode="single"
-                        selected={field.value}
-                        onSelect={(date) => {
-                          if (date) {
-                            field.onChange(date)
-                          }
-                          setIsCalendarOpen(false)
-                        }}
-                        initialFocus
-                      />
-                    </PopoverContent>
-                  </Popover>
+                  <FormControl>
+                    <Input type="date" {...field} />
+                  </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
