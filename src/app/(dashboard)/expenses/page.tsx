@@ -123,8 +123,8 @@ export default function ExpensesPage() {
   const [payoutsPage, setPayoutsPage] = useState(1);
   const [payoutsPageSize] = useState(10);
   const [payoutsTotalRows, setPayoutsTotalRows] = useState(0);
-  const [accountFilter, setAccountFilter] = useState('');
-  const [platformFilter, setPlatformFilter] = useState('');
+  const [accountFilter, setAccountFilter] = useState('all');
+  const [platformFilter, setPlatformFilter] = useState('all');
   const [dateFromFilter, setDateFromFilter] = useState('');
   const [dateToFilter, setDateToFilter] = useState('');
 
@@ -176,8 +176,8 @@ export default function ExpensesPage() {
       .select('*', { count: 'exact' })
       .eq('is_deleted', false);
 
-    if (accountFilter) query = query.eq('gst_account', accountFilter);
-    if (platformFilter) query = query.eq('platform', platformFilter);
+    if (accountFilter && accountFilter !== 'all') query = query.eq('gst_account', accountFilter);
+    if (platformFilter && platformFilter !== 'all') query = query.eq('platform', platformFilter);
     if (dateFromFilter) query = query.gte('payout_date', dateFromFilter);
     if (dateToFilter) query = query.lte('payout_date', dateToFilter);
     
@@ -244,8 +244,8 @@ export default function ExpensesPage() {
   };
   
   const resetFilters = () => {
-      setAccountFilter('');
-      setPlatformFilter('');
+      setAccountFilter('all');
+      setPlatformFilter('all');
       setDateFromFilter('');
       setDateToFilter('');
   }
@@ -281,7 +281,7 @@ export default function ExpensesPage() {
             </AlertDialogContent>
         </AlertDialog>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <StatCard 
                 title="Total Expenses"
                 value={formatINR(totalExpenses)}
@@ -303,22 +303,30 @@ export default function ExpensesPage() {
                 gradient={netFlow >= 0 ? "from-blue-500 to-indigo-500" : "from-amber-500 to-yellow-500"}
                 loading={loading}
             />
-            <StatCard 
-                title="Fashion Platform Receipts"
-                value={formatINR(totalFashionPayouts)}
-                icon={ShoppingBag}
-                gradient="from-purple-500 to-indigo-500"
-                loading={loading}
-                subtext="Total received in Fashion GST"
-            />
-            <StatCard 
-                title="Cosmetics Platform Receipts"
-                value={formatINR(totalCosmeticsPayouts)}
-                icon={Sparkles}
-                gradient="from-teal-500 to-cyan-600"
-                loading={loading}
-                subtext="Total received in Cosmetics GST"
-            />
+        </div>
+
+        <div>
+            <h3 className="text-lg font-semibold mb-4">
+              Platform Receipts by Account
+            </h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <StatCard 
+                    title="Fashion Platform Receipts"
+                    value={formatINR(totalFashionPayouts)}
+                    icon={ShoppingBag}
+                    gradient="from-purple-500 to-indigo-500"
+                    loading={loading}
+                    subtext="Total received in Fashion GST"
+                />
+                <StatCard 
+                    title="Cosmetics Platform Receipts"
+                    value={formatINR(totalCosmeticsPayouts)}
+                    icon={Sparkles}
+                    gradient="from-teal-500 to-cyan-600"
+                    loading={loading}
+                    subtext="Total received in Cosmetics GST"
+                />
+            </div>
         </div>
 
         <div className="w-full space-y-6">
@@ -360,7 +368,7 @@ export default function ExpensesPage() {
                 </CardHeader>
                 <CardContent>
                     <div className="flex flex-col md:flex-row gap-4 mb-4">
-                        <Select value={accountFilter || 'all'} onValueChange={(value) => setAccountFilter(value === 'all' ? '' : value)}>
+                        <Select value={accountFilter} onValueChange={setAccountFilter}>
                             <SelectTrigger><SelectValue placeholder="Filter by Account..." /></SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="all">All Accounts</SelectItem>
@@ -368,7 +376,7 @@ export default function ExpensesPage() {
                                 <SelectItem value="Cosmetics">Cosmetics</SelectItem>
                             </SelectContent>
                         </Select>
-                         <Select value={platformFilter || 'all'} onValueChange={(value) => setPlatformFilter(value === 'all' ? '' : value)}>
+                         <Select value={platformFilter} onValueChange={setPlatformFilter}>
                             <SelectTrigger><SelectValue placeholder="Filter by Platform..." /></SelectTrigger>
                             <SelectContent>
                                 <SelectItem value="all">All Platforms</SelectItem>
