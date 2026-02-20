@@ -158,19 +158,17 @@ export default function ExpensesPage() {
                 <CardContent>
                     <div className="rounded-md border">
                         <Table>
-                            <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>GST Account</TableHead><TableHead>Category</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
+                            <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
                             <TableBody>
-                                {loading ? Array.from({length: 3}).map((_, i) => <TableRow key={i}><TableCell colSpan={5}><Skeleton className="h-8 w-full"/></TableCell></TableRow>)
+                                {loading ? Array.from({length: 3}).map((_, i) => <TableRow key={i}><TableCell colSpan={3}><Skeleton className="h-8 w-full"/></TableCell></TableRow>)
                                 : expenses.length > 0 ? expenses.map(e => (
                                     <TableRow key={e.id}>
                                         <TableCell>{format(new Date(e.expense_date), 'dd MMM yyyy')}</TableCell>
-                                        <TableCell><Badge variant="secondary">{e.gst_account}</Badge></TableCell>
-                                        <TableCell>{e.category}</TableCell>
                                         <TableCell>{e.description}</TableCell>
                                         <TableCell className="text-right font-medium">{formatCurrency(e.amount)}</TableCell>
                                     </TableRow>
                                 ))
-                                : <TableRow><TableCell colSpan={5} className="h-24 text-center">No expenses recorded yet.</TableCell></TableRow>}
+                                : <TableRow><TableCell colSpan={3} className="h-24 text-center">No expenses recorded yet.</TableCell></TableRow>}
                             </TableBody>
                         </Table>
                     </div>

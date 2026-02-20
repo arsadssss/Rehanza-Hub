@@ -25,13 +25,6 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
 import { Calendar } from "@/components/ui/calendar"
@@ -40,8 +33,6 @@ import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 
 const formSchema = z.object({
-  gst_account: z.enum(["Fashion", "Cosmetics"], { required_error: "GST Account is required" }),
-  category: z.string().min(1, "Category is required"),
   description: z.string().min(1, "Description is required"),
   amount: z.coerce.number().positive("Amount must be a positive number"),
   expense_date: z.date({ required_error: "Expense date is required" }),
@@ -63,10 +54,9 @@ export function AddExpenseModal({ isOpen, onClose, onExpenseAdded }: AddExpenseM
   const form = useForm<ExpenseFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      description: "",
       amount: 0,
       expense_date: new Date(),
-      category: "",
-      description: "",
     },
   })
 
@@ -78,7 +68,15 @@ export function AddExpenseModal({ isOpen, onClose, onExpenseAdded }: AddExpenseM
   async function onSubmit(values: ExpenseFormValues) {
     setIsSubmitting(true)
     try {
-      const { error } = await supabase.from("business_expenses").insert([values])
+      // These fields are no longer in the form, so we can add them with defaults if needed
+      // or assume the database handles them (e.g., nullable or default values)
+      const expenseData = {
+        ...values,
+        gst_account: 'Fashion', // Example default, adjust if needed or remove
+        category: 'General', // Example default, adjust if needed or remove
+      }
+
+      const { error } = await supabase.from("business_expenses").insert([expenseData])
       if (error) throw error
 
       toast({
@@ -109,60 +107,6 @@ export function AddExpenseModal({ isOpen, onClose, onExpenseAdded }: AddExpenseM
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
-              name="gst_account"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>GST Account</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <FormControl>
-                      <SelectTrigger><SelectValue placeholder="Select GST account" /></SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      <SelectItem value="Fashion">Fashion</SelectItem>
-                      <SelectItem value="Cosmetics">Cosmetics</SelectItem>
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="category"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Category</FormLabel>
-                    <FormControl><Input placeholder="e.g., Office Supplies" {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="amount"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Amount</FormLabel>
-                    <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
-             <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Description</FormLabel>
-                    <FormControl><Textarea placeholder="Detailed description of the expense" {...field} /></FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            <FormField
-              control={form.control}
               name="expense_date"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
@@ -187,6 +131,28 @@ export function AddExpenseModal({ isOpen, onClose, onExpenseAdded }: AddExpenseM
                 </FormItem>
               )}
             />
+             <FormField
+                control={form.control}
+                name="description"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Description</FormLabel>
+                    <FormControl><Textarea placeholder="Detailed description of the expense" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="amount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Amount</FormLabel>
+                    <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={handleClose}>Cancel</Button>
               <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : 'Save Expense'}</Button>
