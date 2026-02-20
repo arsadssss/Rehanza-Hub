@@ -42,7 +42,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { PlusCircle, ArrowDownCircle, ArrowUpCircle, Scale, Pencil, Trash2 } from 'lucide-react';
+import { PlusCircle, ArrowDownCircle, ArrowUpCircle, Scale, Pencil, Trash2, ShoppingBag, Sparkles } from 'lucide-react';
 import { AddExpenseModal } from './components/add-expense-modal';
 import { AddPayoutModal } from './components/add-payout-modal';
 
@@ -70,13 +70,14 @@ type ItemToDelete = {
   description: string;
 }
 
-const StatCard = ({ title, value, icon: Icon, gradient, loading }: { title: string; value: string; icon: React.ElementType; gradient: string; loading: boolean }) => (
+const StatCard = ({ title, value, icon: Icon, gradient, loading, subtext }: { title: string; value: string; icon: React.ElementType; gradient: string; loading: boolean, subtext?: string }) => (
     <Card className={`text-white shadow-lg rounded-2xl border-0 overflow-hidden bg-gradient-to-br ${gradient}`}>
         {loading ? (
             <div className="p-6 flex items-center justify-between">
                 <div>
                     <Skeleton className="h-5 w-32 bg-white/20" />
                     <Skeleton className="h-10 w-40 mt-2 bg-white/20" />
+                    {subtext && <Skeleton className="h-4 w-48 mt-1 bg-white/20" />}
                 </div>
                 <Skeleton className="h-12 w-12 rounded-full bg-white/20" />
             </div>
@@ -85,6 +86,7 @@ const StatCard = ({ title, value, icon: Icon, gradient, loading }: { title: stri
                 <div>
                     <h3 className="text-sm font-medium uppercase tracking-wider">{title}</h3>
                     <p className="text-4xl font-bold font-headline mt-2">{value}</p>
+                    {subtext && <p className="text-xs text-white/80 mt-1">{subtext}</p>}
                 </div>
                 <div className="p-3 bg-white/20 rounded-full">
                     <Icon className="h-6 w-6 text-white" />
@@ -104,6 +106,9 @@ export default function ExpensesPage() {
 
   const [totalExpenses, setTotalExpenses] = useState(0);
   const [totalPayouts, setTotalPayouts] = useState(0);
+  const [totalFashionPayouts, setTotalFashionPayouts] = useState(0);
+  const [totalCosmeticsPayouts, setTotalCosmeticsPayouts] = useState(0);
+
 
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
   const [expenseToEdit, setExpenseToEdit] = useState<BusinessExpense | null>(null);
@@ -127,7 +132,7 @@ export default function ExpensesPage() {
     setLoading(true);
     const [expenseRes, payoutRes] = await Promise.all([
       supabase.from('business_expenses').select('amount').eq('is_deleted', false),
-      supabase.from('platform_payouts').select('amount').eq('is_deleted', false)
+      supabase.from('platform_payouts').select('gst_account, amount').eq('is_deleted', false)
     ]);
     
     if (expenseRes.data) {
@@ -135,9 +140,18 @@ export default function ExpensesPage() {
         setTotalExpenses(total);
     }
      if (payoutRes.data) {
-        const total = payoutRes.data.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-        setTotalPayouts(total);
-    }
+        const fashionTotal = payoutRes.data
+            .filter(row => row.gst_account === "Fashion")
+            .reduce((sum, row) => sum + Number(row.amount || 0), 0);
+        setTotalFashionPayouts(fashionTotal);
+
+        const cosmeticsTotal = payoutRes.data
+            .filter(row => row.gst_account === "Cosmetics")
+            .reduce((sum, row) => sum + Number(row.amount || 0), 0);
+        setTotalCosmeticsPayouts(cosmeticsTotal);
+
+        setTotalPayouts(fashionTotal + cosmeticsTotal);
+     }
     
     setLoading(false);
   }, [supabase]);
@@ -267,7 +281,7 @@ export default function ExpensesPage() {
             </AlertDialogContent>
         </AlertDialog>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-6">
             <StatCard 
                 title="Total Expenses"
                 value={formatINR(totalExpenses)}
@@ -288,6 +302,22 @@ export default function ExpensesPage() {
                 icon={Scale}
                 gradient={netFlow >= 0 ? "from-blue-500 to-indigo-500" : "from-amber-500 to-yellow-500"}
                 loading={loading}
+            />
+            <StatCard 
+                title="Fashion Platform Receipts"
+                value={formatINR(totalFashionPayouts)}
+                icon={ShoppingBag}
+                gradient="from-purple-500 to-indigo-500"
+                loading={loading}
+                subtext="Total received in Fashion GST"
+            />
+            <StatCard 
+                title="Cosmetics Platform Receipts"
+                value={formatINR(totalCosmeticsPayouts)}
+                icon={Sparkles}
+                gradient="from-teal-500 to-cyan-600"
+                loading={loading}
+                subtext="Total received in Cosmetics GST"
             />
         </div>
 
@@ -402,3 +432,5 @@ export default function ExpensesPage() {
     </div>
   );
 }
+
+    

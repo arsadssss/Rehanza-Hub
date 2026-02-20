@@ -65,6 +65,9 @@ export default {
           border: 'hsl(var(--sidebar-border))',
           ring: 'hsl(var(--sidebar-ring))',
         },
+        teal: {
+          '500': '#14b8a6',
+        },
       },
       borderRadius: {
         lg: 'var(--radius)',
@@ -98,3 +101,5 @@ export default {
   },
   plugins: [require('tailwindcss-animate')],
 } satisfies Config;
+
+    
