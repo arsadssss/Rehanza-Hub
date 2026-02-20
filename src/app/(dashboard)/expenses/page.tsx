@@ -121,11 +121,11 @@ export default function ExpensesPage() {
   }, [expenses, payouts]);
 
   return (
-    <div className="p-6 space-y-6 bg-gray-50/50 dark:bg-black/50 min-h-full">
+    <div className="w-full px-6 py-6 space-y-6">
         <AddExpenseModal isOpen={isAddExpenseOpen} onClose={() => setIsAddExpenseOpen(false)} onExpenseAdded={handleDataAdded} />
         <AddPayoutModal isOpen={isAddPayoutOpen} onClose={() => setIsAddPayoutOpen(false)} onPayoutAdded={handleDataAdded} />
       
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <StatCard 
                 title="Total Expenses"
                 value={formatCurrency(totalExpenses)}
@@ -149,7 +149,7 @@ export default function ExpensesPage() {
             />
         </div>
 
-        <div className="space-y-6">
+        <div className="w-full space-y-6">
             <Card>
                 <CardHeader className="flex flex-row justify-between items-center">
                     <CardTitle>Business Expenses</CardTitle>
