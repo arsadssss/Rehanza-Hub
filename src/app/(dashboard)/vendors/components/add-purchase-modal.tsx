@@ -64,6 +64,7 @@ export function AddPurchaseModal({ isOpen, onClose, onPurchaseAdded }: AddPurcha
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [vendors, setVendors] = React.useState<Vendor[]>([])
+  const [isCalendarOpen, setIsCalendarOpen] = React.useState(false)
 
   const form = useForm<PurchaseFormValues>({
     resolver: zodResolver(formSchema),
@@ -93,7 +94,10 @@ export function AddPurchaseModal({ isOpen, onClose, onPurchaseAdded }: AddPurcha
   async function onSubmit(values: PurchaseFormValues) {
     setIsSubmitting(true)
     try {
-      const insertValues = { ...values };
+      const insertValues = { 
+        ...values,
+        purchase_date: format(values.purchase_date, 'yyyy-MM-dd'),
+      };
 
       const { error } = await supabase.from("vendor_purchases").insert([insertValues])
       if (error) throw error
@@ -123,7 +127,7 @@ export function AddPurchaseModal({ isOpen, onClose, onPurchaseAdded }: AddPurcha
           <DialogDescription>Record a new inventory purchase from a vendor.</DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" suppressHydrationWarning>
             <FormField
               control={form.control}
               name="vendor_id"
@@ -179,7 +183,7 @@ export function AddPurchaseModal({ isOpen, onClose, onPurchaseAdded }: AddPurcha
               render={({ field }) => (
                 <FormItem className="flex flex-col">
                   <FormLabel>Purchase Date</FormLabel>
-                    <Popover>
+                    <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                     <PopoverTrigger asChild>
                       <FormControl>
                         <Button variant={"outline"} className={cn("pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
@@ -188,8 +192,16 @@ export function AddPurchaseModal({ isOpen, onClose, onPurchaseAdded }: AddPurcha
                         </Button>
                       </FormControl>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+                    <PopoverContent className="w-auto p-0 z-50" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={field.value}
+                        onSelect={(date) => {
+                          field.onChange(date)
+                          setIsCalendarOpen(false)
+                        }}
+                        initialFocus
+                      />
                     </PopoverContent>
                   </Popover>
                   <FormMessage />

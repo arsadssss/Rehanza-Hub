@@ -50,6 +50,7 @@ export function AddExpenseModal({ isOpen, onClose, onExpenseAdded }: AddExpenseM
   const supabase = createClient()
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const [isCalendarOpen, setIsCalendarOpen] = React.useState(false)
 
   const form = useForm<ExpenseFormValues>({
     resolver: zodResolver(formSchema),
@@ -68,12 +69,12 @@ export function AddExpenseModal({ isOpen, onClose, onExpenseAdded }: AddExpenseM
   async function onSubmit(values: ExpenseFormValues) {
     setIsSubmitting(true)
     try {
-      // These fields are no longer in the form, so we can add them with defaults if needed
-      // or assume the database handles them (e.g., nullable or default values)
       const expenseData = {
-        ...values,
-        gst_account: 'Fashion', // Example default, adjust if needed or remove
-        category: 'General', // Example default, adjust if needed or remove
+        description: values.description,
+        amount: values.amount,
+        expense_date: format(values.expense_date, "yyyy-MM-dd"),
+        gst_account: 'Fashion',
+        category: 'General',
       }
 
       const { error } = await supabase.from("business_expenses").insert([expenseData])
@@ -104,14 +105,14 @@ export function AddExpenseModal({ isOpen, onClose, onExpenseAdded }: AddExpenseM
           <DialogDescription>Record a new business-related expense.</DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" suppressHydrationWarning>
             <FormField
               control={form.control}
               name="expense_date"
               render={({ field }) => (
                 <FormItem className="flex flex-col">
                   <FormLabel>Expense Date</FormLabel>
-                  <Popover>
+                  <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                     <PopoverTrigger asChild>
                       <FormControl>
                         <Button
@@ -123,8 +124,16 @@ export function AddExpenseModal({ isOpen, onClose, onExpenseAdded }: AddExpenseM
                         </Button>
                       </FormControl>
                     </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+                    <PopoverContent className="w-auto p-0 z-50" align="start">
+                      <Calendar
+                        mode="single"
+                        selected={field.value}
+                        onSelect={(date) => {
+                          field.onChange(date)
+                          setIsCalendarOpen(false)
+                        }}
+                        initialFocus
+                      />
                     </PopoverContent>
                   </Popover>
                   <FormMessage />

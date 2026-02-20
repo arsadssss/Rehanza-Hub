@@ -64,6 +64,7 @@ export function AddPayoutModal({ isOpen, onClose, onPayoutAdded }: AddPayoutModa
   const supabase = createClient()
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const [isCalendarOpen, setIsCalendarOpen] = React.useState(false)
 
   const form = useForm<PayoutFormValues>({
     resolver: zodResolver(formSchema),
@@ -88,7 +89,7 @@ export function AddPayoutModal({ isOpen, onClose, onPayoutAdded }: AddPayoutModa
         gst_account,
         platform,
         amount: values.amount,
-        payout_date: values.payout_date,
+        payout_date: format(values.payout_date, 'yyyy-MM-dd'),
         reference: values.reference
       }
 
@@ -120,7 +121,7 @@ export function AddPayoutModal({ isOpen, onClose, onPayoutAdded }: AddPayoutModa
           <DialogDescription>Record a new payout received from a sales platform.</DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" suppressHydrationWarning>
              <FormField
                 control={form.control}
                 name="account_platform"
@@ -160,7 +161,7 @@ export function AddPayoutModal({ isOpen, onClose, onPayoutAdded }: AddPayoutModa
                   render={({ field }) => (
                     <FormItem className="flex flex-col">
                       <FormLabel>Payout Date</FormLabel>
-                      <Popover>
+                      <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                         <PopoverTrigger asChild>
                           <FormControl>
                             <Button
@@ -172,8 +173,16 @@ export function AddPayoutModal({ isOpen, onClose, onPayoutAdded }: AddPayoutModa
                             </Button>
                           </FormControl>
                         </PopoverTrigger>
-                        <PopoverContent className="w-auto p-0" align="start">
-                          <Calendar mode="single" selected={field.value} onSelect={field.onChange} initialFocus />
+                        <PopoverContent className="w-auto p-0 z-50" align="start">
+                          <Calendar
+                            mode="single"
+                            selected={field.value}
+                            onSelect={(date) => {
+                              field.onChange(date)
+                              setIsCalendarOpen(false)
+                            }}
+                            initialFocus
+                          />
                         </PopoverContent>
                       </Popover>
                       <FormMessage />

@@ -63,6 +63,7 @@ export function AddPaymentModal({ isOpen, onClose, onPaymentAdded }: AddPaymentM
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [vendors, setVendors] = React.useState<Vendor[]>([])
+  const [isCalendarOpen, setIsCalendarOpen] = React.useState(false)
 
   React.useEffect(() => {
     async function fetchVendors() {
@@ -89,7 +90,10 @@ export function AddPaymentModal({ isOpen, onClose, onPaymentAdded }: AddPaymentM
   async function onSubmit(values: PaymentFormValues) {
     setIsSubmitting(true)
     try {
-      const { error } = await supabase.from("vendor_payments").insert([values])
+      const { error } = await supabase.from("vendor_payments").insert([{ 
+        ...values, 
+        payment_date: format(values.payment_date, 'yyyy-MM-dd') 
+      }])
 
       if (error) throw error
 
@@ -118,7 +122,7 @@ export function AddPaymentModal({ isOpen, onClose, onPaymentAdded }: AddPaymentM
           <DialogDescription>Record a new payment made to a vendor.</DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" suppressHydrationWarning>
             <FormField
               control={form.control}
               name="vendor_id"
@@ -155,7 +159,7 @@ export function AddPaymentModal({ isOpen, onClose, onPaymentAdded }: AddPaymentM
                 render={({ field }) => (
                   <FormItem className="flex flex-col">
                     <FormLabel>Payment Date</FormLabel>
-                    <Popover>
+                    <Popover open={isCalendarOpen} onOpenChange={setIsCalendarOpen}>
                       <PopoverTrigger asChild>
                         <FormControl>
                           <Button
@@ -167,11 +171,14 @@ export function AddPaymentModal({ isOpen, onClose, onPaymentAdded }: AddPaymentM
                           </Button>
                         </FormControl>
                       </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
+                      <PopoverContent className="w-auto p-0 z-50" align="start">
                         <Calendar
                           mode="single"
                           selected={field.value}
-                          onSelect={field.onChange}
+                          onSelect={(date) => {
+                            field.onChange(date)
+                            setIsCalendarOpen(false)
+                          }}
                           initialFocus
                         />
                       </PopoverContent>
