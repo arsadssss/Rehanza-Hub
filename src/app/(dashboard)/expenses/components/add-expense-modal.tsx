@@ -83,8 +83,6 @@ export function AddExpenseModal({ isOpen, onClose, onSuccess, expense }: AddExpe
         description: values.description,
         amount: values.amount,
         expense_date: values.expense_date,
-        gst_account: 'Fashion', // Default value
-        category: 'General',   // Default value
       }
 
       let error;

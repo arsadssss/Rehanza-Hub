@@ -40,8 +40,6 @@ import { AddPayoutModal } from './components/add-payout-modal';
 
 export type BusinessExpense = {
   id: string;
-  gst_account: 'Fashion' | 'Cosmetics';
-  category: string;
   description: string;
   amount: number;
   expense_date: string;
