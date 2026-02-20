@@ -65,26 +65,27 @@ export default function VendorsPage() {
   const fetchSummary = useCallback(async () => {
     setLoading(true);
 
-    const [vendorsRes, purchasesRes, paymentsRes, productsRes] = await Promise.all([
+    const [vendorsRes, purchasesRes, paymentsRes] = await Promise.all([
         supabase.from('vendors').select('id, vendor_name'),
         supabase.from('vendor_purchases').select('vendor_id, quantity, cost_per_unit'),
         supabase.from('vendor_payments').select('vendor_id, amount'),
-        supabase.from('allproducts').select('cost_price, stock')
     ]);
     
-    // Process Vendor Summary
     if (vendorsRes.error || purchasesRes.error || paymentsRes.error) {
       toast({
         variant: 'destructive',
         title: 'Error',
-        description: 'Failed to fetch vendor summary.',
+        description: 'Failed to fetch vendor data.',
       });
       setSummary([]);
+      setTotalInventoryValue(0);
+      setTotalDueAllVendors(0);
     } else {
       const vendors = vendorsRes.data || [];
       const purchases = purchasesRes.data || [];
       const payments = paymentsRes.data || [];
 
+      // Calculate vendor summaries and total due
       const summaryData = vendors.map(vendor => {
         const vendorPurchases = purchases.filter(p => p.vendor_id === vendor.id);
         const vendorPayments = payments.filter(p => p.vendor_id === vendor.id);
@@ -113,22 +114,12 @@ export default function VendorsPage() {
         return acc + (vendor.balance_due > 0 ? vendor.balance_due : 0);
       }, 0);
       setTotalDueAllVendors(totalDue);
-    }
-
-    // Process Inventory Value
-    if (productsRes.error) {
-      toast({
-        variant: 'destructive',
-        title: 'Error fetching inventory value',
-        description: productsRes.error.message,
-      });
-      setTotalInventoryValue(0);
-    } else {
-      const products = productsRes.data || [];
-      const totalValue = products.reduce((sum, product) => {
-        const cost = Number(product.cost_price || 0);
-        const stock = Number(product.stock || 0);
-        return sum + (cost * stock);
+      
+      // Calculate Total Inventory Purchase Value from all purchases
+      const totalValue = purchases.reduce((sum, purchase) => {
+        const qty = Number(purchase.quantity || 0);
+        const cost = Number(purchase.cost_per_unit || 0);
+        return sum + (qty * cost);
       }, 0);
       setTotalInventoryValue(totalValue);
     }
@@ -287,38 +278,28 @@ export default function VendorsPage() {
             </CardHeader>
             <CardContent>
                 {loading ? <Skeleton className="h-10 w-48 bg-white/20" /> : (
-                    totalDueAllVendors > 0 ? (
-                        <>
-                            <div className="text-3xl font-bold font-headline">{formatCurrency(totalDueAllVendors)}</div>
-                            <p className="text-xs text-white/80">Total Outstanding Payable</p>
-                        </>
-                    ) : (
-                        <>
-                            <div className="text-2xl font-bold font-headline">All Settled</div>
-                            <p className="text-xs text-white/80">No outstanding payables to any vendor.</p>
-                        </>
-                    )
+                    <>
+                        <div className="text-3xl font-bold font-headline">{formatCurrency(totalDueAllVendors)}</div>
+                        <p className="text-xs text-white/80">
+                           {totalDueAllVendors > 0 ? "Outstanding Payable" : "All Vendors Settled"}
+                        </p>
+                    </>
                 )}
             </CardContent>
         </Card>
-        <Card className="text-white bg-gradient-to-r from-emerald-500 to-teal-600 shadow-xl rounded-2xl border-0">
+        <Card className="text-white bg-gradient-to-r from-emerald-500 to-green-600 shadow-xl rounded-2xl border-0">
             <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
                 <CardTitle className="text-sm font-medium">Total Inventory Purchase Value</CardTitle>
                 <Archive className="h-5 w-5 text-white/80" />
             </CardHeader>
             <CardContent>
                 {loading ? <Skeleton className="h-10 w-48 bg-white/20" /> : (
-                    totalInventoryValue > 0 ? (
-                        <>
-                            <div className="text-3xl font-bold font-headline">{formatCurrency(totalInventoryValue)}</div>
-                            <p className="text-xs text-white/80">Total Capital Invested in Stock</p>
-                        </>
-                    ) : (
-                        <>
-                            <div className="text-2xl font-bold font-headline">No Inventory</div>
-                            <p className="text-xs text-white/80">Your inventory value is currently zero.</p>
-                        </>
-                    )
+                    <>
+                        <div className="text-3xl font-bold font-headline">{formatCurrency(totalInventoryValue)}</div>
+                        <p className="text-xs text-white/80">
+                            {totalInventoryValue > 0 ? "Total Capital Invested in Stock" : "No purchases made yet"}
+                        </p>
+                    </>
                 )}
             </CardContent>
         </Card>
