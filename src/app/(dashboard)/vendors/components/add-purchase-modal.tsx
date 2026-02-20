@@ -39,6 +39,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
+import type { VendorPurchase } from "../page"
 
 type Vendor = { id: string; vendor_name: string };
 
@@ -56,15 +57,17 @@ type PurchaseFormValues = z.infer<typeof formSchema>
 interface AddPurchaseModalProps {
   isOpen: boolean
   onClose: () => void
-  onPurchaseAdded: () => void
+  onSuccess: () => void
+  purchase?: VendorPurchase | null;
 }
 
-export function AddPurchaseModal({ isOpen, onClose, onPurchaseAdded }: AddPurchaseModalProps) {
+export function AddPurchaseModal({ isOpen, onClose, onSuccess, purchase }: AddPurchaseModalProps) {
   const supabase = createClient()
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [vendors, setVendors] = React.useState<Vendor[]>([])
   const [isCalendarOpen, setIsCalendarOpen] = React.useState(false)
+  const isEditMode = !!purchase;
 
   const form = useForm<PurchaseFormValues>({
     resolver: zodResolver(formSchema),
@@ -82,37 +85,60 @@ export function AddPurchaseModal({ isOpen, onClose, onPurchaseAdded }: AddPurcha
       const { data: vendorData } = await supabase.from("vendors").select("id, vendor_name").order("vendor_name")
       if (vendorData) setVendors(vendorData)
     }
-    if (isOpen) fetchVendors()
-  }, [isOpen, supabase])
-
-
-  const handleClose = () => {
-    form.reset()
-    onClose()
-  }
+    if (isOpen) {
+        fetchVendors()
+        if (purchase) {
+            form.reset({
+                vendor_id: purchase.vendor_id,
+                product_name: purchase.product_name,
+                quantity: purchase.quantity,
+                cost_per_unit: purchase.cost_per_unit,
+                purchase_date: new Date(purchase.purchase_date),
+                description: purchase.description || "",
+            })
+        } else {
+            form.reset({
+                vendor_id: undefined,
+                product_name: "",
+                quantity: 1,
+                cost_per_unit: 0,
+                purchase_date: new Date(),
+                description: "",
+            })
+        }
+    }
+  }, [isOpen, purchase, supabase, form])
 
   async function onSubmit(values: PurchaseFormValues) {
     setIsSubmitting(true)
     try {
-      const insertValues = { 
+      const purchaseData = { 
         ...values,
         purchase_date: format(values.purchase_date, 'yyyy-MM-dd'),
       };
 
-      const { error } = await supabase.from("vendor_purchases").insert([insertValues])
+      let error;
+      if (isEditMode) {
+        const { error: updateError } = await supabase.from("vendor_purchases").update(purchaseData).eq('id', purchase.id);
+        error = updateError;
+      } else {
+        const { error: insertError } = await supabase.from("vendor_purchases").insert([purchaseData]);
+        error = insertError;
+      }
+      
       if (error) throw error
 
       toast({
         title: "Success",
-        description: "Vendor purchase added successfully.",
+        description: `Vendor purchase ${isEditMode ? 'updated' : 'added'} successfully.`,
       })
-      onPurchaseAdded()
-      handleClose()
+      onSuccess()
+      onClose()
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message || "Failed to add purchase.",
+        description: error.message || `Failed to ${isEditMode ? 'update' : 'add'} purchase.`,
       })
     } finally {
       setIsSubmitting(false)
@@ -120,11 +146,13 @@ export function AddPurchaseModal({ isOpen, onClose, onPurchaseAdded }: AddPurcha
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Add Vendor Purchase</DialogTitle>
-          <DialogDescription>Record a new inventory purchase from a vendor.</DialogDescription>
+          <DialogTitle>{isEditMode ? 'Edit' : 'Add'} Vendor Purchase</DialogTitle>
+          <DialogDescription>
+             {isEditMode ? 'Update the details of this purchase.' : 'Record a new inventory purchase from a vendor.'}
+          </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" suppressHydrationWarning>
@@ -134,7 +162,7 @@ export function AddPurchaseModal({ isOpen, onClose, onPurchaseAdded }: AddPurcha
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Vendor</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={isEditMode}>
                     <FormControl><SelectTrigger><SelectValue placeholder="Select a vendor" /></SelectTrigger></FormControl>
                     <SelectContent>{vendors.map((v) => (<SelectItem key={v.id} value={v.id}>{v.vendor_name}</SelectItem>))}</SelectContent>
                   </Select>
@@ -197,7 +225,7 @@ export function AddPurchaseModal({ isOpen, onClose, onPurchaseAdded }: AddPurcha
                         mode="single"
                         selected={field.value}
                         onSelect={(date) => {
-                          field.onChange(date)
+                          if (date) field.onChange(date);
                           setIsCalendarOpen(false)
                         }}
                         initialFocus
@@ -220,8 +248,8 @@ export function AddPurchaseModal({ isOpen, onClose, onPurchaseAdded }: AddPurcha
               )}
             />
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={handleClose}>Cancel</Button>
-              <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : 'Save Purchase'}</Button>
+              <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+              <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : 'Save'}</Button>
             </DialogFooter>
           </form>
         </Form>

@@ -39,6 +39,7 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
+import type { VendorPayment } from "../page"
 
 type Vendor = { id: string; vendor_name: string };
 
@@ -55,23 +56,17 @@ type PaymentFormValues = z.infer<typeof formSchema>
 interface AddPaymentModalProps {
   isOpen: boolean
   onClose: () => void
-  onPaymentAdded: () => void
+  onSuccess: () => void
+  payment?: VendorPayment | null
 }
 
-export function AddPaymentModal({ isOpen, onClose, onPaymentAdded }: AddPaymentModalProps) {
+export function AddPaymentModal({ isOpen, onClose, onSuccess, payment }: AddPaymentModalProps) {
   const supabase = createClient()
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [vendors, setVendors] = React.useState<Vendor[]>([])
   const [isCalendarOpen, setIsCalendarOpen] = React.useState(false)
-
-  React.useEffect(() => {
-    async function fetchVendors() {
-      const { data, error } = await supabase.from("vendors").select("id, vendor_name").order("vendor_name")
-      if (data) setVendors(data)
-    }
-    if (isOpen) fetchVendors()
-  }, [isOpen, supabase])
+  const isEditMode = !!payment;
 
   const form = useForm<PaymentFormValues>({
     resolver: zodResolver(formSchema),
@@ -82,32 +77,63 @@ export function AddPaymentModal({ isOpen, onClose, onPaymentAdded }: AddPaymentM
     },
   })
 
-  const handleClose = () => {
-    form.reset()
-    onClose()
-  }
+  React.useEffect(() => {
+    async function fetchVendors() {
+      const { data, error } = await supabase.from("vendors").select("id, vendor_name").order("vendor_name")
+      if (data) setVendors(data)
+    }
+    if (isOpen) {
+        fetchVendors()
+        if (payment) {
+            form.reset({
+                vendor_id: payment.vendor_id,
+                amount: payment.amount,
+                payment_date: new Date(payment.payment_date),
+                payment_mode: payment.payment_mode,
+                notes: payment.notes || "",
+            });
+        } else {
+            form.reset({
+                vendor_id: undefined,
+                amount: 0,
+                payment_date: new Date(),
+                payment_mode: undefined,
+                notes: "",
+            });
+        }
+    }
+  }, [isOpen, payment, supabase, form]);
 
   async function onSubmit(values: PaymentFormValues) {
     setIsSubmitting(true)
     try {
-      const { error } = await supabase.from("vendor_payments").insert([{ 
+      const paymentData = { 
         ...values, 
         payment_date: format(values.payment_date, 'yyyy-MM-dd') 
-      }])
+      };
+
+      let error;
+      if (isEditMode) {
+        const { error: updateError } = await supabase.from("vendor_payments").update(paymentData).eq('id', payment.id);
+        error = updateError;
+      } else {
+        const { error: insertError } = await supabase.from("vendor_payments").insert([paymentData]);
+        error = insertError;
+      }
 
       if (error) throw error
 
       toast({
         title: "Success",
-        description: "Payment added successfully.",
+        description: `Payment ${isEditMode ? 'updated' : 'added'} successfully.`,
       })
-      onPaymentAdded()
-      handleClose()
+      onSuccess()
+      onClose()
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message || "Failed to add payment.",
+        description: error.message || `Failed to ${isEditMode ? 'update' : 'add'} payment.`,
       })
     } finally {
       setIsSubmitting(false)
@@ -115,11 +141,13 @@ export function AddPaymentModal({ isOpen, onClose, onPaymentAdded }: AddPaymentM
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-lg">
         <DialogHeader>
-          <DialogTitle>Add Vendor Payment</DialogTitle>
-          <DialogDescription>Record a new payment made to a vendor.</DialogDescription>
+          <DialogTitle>{isEditMode ? 'Edit' : 'Add'} Vendor Payment</DialogTitle>
+          <DialogDescription>
+            {isEditMode ? 'Update the details of this payment.' : 'Record a new payment made to a vendor.'}
+          </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" suppressHydrationWarning>
@@ -129,7 +157,7 @@ export function AddPaymentModal({ isOpen, onClose, onPaymentAdded }: AddPaymentM
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Vendor</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value} disabled={isEditMode}>
                     <FormControl>
                       <SelectTrigger><SelectValue placeholder="Select a vendor" /></SelectTrigger>
                     </FormControl>
@@ -176,7 +204,7 @@ export function AddPaymentModal({ isOpen, onClose, onPaymentAdded }: AddPaymentM
                           mode="single"
                           selected={field.value}
                           onSelect={(date) => {
-                            field.onChange(date)
+                            if (date) field.onChange(date)
                             setIsCalendarOpen(false)
                           }}
                           initialFocus
@@ -194,7 +222,7 @@ export function AddPaymentModal({ isOpen, onClose, onPaymentAdded }: AddPaymentM
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Payment Mode</FormLabel>
-                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                  <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger><SelectValue placeholder="Select a payment mode" /></SelectTrigger>
                     </FormControl>
@@ -221,8 +249,8 @@ export function AddPaymentModal({ isOpen, onClose, onPaymentAdded }: AddPaymentM
               )}
             />
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={handleClose}>Cancel</Button>
-              <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : 'Save Payment'}</Button>
+              <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+              <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : 'Save'}</Button>
             </DialogFooter>
           </form>
         </Form>

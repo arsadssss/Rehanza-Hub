@@ -23,8 +23,8 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { X } from 'lucide-react';
-import type { VendorBalance, LedgerItem } from '../page';
+import { X, Pencil, Trash2 } from 'lucide-react';
+import type { VendorBalance, LedgerItem, VendorPurchase, VendorPayment } from '../page';
 
 interface VendorLedgerProps {
   vendor: VendorBalance;
@@ -34,9 +34,11 @@ interface VendorLedgerProps {
   totalPurchase: number;
   totalPaid: number;
   finalBalance: number;
+  onEditItem: (item: VendorPurchase | VendorPayment, type: 'purchase' | 'payment') => void;
+  onDeleteItem: (item: VendorPurchase | VendorPayment, type: 'purchase' | 'payment') => void;
 }
 
-export function VendorLedger({ vendor, ledgerItems, loading, onClose, totalPurchase, totalPaid, finalBalance }: VendorLedgerProps) {
+export function VendorLedger({ vendor, ledgerItems, loading, onClose, totalPurchase, totalPaid, finalBalance, onEditItem, onDeleteItem }: VendorLedgerProps) {
 
   const getBalanceStatus = (balance: number) => {
     if (balance === 0) {
@@ -67,12 +69,13 @@ export function VendorLedger({ vendor, ledgerItems, loading, onClose, totalPurch
                 <TableHead className="text-right">Debit (Purchase)</TableHead>
                 <TableHead className="text-right">Credit (Paid)</TableHead>
                 <TableHead className="text-right">Balance</TableHead>
+                <TableHead className="text-right w-[100px]">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {loading ? (
                 Array.from({ length: 5 }).map((_, i) => (
-                  <TableRow key={i}><TableCell colSpan={5}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
+                  <TableRow key={i}><TableCell colSpan={6}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
                 ))
               ) : ledgerItems.length > 0 ? (
                 ledgerItems.map((item) => (
@@ -86,10 +89,16 @@ export function VendorLedger({ vendor, ledgerItems, loading, onClose, totalPurch
                       {item.credit > 0 ? formatCurrency(item.credit) : '-'}
                     </TableCell>
                     <TableCell className="text-right font-semibold">{formatCurrency(item.balance)}</TableCell>
+                    <TableCell>
+                        <div className="flex justify-end gap-1">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => onEditItem(item.original, item.type)}><Pencil className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive" onClick={() => onDeleteItem(item.original, item.type)}><Trash2 className="h-4 w-4" /></Button>
+                        </div>
+                    </TableCell>
                   </TableRow>
                 ))
               ) : (
-                <TableRow><TableCell colSpan={5} className="h-24 text-center">No transactions found for this vendor.</TableCell></TableRow>
+                <TableRow><TableCell colSpan={6} className="h-24 text-center">No transactions found for this vendor.</TableCell></TableRow>
               )}
             </TableBody>
           </Table>

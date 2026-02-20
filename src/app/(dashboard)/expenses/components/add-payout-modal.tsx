@@ -37,6 +37,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
+import type { PlatformPayout } from "../page"
 
 const formSchema = z.object({
   account_platform: z.enum([
@@ -57,14 +58,16 @@ type PayoutFormValues = z.infer<typeof formSchema>
 interface AddPayoutModalProps {
   isOpen: boolean
   onClose: () => void
-  onPayoutAdded: () => void
+  onSuccess: () => void
+  payout?: PlatformPayout | null
 }
 
-export function AddPayoutModal({ isOpen, onClose, onPayoutAdded }: AddPayoutModalProps) {
+export function AddPayoutModal({ isOpen, onClose, onSuccess, payout }: AddPayoutModalProps) {
   const supabase = createClient()
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [isCalendarOpen, setIsCalendarOpen] = React.useState(false)
+  const isEditMode = !!payout;
 
   const form = useForm<PayoutFormValues>({
     resolver: zodResolver(formSchema),
@@ -75,10 +78,23 @@ export function AddPayoutModal({ isOpen, onClose, onPayoutAdded }: AddPayoutModa
     },
   })
 
-  const handleClose = () => {
-    form.reset()
-    onClose()
-  }
+  React.useEffect(() => {
+    if (isOpen && payout) {
+      form.reset({
+        account_platform: `${payout.gst_account}-${payout.platform}` as any,
+        amount: payout.amount,
+        payout_date: new Date(payout.payout_date),
+        reference: payout.reference || "",
+      });
+    } else if (isOpen && !isEditMode) {
+      form.reset({
+        account_platform: undefined,
+        amount: 0,
+        payout_date: new Date(),
+        reference: "",
+      });
+    }
+  }, [isOpen, payout, form, isEditMode]);
 
   async function onSubmit(values: PayoutFormValues) {
     setIsSubmitting(true)
@@ -93,20 +109,28 @@ export function AddPayoutModal({ isOpen, onClose, onPayoutAdded }: AddPayoutModa
         reference: values.reference
       }
 
-      const { error } = await supabase.from("platform_payouts").insert([payoutData])
+      let error;
+      if (isEditMode) {
+        const { error: updateError } = await supabase.from("platform_payouts").update(payoutData).eq('id', payout.id);
+        error = updateError;
+      } else {
+        const { error: insertError } = await supabase.from("platform_payouts").insert([payoutData]);
+        error = insertError;
+      }
+
       if (error) throw error
 
       toast({
         title: "Success",
-        description: "Platform payout added successfully.",
+        description: `Platform payout ${isEditMode ? 'updated' : 'added'} successfully.`,
       })
-      onPayoutAdded()
-      handleClose()
+      onSuccess()
+      onClose()
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message || "Failed to add payout.",
+        description: error.message || `Failed to ${isEditMode ? 'update' : 'add'} payout.`,
       })
     } finally {
       setIsSubmitting(false)
@@ -114,11 +138,13 @@ export function AddPayoutModal({ isOpen, onClose, onPayoutAdded }: AddPayoutModa
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Add Platform Payout</DialogTitle>
-          <DialogDescription>Record a new payout received from a sales platform.</DialogDescription>
+          <DialogTitle>{isEditMode ? 'Edit' : 'Add'} Platform Payout</DialogTitle>
+          <DialogDescription>
+            {isEditMode ? 'Update the details of the existing payout.' : 'Record a new payout received from a sales platform.'}
+          </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" suppressHydrationWarning>
@@ -128,7 +154,7 @@ export function AddPayoutModal({ isOpen, onClose, onPayoutAdded }: AddPayoutModa
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Accounts</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl><SelectTrigger><SelectValue placeholder="Select an account" /></SelectTrigger></FormControl>
                       <SelectContent>
                         <SelectItem value="Fashion-Meesho">Fashion - Meesho</SelectItem>
@@ -202,8 +228,8 @@ export function AddPayoutModal({ isOpen, onClose, onPayoutAdded }: AddPayoutModa
               )}
             />
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={handleClose}>Cancel</Button>
-              <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : 'Save Payout'}</Button>
+              <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+              <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : 'Save'}</Button>
             </DialogFooter>
           </form>
         </Form>

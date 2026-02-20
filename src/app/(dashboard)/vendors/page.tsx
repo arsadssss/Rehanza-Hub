@@ -13,6 +13,16 @@ import {
   CardHeader,
   CardTitle,
 } from '@/components/ui/card';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -22,6 +32,27 @@ import { AddVendorModal } from './components/add-vendor-modal';
 import { AddPurchaseModal } from './components/add-purchase-modal';
 import { AddPaymentModal } from './components/add-payment-modal';
 import { VendorLedger } from './components/vendor-ledger';
+
+export type VendorPurchase = {
+  id: string;
+  vendor_id: string;
+  product_name: string;
+  quantity: number;
+  cost_per_unit: number;
+  purchase_date: string;
+  description: string | null;
+  is_deleted: boolean;
+};
+
+export type VendorPayment = {
+  id: string;
+  vendor_id: string;
+  amount: number;
+  payment_date: string;
+  payment_mode: "Bank Transfer" | "Cash" | "UPI" | "Other";
+  notes: string | null;
+  is_deleted: boolean;
+};
 
 export type VendorBalance = {
   id: string;
@@ -38,7 +69,15 @@ export type LedgerItem = {
   debit: number;
   credit: number;
   balance: number;
+  type: 'purchase' | 'payment';
+  original: VendorPurchase | VendorPayment;
 };
+
+type ItemToDelete = {
+  id: string;
+  type: 'purchase' | 'payment';
+  description: string;
+}
 
 export default function VendorsPage() {
   const supabase = createClient();
@@ -46,20 +85,26 @@ export default function VendorsPage() {
 
   const [summary, setSummary] = useState<VendorBalance[]>([]);
   const [loading, setLoading] = useState(true);
+  
   const [isAddVendorOpen, setIsAddVendorOpen] = useState(false);
+  
   const [isAddPurchaseOpen, setIsAddPurchaseOpen] = useState(false);
+  const [purchaseToEdit, setPurchaseToEdit] = useState<VendorPurchase | null>(null);
+  
   const [isAddPaymentOpen, setIsAddPaymentOpen] = useState(false);
+  const [paymentToEdit, setPaymentToEdit] = useState<VendorPayment | null>(null);
   
   const [selectedVendor, setSelectedVendor] = useState<VendorBalance | null>(null);
   const [ledgerData, setLedgerData] = useState<LedgerItem[]>([]);
   const [loadingLedger, setLoadingLedger] = useState(false);
 
-  // New state for frontend calculated totals
   const [ledgerTotalPurchase, setLedgerTotalPurchase] = useState(0);
   const [ledgerTotalPaid, setLedgerTotalPaid] = useState(0);
   const [ledgerFinalBalance, setLedgerFinalBalance] = useState(0);
   const [totalDueAllVendors, setTotalDueAllVendors] = useState(0);
   const [totalInventoryValue, setTotalInventoryValue] = useState(0);
+
+  const [itemToDelete, setItemToDelete] = useState<ItemToDelete | null>(null);
 
 
   const fetchSummary = useCallback(async () => {
@@ -67,8 +112,8 @@ export default function VendorsPage() {
 
     const [vendorsRes, purchasesRes, paymentsRes] = await Promise.all([
         supabase.from('vendors').select('id, vendor_name'),
-        supabase.from('vendor_purchases').select('vendor_id, quantity, cost_per_unit'),
-        supabase.from('vendor_payments').select('vendor_id, amount'),
+        supabase.from('vendor_purchases').select('vendor_id, quantity, cost_per_unit').eq('is_deleted', false),
+        supabase.from('vendor_payments').select('vendor_id, amount').eq('is_deleted', false),
     ]);
     
     if (vendorsRes.error || purchasesRes.error || paymentsRes.error) {
@@ -85,42 +130,22 @@ export default function VendorsPage() {
       const purchases = purchasesRes.data || [];
       const payments = paymentsRes.data || [];
 
-      // Calculate vendor summaries and total due
       const summaryData = vendors.map(vendor => {
         const vendorPurchases = purchases.filter(p => p.vendor_id === vendor.id);
         const vendorPayments = payments.filter(p => p.vendor_id === vendor.id);
 
-        const total_purchase = vendorPurchases.reduce((sum, p) => {
-            const qty = Number(p.quantity || 0);
-            const cost = Number(p.cost_per_unit || 0);
-            return sum + (qty * cost);
-        }, 0);
-
+        const total_purchase = vendorPurchases.reduce((sum, p) => sum + (Number(p.quantity || 0) * Number(p.cost_per_unit || 0)), 0);
         const total_paid = vendorPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
-        
         const balance_due = total_purchase - total_paid;
 
-        return {
-            id: vendor.id,
-            vendor_name: vendor.vendor_name,
-            total_purchase,
-            total_paid,
-            balance_due
-        };
+        return { id: vendor.id, vendor_name: vendor.vendor_name, total_purchase, total_paid, balance_due };
       });
       setSummary(summaryData);
 
-      const totalDue = summaryData.reduce((acc, vendor) => {
-        return acc + (vendor.balance_due > 0 ? vendor.balance_due : 0);
-      }, 0);
+      const totalDue = summaryData.reduce((acc, vendor) => acc + (vendor.balance_due > 0 ? vendor.balance_due : 0), 0);
       setTotalDueAllVendors(totalDue);
       
-      // Calculate Total Inventory Purchase Value from all purchases
-      const totalValue = purchases.reduce((sum, purchase) => {
-        const qty = Number(purchase.quantity || 0);
-        const cost = Number(purchase.cost_per_unit || 0);
-        return sum + (qty * cost);
-      }, 0);
+      const totalValue = purchases.reduce((sum, purchase) => sum + (Number(purchase.quantity || 0) * Number(purchase.cost_per_unit || 0)), 0);
       setTotalInventoryValue(totalValue);
     }
 
@@ -131,78 +156,39 @@ export default function VendorsPage() {
     if (!vendor?.id) return;
     setLoadingLedger(true);
 
-    const { data: purchases, error: purchaseError } =
-      await supabase
-        .from("vendor_purchases")
-        .select("id, purchase_date, product_name, quantity, cost_per_unit")
-        .eq("vendor_id", vendor.id);
-
-    const { data: payments, error: paymentError } =
-      await supabase
-        .from("vendor_payments")
-        .select("id, payment_date, amount, notes")
-        .eq("vendor_id", vendor.id);
+    const { data: purchases, error: purchaseError } = await supabase.from("vendor_purchases").select("*").eq("vendor_id", vendor.id).eq('is_deleted', false);
+    const { data: payments, error: paymentError } = await supabase.from("vendor_payments").select("*").eq("vendor_id", vendor.id).eq('is_deleted', false);
 
     if (purchaseError || paymentError) {
-      console.error(purchaseError || paymentError);
-      toast({
-        variant: "destructive",
-        title: "Error fetching ledger",
-        description: purchaseError?.message || paymentError?.message || 'An unknown error occurred'
-      });
+      toast({ variant: "destructive", title: "Error fetching ledger", description: purchaseError?.message || paymentError?.message });
       setLoadingLedger(false);
       return;
     }
 
-    // Calculate totals safely from raw data
-    const totalPurchase = purchases?.reduce((sum, p) => {
-        const qty = Number(p.quantity || 0);
-        const cost = Number(p.cost_per_unit || 0);
-        return sum + (qty * cost);
-    }, 0) || 0;
-    
-    const totalPaid = payments?.reduce((sum, p) => sum + Number(p.amount || 0), 0) || 0;
-    const finalBalance = totalPurchase - totalPaid;
+    const totalPurchase = (purchases || []).reduce((sum, p) => sum + (Number(p.quantity || 0) * Number(p.cost_per_unit || 0)), 0);
+    const totalPaid = (payments || []).reduce((sum, p) => sum + Number(p.amount || 0), 0);
 
     setLedgerTotalPurchase(totalPurchase);
     setLedgerTotalPaid(totalPaid);
-    setLedgerFinalBalance(finalBalance);
+    setLedgerFinalBalance(totalPurchase - totalPaid);
 
-    const purchaseEntries =
-      purchases?.map((p) => ({
-        id: `purchase-${p.id}`,
-        date: p.purchase_date,
-        description: p.product_name,
-        debit: Number(p.quantity || 0) * Number(p.cost_per_unit || 0),
-        credit: 0,
-      })) || [];
+    const purchaseEntries: LedgerItem[] = (purchases || []).map((p) => ({
+      id: `purchase-${p.id}`, date: p.purchase_date, description: p.product_name || `Purchase`,
+      debit: Number(p.quantity || 0) * Number(p.cost_per_unit || 0), credit: 0, balance: 0,
+      type: 'purchase', original: p,
+    }));
+    const paymentEntries: LedgerItem[] = (payments || []).map((p) => ({
+      id: `payment-${p.id}`, date: p.payment_date, description: p.notes || `Payment via ${p.payment_mode}`,
+      debit: 0, credit: Number(p.amount), balance: 0,
+      type: 'payment', original: p,
+    }));
 
-    const paymentEntries =
-      payments?.map((p) => ({
-        id: `payment-${p.id}`,
-        date: p.payment_date,
-        description: p.notes || "Payment",
-        debit: 0,
-        credit: Number(p.amount),
-      })) || [];
-
-    const combined = [...purchaseEntries, ...paymentEntries];
-
-    combined.sort(
-      (a, b) =>
-        new Date(a.date).getTime() -
-        new Date(b.date).getTime()
-    );
+    const combined = [...purchaseEntries, ...paymentEntries].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
     let runningBalance = 0;
     const ledgerWithBalance = combined.map((entry) => {
-      runningBalance += entry.debit;
-      runningBalance -= entry.credit;
-
-      return {
-        ...entry,
-        balance: runningBalance,
-      };
+      runningBalance += entry.debit - entry.credit;
+      return { ...entry, balance: runningBalance };
     });
 
     setLedgerData(ledgerWithBalance);
@@ -210,26 +196,21 @@ export default function VendorsPage() {
   }, [supabase, toast]);
 
 
-  useEffect(() => {
-    fetchSummary();
-  }, [fetchSummary]);
+  useEffect(() => { fetchSummary(); }, [fetchSummary]);
 
-  const handleDataAdded = () => {
+  const handleSuccess = () => {
     fetchSummary();
     if(selectedVendor) {
-      // Re-fetch ledger for the currently selected vendor if any
-      const currentVendor = summary.find(s => s.id === selectedVendor.id);
-      if (currentVendor) {
-          fetchLedger(currentVendor);
+      const currentVendorInSummary = summary.find(s => s.id === selectedVendor.id);
+      if (currentVendorInSummary) {
+          fetchLedger(currentVendorInSummary);
+      } else { // Vendor might be new
+          handleCloseLedger();
       }
     }
   };
 
-
-  const handleVendorClick = (vendor: VendorBalance) => {
-    setSelectedVendor(vendor);
-    fetchLedger(vendor);
-  };
+  const handleVendorClick = (vendor: VendorBalance) => { setSelectedVendor(vendor); fetchLedger(vendor); };
   
   const handleCloseLedger = () => {
     setSelectedVendor(null);
@@ -238,6 +219,34 @@ export default function VendorsPage() {
     setLedgerTotalPaid(0);
     setLedgerFinalBalance(0);
   }
+
+  const handleEditItem = (item: VendorPurchase | VendorPayment, type: 'purchase' | 'payment') => {
+    if (type === 'purchase') {
+        setPurchaseToEdit(item as VendorPurchase);
+    } else {
+        setPaymentToEdit(item as VendorPayment);
+    }
+  };
+
+  const handleDeleteItem = (item: VendorPurchase | VendorPayment, type: 'purchase' | 'payment') => {
+      const description = type === 'purchase' ? (item as VendorPurchase).product_name : `Payment of ${formatCurrency((item as VendorPayment).amount)}`;
+      setItemToDelete({ id: item.id, type, description: description || "this item" });
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!itemToDelete) return;
+    const table = itemToDelete.type === 'purchase' ? 'vendor_purchases' : 'vendor_payments';
+    const { error } = await supabase.from(table).update({ is_deleted: true }).eq('id', itemToDelete.id);
+
+    if (error) {
+      toast({ variant: 'destructive', title: 'Error deleting item', description: error.message });
+    } else {
+      toast({ title: 'Success', description: `The ${itemToDelete.type} has been deleted.` });
+      handleSuccess();
+    }
+    setItemToDelete(null);
+  };
+
 
   const VendorCard = ({ item }: { item: VendorBalance }) => (
     <Card className="shadow-md hover:shadow-xl transition-shadow cursor-pointer" onClick={() => handleVendorClick(item)}>
@@ -266,9 +275,25 @@ export default function VendorsPage() {
 
   return (
     <div className="p-6 space-y-6 bg-gray-50/50 dark:bg-black/50 min-h-full">
-      <AddVendorModal isOpen={isAddVendorOpen} onClose={() => setIsAddVendorOpen(false)} onVendorAdded={handleDataAdded} />
-      <AddPurchaseModal isOpen={isAddPurchaseOpen} onClose={() => setIsAddPurchaseOpen(false)} onPurchaseAdded={handleDataAdded} />
-      <AddPaymentModal isOpen={isAddPaymentOpen} onClose={() => setIsAddPaymentOpen(false)} onPaymentAdded={handleDataAdded} />
+      <AddVendorModal isOpen={isAddVendorOpen} onClose={() => setIsAddVendorOpen(false)} onVendorAdded={handleSuccess} />
+      <AddPurchaseModal isOpen={isAddPurchaseOpen || !!purchaseToEdit} onClose={() => { setIsAddPurchaseOpen(false); setPurchaseToEdit(null);}} onSuccess={handleSuccess} purchase={purchaseToEdit} />
+      <AddPaymentModal isOpen={isAddPaymentOpen || !!paymentToEdit} onClose={() => { setIsAddPaymentOpen(false); setPaymentToEdit(null);}} onSuccess={handleSuccess} payment={paymentToEdit} />
+      <AlertDialog open={!!itemToDelete} onOpenChange={() => setItemToDelete(null)}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+                This will mark the item "{itemToDelete?.description}" as deleted. You cannot undo this action.
+            </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive hover:bg-destructive/90">
+                Delete
+            </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         <Card className="text-white bg-gradient-to-r from-red-500 to-orange-600 shadow-xl rounded-2xl border-0">
@@ -355,6 +380,8 @@ export default function VendorsPage() {
             totalPurchase={ledgerTotalPurchase}
             totalPaid={ledgerTotalPaid}
             finalBalance={ledgerFinalBalance}
+            onEditItem={handleEditItem}
+            onDeleteItem={handleDeleteItem}
           />
       )}
       

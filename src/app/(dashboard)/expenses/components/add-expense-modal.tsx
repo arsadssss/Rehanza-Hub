@@ -31,6 +31,7 @@ import { Calendar } from "@/components/ui/calendar"
 import { CalendarIcon } from "lucide-react"
 import { cn } from "@/lib/utils"
 import { format } from "date-fns"
+import type { BusinessExpense } from "../page"
 
 const formSchema = z.object({
   description: z.string().min(1, "Description is required"),
@@ -43,14 +44,16 @@ type ExpenseFormValues = z.infer<typeof formSchema>
 interface AddExpenseModalProps {
   isOpen: boolean
   onClose: () => void
-  onExpenseAdded: () => void
+  onSuccess: () => void
+  expense?: BusinessExpense | null
 }
 
-export function AddExpenseModal({ isOpen, onClose, onExpenseAdded }: AddExpenseModalProps) {
+export function AddExpenseModal({ isOpen, onClose, onSuccess, expense }: AddExpenseModalProps) {
   const supabase = createClient()
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [isCalendarOpen, setIsCalendarOpen] = React.useState(false)
+  const isEditMode = !!expense;
 
   const form = useForm<ExpenseFormValues>({
     resolver: zodResolver(formSchema),
@@ -61,10 +64,22 @@ export function AddExpenseModal({ isOpen, onClose, onExpenseAdded }: AddExpenseM
     },
   })
 
-  const handleClose = () => {
-    form.reset()
-    onClose()
-  }
+  React.useEffect(() => {
+    if (isOpen && expense) {
+      form.reset({
+        description: expense.description,
+        amount: expense.amount,
+        expense_date: new Date(expense.expense_date),
+      });
+    } else if (isOpen && !isEditMode) {
+      form.reset({
+        description: "",
+        amount: 0,
+        expense_date: new Date(),
+      });
+    }
+  }, [isOpen, expense, form, isEditMode]);
+
 
   async function onSubmit(values: ExpenseFormValues) {
     setIsSubmitting(true)
@@ -73,24 +88,32 @@ export function AddExpenseModal({ isOpen, onClose, onExpenseAdded }: AddExpenseM
         description: values.description,
         amount: values.amount,
         expense_date: format(values.expense_date, "yyyy-MM-dd"),
-        gst_account: 'Fashion',
-        category: 'General',
+        gst_account: 'Fashion', // Default value
+        category: 'General',   // Default value
       }
 
-      const { error } = await supabase.from("business_expenses").insert([expenseData])
+      let error;
+      if (isEditMode) {
+        const { error: updateError } = await supabase.from("business_expenses").update(expenseData).eq('id', expense.id);
+        error = updateError;
+      } else {
+        const { error: insertError } = await supabase.from("business_expenses").insert([expenseData]);
+        error = insertError;
+      }
+
       if (error) throw error
 
       toast({
         title: "Success",
-        description: "Expense added successfully.",
+        description: `Expense ${isEditMode ? 'updated' : 'added'} successfully.`,
       })
-      onExpenseAdded()
-      handleClose()
+      onSuccess()
+      onClose()
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message || "Failed to add expense.",
+        description: error.message || `Failed to ${isEditMode ? 'update' : 'add'} expense.`,
       })
     } finally {
       setIsSubmitting(false)
@@ -98,11 +121,13 @@ export function AddExpenseModal({ isOpen, onClose, onExpenseAdded }: AddExpenseM
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Add Business Expense</DialogTitle>
-          <DialogDescription>Record a new business-related expense.</DialogDescription>
+          <DialogTitle>{isEditMode ? 'Edit' : 'Add'} Business Expense</DialogTitle>
+          <DialogDescription>
+            {isEditMode ? 'Update the details of the existing expense.' : 'Record a new business-related expense.'}
+          </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" suppressHydrationWarning>
@@ -163,8 +188,8 @@ export function AddExpenseModal({ isOpen, onClose, onExpenseAdded }: AddExpenseM
                 )}
               />
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={handleClose}>Cancel</Button>
-              <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : 'Save Expense'}</Button>
+              <Button type="button" variant="outline" onClick={onClose}>Cancel</Button>
+              <Button type="submit" disabled={isSubmitting}>{isSubmitting ? 'Saving...' : 'Save'}</Button>
             </DialogFooter>
           </form>
         </Form>

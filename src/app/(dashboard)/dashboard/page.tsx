@@ -527,8 +527,8 @@ export default function DashboardPage() {
         `).order('created_at', { ascending: false }).limit(5),
         supabase.from('top_selling_products').select('*').limit(5),
         supabase.from('vendors').select('id, vendor_name'),
-        supabase.from('vendor_purchases').select('vendor_id, quantity, cost_per_unit'),
-        supabase.from('vendor_payments').select('vendor_id, amount'),
+        supabase.from('vendor_purchases').select('vendor_id, quantity, cost_per_unit').eq('is_deleted', false),
+        supabase.from('vendor_payments').select('vendor_id, amount').eq('is_deleted', false),
         supabase.from('orders').select('platform, quantity, selling_price'),
       ]);
 
@@ -563,21 +563,15 @@ export default function DashboardPage() {
       const purchases = vendorPurchasesRes.data || [];
       const payments = vendorPaymentsRes.data || [];
       
-      const totalDue = vendors.reduce((sum, vendor) => {
-        const vendorPurchases = purchases.filter(p => p.vendor_id === vendor.id);
-        const totalPurchase = vendorPurchases.reduce((vendorSum, p) => {
-          const qty = Number(p.quantity || 0);
-          const cost = Number(p.cost_per_unit || 0);
-          return vendorSum + (qty * cost);
-        }, 0);
-
-        const vendorPayments = payments.filter(p => p.vendor_id === vendor.id);
-        const totalPaid = vendorPayments.reduce((vendorSum, p) => vendorSum + Number(p.amount || 0), 0);
-        
-        const balance = totalPurchase - totalPaid;
-        return balance > 0 ? sum + balance : sum;
+      const totalPurchase = purchases.reduce((sum, p) => {
+        const qty = Number(p.quantity || 0);
+        const cost = Number(p.cost_per_unit || 0);
+        return sum + (qty * cost);
       }, 0);
-      setTotalDueAllVendors(totalDue);
+
+      const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
+      
+      setTotalDueAllVendors(totalPurchase - totalPaid);
       
       // Calculate inventory purchase value from all purchases
       const totalValue = purchases.reduce((sum, purchase) => {

@@ -21,30 +21,48 @@ import {
   TableBody,
   TableCell,
 } from '@/components/ui/table';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { PlusCircle, ArrowDownCircle, ArrowUpCircle, Scale } from 'lucide-react';
+import { PlusCircle, ArrowDownCircle, ArrowUpCircle, Scale, Pencil, Trash2 } from 'lucide-react';
 import { AddExpenseModal } from './components/add-expense-modal';
 import { AddPayoutModal } from './components/add-payout-modal';
 
-type BusinessExpense = {
+export type BusinessExpense = {
   id: string;
   gst_account: 'Fashion' | 'Cosmetics';
   category: string;
   description: string;
   amount: number;
   expense_date: string;
+  is_deleted: boolean;
 };
 
-type PlatformPayout = {
+export type PlatformPayout = {
   id: string;
   gst_account: 'Fashion' | 'Cosmetics';
   platform: 'Meesho' | 'Flipkart' | 'Amazon';
   amount: number;
   payout_date: string;
   reference: string | null;
+  is_deleted: boolean;
 };
+
+type ItemToDelete = {
+  id: string;
+  type: 'expense' | 'payout';
+  description: string;
+}
 
 const StatCard = ({ title, value, icon: Icon, gradient, loading }: { title: string; value: string; icon: React.ElementType; gradient: string; loading: boolean }) => (
     <Card className={`text-white shadow-lg rounded-2xl border-0 overflow-hidden bg-gradient-to-br ${gradient}`}>
@@ -79,13 +97,18 @@ export default function ExpensesPage() {
   const [loading, setLoading] = useState(true);
 
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
+  const [expenseToEdit, setExpenseToEdit] = useState<BusinessExpense | null>(null);
+  
   const [isAddPayoutOpen, setIsAddPayoutOpen] = useState(false);
+  const [payoutToEdit, setPayoutToEdit] = useState<PlatformPayout | null>(null);
+
+  const [itemToDelete, setItemToDelete] = useState<ItemToDelete | null>(null);
   
   const fetchData = useCallback(async () => {
     setLoading(true);
     const [expenseRes, payoutRes] = await Promise.all([
-      supabase.from('business_expenses').select('*').order('expense_date', { ascending: false }),
-      supabase.from('platform_payouts').select('*').order('payout_date', { ascending: false })
+      supabase.from('business_expenses').select('*').eq('is_deleted', false).order('expense_date', { ascending: false }),
+      supabase.from('platform_payouts').select('*').eq('is_deleted', false).order('payout_date', { ascending: false })
     ]);
 
     if (expenseRes.error) {
@@ -109,7 +132,7 @@ export default function ExpensesPage() {
     fetchData();
   }, [fetchData]);
 
-  const handleDataAdded = () => {
+  const handleSuccess = () => {
     fetchData();
   };
 
@@ -120,11 +143,63 @@ export default function ExpensesPage() {
     return { totalExpenses, totalPayouts, netFlow };
   }, [expenses, payouts]);
 
+  const handleConfirmDelete = async () => {
+    if (!itemToDelete) return;
+
+    const table = itemToDelete.type === 'expense' ? 'business_expenses' : 'platform_payouts';
+    
+    const { error } = await supabase
+      .from(table)
+      .update({ is_deleted: true })
+      .eq('id', itemToDelete.id);
+
+    if (error) {
+      toast({
+        variant: 'destructive',
+        title: 'Error deleting item',
+        description: error.message,
+      });
+    } else {
+      toast({
+        title: 'Success',
+        description: `The ${itemToDelete.type} has been deleted.`,
+      });
+      fetchData();
+    }
+    setItemToDelete(null);
+  };
+
   return (
     <div className="w-full px-6 py-6 space-y-6">
-        <AddExpenseModal isOpen={isAddExpenseOpen} onClose={() => setIsAddExpenseOpen(false)} onExpenseAdded={handleDataAdded} />
-        <AddPayoutModal isOpen={isAddPayoutOpen} onClose={() => setIsAddPayoutOpen(false)} onPayoutAdded={handleDataAdded} />
-      
+        <AddExpenseModal 
+            isOpen={isAddExpenseOpen || !!expenseToEdit} 
+            onClose={() => { setIsAddExpenseOpen(false); setExpenseToEdit(null); }} 
+            onSuccess={handleSuccess}
+            expense={expenseToEdit}
+        />
+        <AddPayoutModal 
+            isOpen={isAddPayoutOpen || !!payoutToEdit} 
+            onClose={() => { setIsAddPayoutOpen(false); setPayoutToEdit(null); }}
+            onSuccess={handleSuccess}
+            payout={payoutToEdit}
+        />
+        <AlertDialog open={!!itemToDelete} onOpenChange={() => setItemToDelete(null)}>
+            <AlertDialogContent>
+                <AlertDialogHeader>
+                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                <AlertDialogDescription>
+                    This will mark the item "{itemToDelete?.description}" as deleted. You cannot undo this action.
+                </AlertDialogDescription>
+                </AlertDialogHeader>
+                <AlertDialogFooter>
+                <AlertDialogCancel>Cancel</AlertDialogCancel>
+                <AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive hover:bg-destructive/90">
+                    Delete
+                </AlertDialogAction>
+                </AlertDialogFooter>
+            </AlertDialogContent>
+        </AlertDialog>
+
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             <StatCard 
                 title="Total Expenses"
@@ -158,17 +233,23 @@ export default function ExpensesPage() {
                 <CardContent>
                     <div className="rounded-md border">
                         <Table>
-                            <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
+                            <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Amount</TableHead><TableHead className="text-right w-[100px]">Actions</TableHead></TableRow></TableHeader>
                             <TableBody>
-                                {loading ? Array.from({length: 3}).map((_, i) => <TableRow key={i}><TableCell colSpan={3}><Skeleton className="h-8 w-full"/></TableCell></TableRow>)
+                                {loading ? Array.from({length: 3}).map((_, i) => <TableRow key={i}><TableCell colSpan={4}><Skeleton className="h-8 w-full"/></TableCell></TableRow>)
                                 : expenses.length > 0 ? expenses.map(e => (
                                     <TableRow key={e.id}>
                                         <TableCell>{format(new Date(e.expense_date), 'dd MMM yyyy')}</TableCell>
                                         <TableCell>{e.description}</TableCell>
                                         <TableCell className="text-right font-medium">{formatCurrency(e.amount)}</TableCell>
+                                        <TableCell className="text-right">
+                                            <div className="flex justify-end gap-1">
+                                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setExpenseToEdit(e)}><Pencil className="h-4 w-4" /></Button>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive" onClick={() => setItemToDelete({id: e.id, type: 'expense', description: e.description})}><Trash2 className="h-4 w-4" /></Button>
+                                            </div>
+                                        </TableCell>
                                     </TableRow>
                                 ))
-                                : <TableRow><TableCell colSpan={3} className="h-24 text-center">No expenses recorded yet.</TableCell></TableRow>}
+                                : <TableRow><TableCell colSpan={4} className="h-24 text-center">No expenses recorded yet.</TableCell></TableRow>}
                             </TableBody>
                         </Table>
                     </div>
@@ -183,9 +264,9 @@ export default function ExpensesPage() {
                 <CardContent>
                     <div className="rounded-md border">
                         <Table>
-                            <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Accounts</TableHead><TableHead>Platform</TableHead><TableHead>Reference</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
+                            <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Accounts</TableHead><TableHead>Platform</TableHead><TableHead>Reference</TableHead><TableHead className="text-right">Amount</TableHead><TableHead className="text-right w-[100px]">Actions</TableHead></TableRow></TableHeader>
                             <TableBody>
-                                 {loading ? Array.from({length: 3}).map((_, i) => <TableRow key={i}><TableCell colSpan={5}><Skeleton className="h-8 w-full"/></TableCell></TableRow>)
+                                 {loading ? Array.from({length: 3}).map((_, i) => <TableRow key={i}><TableCell colSpan={6}><Skeleton className="h-8 w-full"/></TableCell></TableRow>)
                                 : payouts.length > 0 ? payouts.map(p => (
                                     <TableRow key={p.id}>
                                         <TableCell>{format(new Date(p.payout_date), 'dd MMM yyyy')}</TableCell>
@@ -193,9 +274,15 @@ export default function ExpensesPage() {
                                         <TableCell><Badge variant="outline">{p.platform}</Badge></TableCell>
                                         <TableCell>{p.reference || 'N/A'}</TableCell>
                                         <TableCell className="text-right font-medium">{formatCurrency(p.amount)}</TableCell>
+                                         <TableCell className="text-right">
+                                            <div className="flex justify-end gap-1">
+                                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setPayoutToEdit(p)}><Pencil className="h-4 w-4" /></Button>
+                                                <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive" onClick={() => setItemToDelete({id: p.id, type: 'payout', description: `Payout from ${p.platform}`})}><Trash2 className="h-4 w-4" /></Button>
+                                            </div>
+                                        </TableCell>
                                     </TableRow>
                                 ))
-                                : <TableRow><TableCell colSpan={5} className="h-24 text-center">No payouts recorded yet.</TableCell></TableRow>}
+                                : <TableRow><TableCell colSpan={6} className="h-24 text-center">No payouts recorded yet.</TableCell></TableRow>}
                             </TableBody>
                         </Table>
                     </div>
