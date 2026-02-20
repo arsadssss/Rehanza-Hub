@@ -360,18 +360,18 @@ export default function ExpensesPage() {
                 </CardHeader>
                 <CardContent>
                     <div className="flex flex-col md:flex-row gap-4 mb-4">
-                        <Select value={accountFilter} onValueChange={setAccountFilter}>
+                        <Select value={accountFilter || 'all'} onValueChange={(value) => setAccountFilter(value === 'all' ? '' : value)}>
                             <SelectTrigger><SelectValue placeholder="Filter by Account..." /></SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="">All Accounts</SelectItem>
+                                <SelectItem value="all">All Accounts</SelectItem>
                                 <SelectItem value="Fashion">Fashion</SelectItem>
                                 <SelectItem value="Cosmetics">Cosmetics</SelectItem>
                             </SelectContent>
                         </Select>
-                         <Select value={platformFilter} onValueChange={setPlatformFilter}>
+                         <Select value={platformFilter || 'all'} onValueChange={(value) => setPlatformFilter(value === 'all' ? '' : value)}>
                             <SelectTrigger><SelectValue placeholder="Filter by Platform..." /></SelectTrigger>
                             <SelectContent>
-                                <SelectItem value="">All Platforms</SelectItem>
+                                <SelectItem value="all">All Platforms</SelectItem>
                                 <SelectItem value="Meesho">Meesho</SelectItem>
                                 <SelectItem value="Flipkart">Flipkart</SelectItem>
                                 <SelectItem value="Amazon">Amazon</SelectItem>
