@@ -183,7 +183,7 @@ export default function ExpensesPage() {
                 <CardContent>
                     <div className="rounded-md border">
                         <Table>
-                            <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>GST Account</TableHead><TableHead>Platform</TableHead><TableHead>Reference</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
+                            <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Accounts</TableHead><TableHead>Platform</TableHead><TableHead>Reference</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
                             <TableBody>
                                  {loading ? Array.from({length: 3}).map((_, i) => <TableRow key={i}><TableCell colSpan={5}><Skeleton className="h-8 w-full"/></TableCell></TableRow>)
                                 : payouts.length > 0 ? payouts.map(p => (

@@ -39,8 +39,14 @@ import { cn } from "@/lib/utils"
 import { format } from "date-fns"
 
 const formSchema = z.object({
-  gst_account: z.enum(["Fashion", "Cosmetics"], { required_error: "GST Account is required" }),
-  platform: z.enum(["Meesho", "Flipkart", "Amazon"], { required_error: "Platform is required" }),
+  account_platform: z.enum([
+    "Fashion-Meesho",
+    "Fashion-Flipkart",
+    "Fashion-Amazon",
+    "Cosmetics-Meesho",
+    "Cosmetics-Flipkart",
+    "Cosmetics-Amazon",
+  ], { required_error: "An account is required" }),
   amount: z.coerce.number().positive("Amount must be a positive number"),
   payout_date: z.date({ required_error: "Payout date is required" }),
   reference: z.string().optional(),
@@ -76,7 +82,17 @@ export function AddPayoutModal({ isOpen, onClose, onPayoutAdded }: AddPayoutModa
   async function onSubmit(values: PayoutFormValues) {
     setIsSubmitting(true)
     try {
-      const { error } = await supabase.from("platform_payouts").insert([values])
+      const [gst_account, platform] = values.account_platform.split('-')
+      
+      const payoutData = {
+        gst_account,
+        platform,
+        amount: values.amount,
+        payout_date: values.payout_date,
+        reference: values.reference
+      }
+
+      const { error } = await supabase.from("platform_payouts").insert([payoutData])
       if (error) throw error
 
       toast({
@@ -105,43 +121,27 @@ export function AddPayoutModal({ isOpen, onClose, onPayoutAdded }: AddPayoutModa
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField
+             <FormField
                 control={form.control}
-                name="gst_account"
+                name="account_platform"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>GST Account</FormLabel>
+                    <FormLabel>Accounts</FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl><SelectTrigger><SelectValue placeholder="Select GST account" /></SelectTrigger></FormControl>
+                      <FormControl><SelectTrigger><SelectValue placeholder="Select an account" /></SelectTrigger></FormControl>
                       <SelectContent>
-                        <SelectItem value="Fashion">Fashion</SelectItem>
-                        <SelectItem value="Cosmetics">Cosmetics</SelectItem>
+                        <SelectItem value="Fashion-Meesho">Fashion - Meesho</SelectItem>
+                        <SelectItem value="Fashion-Flipkart">Fashion - Flipkart</SelectItem>
+                        <SelectItem value="Fashion-Amazon">Fashion - Amazon</SelectItem>
+                        <SelectItem value="Cosmetics-Meesho">Cosmetics - Meesho</SelectItem>
+                        <SelectItem value="Cosmetics-Flipkart">Cosmetics - Flipkart</SelectItem>
+                        <SelectItem value="Cosmetics-Amazon">Cosmetics - Amazon</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="platform"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Platform</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl><SelectTrigger><SelectValue placeholder="Select platform" /></SelectTrigger></FormControl>
-                      <SelectContent>
-                        <SelectItem value="Meesho">Meesho</SelectItem>
-                        <SelectItem value="Flipkart">Flipkart</SelectItem>
-                        <SelectItem value="Amazon">Amazon</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
