@@ -109,7 +109,6 @@ export default function ExpensesPage() {
   const [totalFashionPayouts, setTotalFashionPayouts] = useState(0);
   const [totalCosmeticsPayouts, setTotalCosmeticsPayouts] = useState(0);
 
-
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
   const [expenseToEdit, setExpenseToEdit] = useState<BusinessExpense | null>(null);
   
@@ -117,6 +116,15 @@ export default function ExpensesPage() {
   const [payoutToEdit, setPayoutToEdit] = useState<PlatformPayout | null>(null);
 
   const [itemToDelete, setItemToDelete] = useState<ItemToDelete | null>(null);
+
+  // Expenses pagination and filtering
+  const [loadingExpenses, setLoadingExpenses] = useState(true);
+  const [expensesPage, setExpensesPage] = useState(1);
+  const [expensesPageSize] = useState(10);
+  const [expensesTotalRows, setExpensesTotalRows] = useState(0);
+  const [expenseDateFrom, setExpenseDateFrom] = useState('');
+  const [expenseDateTo, setExpenseDateTo] = useState('');
+  const [expenseSearch, setExpenseSearch] = useState('');
 
   // Payouts pagination and filtering
   const [loadingPayouts, setLoadingPayouts] = useState(true);
@@ -157,14 +165,32 @@ export default function ExpensesPage() {
   }, [supabase]);
 
   const fetchExpenses = useCallback(async () => {
-      const { data, error } = await supabase.from('business_expenses').select('*').eq('is_deleted', false).order('expense_date', { ascending: false });
-      if (error) {
+    setLoadingExpenses(true);
+    const from = (expensesPage - 1) * expensesPageSize;
+    const to = from + expensesPageSize - 1;
+
+    let query = supabase
+      .from('business_expenses')
+      .select('*', { count: 'exact' })
+      .eq('is_deleted', false);
+
+    if (expenseDateFrom) query = query.gte('expense_date', expenseDateFrom);
+    if (expenseDateTo) query = query.lte('expense_date', expenseDateTo);
+    if (expenseSearch) query = query.ilike('description', `%${expenseSearch}%`);
+
+    query = query.order('expense_date', { ascending: false }).range(from, to);
+
+    const { data, error, count } = await query;
+    
+    if (error) {
         toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch business expenses.' });
         setExpenses([]);
       } else {
         setExpenses(data as BusinessExpense[]);
+        setExpensesTotalRows(count || 0);
       }
-  }, [supabase, toast]);
+    setLoadingExpenses(false);
+  }, [supabase, toast, expensesPage, expensesPageSize, expenseDateFrom, expenseDateTo, expenseSearch]);
 
   const fetchPayouts = useCallback(async () => {
     setLoadingPayouts(true);
@@ -197,12 +223,19 @@ export default function ExpensesPage() {
 
   useEffect(() => {
     fetchTotals();
+  }, [fetchTotals]);
+  
+  useEffect(() => {
     fetchExpenses();
-  }, [fetchTotals, fetchExpenses]);
+  }, [fetchExpenses]);
   
   useEffect(() => {
     fetchPayouts();
   }, [fetchPayouts]);
+  
+  useEffect(() => {
+    setExpensesPage(1);
+  }, [expenseDateFrom, expenseDateTo, expenseSearch]);
 
   useEffect(() => {
     setPayoutsPage(1);
@@ -243,7 +276,13 @@ export default function ExpensesPage() {
     setItemToDelete(null);
   };
   
-  const resetFilters = () => {
+  const resetExpenseFilters = () => {
+      setExpenseDateFrom('');
+      setExpenseDateTo('');
+      setExpenseSearch('');
+  }
+
+  const resetPayoutFilters = () => {
       setAccountFilter('all');
       setPlatformFilter('all');
       setDateFromFilter('');
@@ -336,11 +375,17 @@ export default function ExpensesPage() {
                     <Button onClick={() => setIsAddExpenseOpen(true)}><PlusCircle className="mr-2 h-4 w-4" /> Add Expense</Button>
                 </CardHeader>
                 <CardContent>
-                    <div className="rounded-md border">
+                    <div className="flex flex-col md:flex-row gap-4 mb-4">
+                        <Input type="date" value={expenseDateFrom} onChange={e => setExpenseDateFrom(e.target.value)} placeholder="From Date" />
+                        <Input type="date" value={expenseDateTo} onChange={e => setExpenseDateTo(e.target.value)} placeholder="To Date" />
+                        <Input placeholder="Search description..." value={expenseSearch} onChange={e => setExpenseSearch(e.target.value)} />
+                        <Button variant="outline" onClick={resetExpenseFilters}>Clear</Button>
+                    </div>
+                    <div className="rounded-md border max-h-[500px] overflow-y-auto">
                         <Table>
                             <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Amount</TableHead><TableHead className="text-right w-[100px]">Actions</TableHead></TableRow></TableHeader>
                             <TableBody>
-                                {loading ? Array.from({length: 3}).map((_, i) => <TableRow key={i}><TableCell colSpan={4}><Skeleton className="h-8 w-full"/></TableCell></TableRow>)
+                                {loadingExpenses ? Array.from({length: 3}).map((_, i) => <TableRow key={i}><TableCell colSpan={4}><Skeleton className="h-8 w-full"/></TableCell></TableRow>)
                                 : expenses.length > 0 ? expenses.map(e => (
                                     <TableRow key={e.id}>
                                         <TableCell>{format(new Date(e.expense_date), 'dd MMM yyyy')}</TableCell>
@@ -354,9 +399,30 @@ export default function ExpensesPage() {
                                         </TableCell>
                                     </TableRow>
                                 ))
-                                : <TableRow><TableCell colSpan={4} className="h-24 text-center">No expenses recorded yet.</TableCell></TableRow>}
+                                : <TableRow><TableCell colSpan={4} className="h-24 text-center">No expenses match your criteria.</TableCell></TableRow>}
                             </TableBody>
                         </Table>
+                    </div>
+                     <div className="flex items-center justify-end space-x-2 py-4">
+                        <span className="text-sm text-muted-foreground">
+                           {expensesTotalRows > 0 ? `Page ${expensesPage} of ${Math.ceil(expensesTotalRows / expensesPageSize)}` : 'Page 0 of 0'}
+                        </span>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setExpensesPage(p => p - 1)}
+                            disabled={expensesPage === 1}
+                        >
+                            Previous
+                        </Button>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setExpensesPage(p => p + 1)}
+                            disabled={(expensesPage * expensesPageSize) >= expensesTotalRows}
+                        >
+                            Next
+                        </Button>
                     </div>
                 </CardContent>
             </Card>
@@ -387,7 +453,7 @@ export default function ExpensesPage() {
                         </Select>
                         <Input type="date" value={dateFromFilter} onChange={e => setDateFromFilter(e.target.value)} placeholder="From Date" />
                         <Input type="date" value={dateToFilter} onChange={e => setDateToFilter(e.target.value)} placeholder="To Date" />
-                        <Button variant="outline" onClick={resetFilters}>Clear</Button>
+                        <Button variant="outline" onClick={resetPayoutFilters}>Clear</Button>
                     </div>
                     <div className="rounded-md border max-h-[500px] overflow-y-auto">
                         <Table>
@@ -440,5 +506,3 @@ export default function ExpensesPage() {
     </div>
   );
 }
-
-    
