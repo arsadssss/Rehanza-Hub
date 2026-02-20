@@ -35,6 +35,8 @@ import {
 } from "@/components/ui/select"
 import type { Variant } from "../../products/page"
 import { formatINR } from "@/lib/format"
+import { format } from "date-fns"
+import type { Order } from "../page"
 
 // A more detailed type for variants that includes the parent product's prices
 type VariantWithProduct = Variant & {
@@ -48,6 +50,7 @@ type VariantWithProduct = Variant & {
 };
 
 const formSchema = z.object({
+  order_date: z.string().min(1, "Order date is required"),
   platform: z.enum(["Meesho", "Flipkart", "Amazon"], { required_error: "Platform is required" }),
   variant_id: z.string().min(1, "Variant is required"),
   quantity: z.coerce.number().min(1, "Quantity must be at least 1"),
@@ -58,29 +61,29 @@ type OrderFormValues = z.infer<typeof formSchema>
 interface AddOrderModalProps {
   isOpen: boolean
   onClose: () => void
-  onOrderAdded: () => void
+  onSuccess: () => void
+  order?: Order | null
 }
 
-export function AddOrderModal({ isOpen, onClose, onOrderAdded }: AddOrderModalProps) {
+export function AddOrderModal({ isOpen, onClose, onSuccess, order }: AddOrderModalProps) {
   const supabase = createClient();
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [variants, setVariants] = React.useState<VariantWithProduct[]>([])
   const [sellingPrice, setSellingPrice] = React.useState<number | null>(null)
+  const isEditMode = !!order?.id;
 
   const form = useForm<OrderFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       quantity: 1,
+      order_date: format(new Date(), 'yyyy-MM-dd'),
     },
   })
 
-  const platform = form.watch("platform")
-  const variantId = form.watch("variant_id")
-
   React.useEffect(() => {
     async function fetchVariants() {
-      const { data, error } = await supabase
+      const { data } = await supabase
         .from("product_variants")
         .select(`
           *,
@@ -100,38 +103,46 @@ export function AddOrderModal({ isOpen, onClose, onOrderAdded }: AddOrderModalPr
     }
     if (isOpen) {
       fetchVariants();
+      if (order?.id) {
+        form.reset({
+          order_date: format(new Date(order.order_date), 'yyyy-MM-dd'),
+          platform: order.platform,
+          variant_id: order.variant_id,
+          quantity: order.quantity,
+        });
+      } else {
+        form.reset({
+          order_date: format(new Date(), 'yyyy-MM-dd'),
+          platform: undefined,
+          variant_id: undefined,
+          quantity: 1,
+        });
+      }
     }
-  }, [isOpen, supabase]);
+  }, [isOpen, order, supabase, form]);
+
+  const platform = form.watch("platform")
+  const variantId = form.watch("variant_id")
 
   React.useEffect(() => {
     if (platform && variantId) {
       const selectedVariant = variants.find(v => v.id === variantId);
-      if (selectedVariant && selectedVariant.allproducts) {
+      if (selectedVariant?.allproducts) {
         switch (platform) {
-          case "Meesho":
-            setSellingPrice(selectedVariant.allproducts.meesho_price);
-            break;
-          case "Flipkart":
-            setSellingPrice(selectedVariant.allproducts.flipkart_price);
-            break;
-          case "Amazon":
-            setSellingPrice(selectedVariant.allproducts.amazon_price);
-            break;
-          default:
-            setSellingPrice(null);
+          case "Meesho": setSellingPrice(selectedVariant.allproducts.meesho_price); break;
+          case "Flipkart": setSellingPrice(selectedVariant.allproducts.flipkart_price); break;
+          case "Amazon": setSellingPrice(selectedVariant.allproducts.amazon_price); break;
+          default: setSellingPrice(null);
         }
       }
-    } else {
+    } else if (isEditMode && order) {
+      setSellingPrice(order.selling_price);
+    }
+     else {
       setSellingPrice(null);
     }
-  }, [platform, variantId, variants]);
+  }, [platform, variantId, variants, isEditMode, order]);
 
-
-  const handleClose = () => {
-    form.reset()
-    setSellingPrice(null)
-    onClose()
-  }
 
   async function onSubmit(values: OrderFormValues) {
     if (sellingPrice === null) {
@@ -145,17 +156,15 @@ export function AddOrderModal({ isOpen, onClose, onOrderAdded }: AddOrderModalPr
     
     setIsSubmitting(true)
     try {
-      const newOrderData = {
+      const orderData = {
         ...values,
         selling_price: sellingPrice,
-        order_date: new Date().toISOString(),
+        total_amount: sellingPrice * values.quantity,
       };
 
-      const { data, error } = await supabase
-        .from("orders")
-        .insert([newOrderData])
-        .select()
-        .single()
+      const { error } = isEditMode
+        ? await supabase.from("orders").update(orderData).eq('id', order.id)
+        : await supabase.from("orders").insert([orderData]);
 
       if (error) {
         throw error
@@ -163,15 +172,15 @@ export function AddOrderModal({ isOpen, onClose, onOrderAdded }: AddOrderModalPr
 
       toast({
         title: "Success",
-        description: "Order added successfully.",
+        description: `Order ${isEditMode ? 'updated' : 'added'} successfully.`,
       })
-      onOrderAdded()
-      handleClose()
+      onSuccess()
+      onClose()
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message || "Failed to add order.",
+        description: error.message || `Failed to ${isEditMode ? 'save' : 'add'} order.`,
       })
     } finally {
         setIsSubmitting(false)
@@ -179,23 +188,36 @@ export function AddOrderModal({ isOpen, onClose, onOrderAdded }: AddOrderModalPr
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-[425px]">
         <DialogHeader>
-          <DialogTitle>Add New Order</DialogTitle>
+          <DialogTitle>{isEditMode ? 'Edit' : 'Add New'} Order</DialogTitle>
           <DialogDescription>
-            Enter the details for the new order. Stock will be deducted automatically.
+            {isEditMode ? 'Update the details of this order.' : 'Enter the details for the new order. Stock will be deducted automatically.'}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" suppressHydrationWarning>
+            <FormField
+              control={form.control}
+              name="order_date"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Order Date</FormLabel>
+                  <FormControl>
+                    <Input type="date" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
             <FormField
               control={form.control}
               name="platform"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Platform</FormLabel>
-                   <Select onValueChange={field.onChange} defaultValue={field.value}>
+                   <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                       <SelectTrigger>
                           <SelectValue placeholder="Select a platform" />
@@ -217,7 +239,7 @@ export function AddOrderModal({ isOpen, onClose, onOrderAdded }: AddOrderModalPr
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Variant</FormLabel>
-                   <Select onValueChange={field.onChange} defaultValue={field.value}>
+                   <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                       <SelectTrigger>
                           <SelectValue placeholder="Select a variant SKU" />
@@ -259,11 +281,11 @@ export function AddOrderModal({ isOpen, onClose, onOrderAdded }: AddOrderModalPr
             </div>
             
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={handleClose}>
+              <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
               </Button>
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? 'Saving...' : 'Save Order'}
+                {isSubmitting ? 'Saving...' : (isEditMode ? 'Save Changes' : 'Save Order')}
                 </Button>
             </DialogFooter>
           </form>

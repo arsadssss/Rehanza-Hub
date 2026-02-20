@@ -35,8 +35,11 @@ import {
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import type { Variant } from "../../variants/page"
+import type { Return } from "../../orders/page"
+import { format } from "date-fns"
 
 const formSchema = z.object({
+  return_date: z.string().min(1, "Return date is required"),
   platform: z.enum(["Meesho", "Flipkart", "Amazon"], { required_error: "Platform is required" }),
   variant_id: z.string().min(1, "Variant is required"),
   quantity: z.coerce.number().min(1, "Quantity must be at least 1"),
@@ -51,14 +54,16 @@ type ReturnFormValues = z.infer<typeof formSchema>
 interface AddReturnModalProps {
   isOpen: boolean
   onClose: () => void
-  onReturnAdded: () => void
+  onSuccess: () => void
+  returnItem?: Return | null;
 }
 
-export function AddReturnModal({ isOpen, onClose, onReturnAdded }: AddReturnModalProps) {
+export function AddReturnModal({ isOpen, onClose, onSuccess, returnItem }: AddReturnModalProps) {
   const supabase = createClient();
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [variants, setVariants] = React.useState<Pick<Variant, 'id' | 'variant_sku' | 'stock'>[]>([])
+  const isEditMode = !!returnItem?.id;
 
   const form = useForm<ReturnFormValues>({
     resolver: zodResolver(formSchema),
@@ -68,76 +73,87 @@ export function AddReturnModal({ isOpen, onClose, onReturnAdded }: AddReturnModa
       shipping_loss: 0,
       ads_loss: 0,
       damage_loss: 0,
+      return_date: format(new Date(), 'yyyy-MM-dd'),
     },
   })
 
   React.useEffect(() => {
     async function fetchVariants() {
-      const { data, error } = await supabase
-        .from("product_variants")
-        .select(`id, variant_sku, stock`)
-        .order("variant_sku");
-        
-      if (data) {
-        setVariants(data as any);
-      }
+      const { data } = await supabase.from("product_variants").select(`id, variant_sku, stock`).order("variant_sku");
+      if (data) { setVariants(data as any); }
     }
     if (isOpen) {
       fetchVariants();
+      if (returnItem?.id) {
+          const { created_at, total_loss, is_deleted, ...rest } = returnItem;
+          form.reset({
+            ...rest,
+            return_date: format(new Date(returnItem.return_date), 'yyyy-MM-dd'),
+            // Individual losses are not stored, so they cannot be pre-filled in edit mode.
+            // A DB trigger calculates total_loss from these.
+            shipping_loss: 0,
+            ads_loss: 0,
+            damage_loss: 0,
+          });
+      } else {
+        form.reset({
+          quantity: 1,
+          restockable: false,
+          shipping_loss: 0,
+          ads_loss: 0,
+          damage_loss: 0,
+          return_date: format(new Date(), 'yyyy-MM-dd'),
+          platform: undefined,
+          variant_id: undefined,
+        });
+      }
     }
-  }, [isOpen, supabase]);
-
-  const handleClose = () => {
-    form.reset()
-    onClose()
-  }
+  }, [isOpen, returnItem, supabase, form]);
 
   async function onSubmit(values: ReturnFormValues) {
     setIsSubmitting(true)
     try {
-      const newReturnData = {
-        ...values,
-        return_date: new Date().toISOString(),
-      };
+      const { error } = isEditMode
+        ? await supabase.from("returns").update(values).eq('id', returnItem.id)
+        : await supabase.from("returns").insert([values]);
 
-      const { error } = await supabase
-        .from("returns")
-        .insert([newReturnData])
-        .select()
-        .single()
-
-      if (error) {
-        throw error
-      }
+      if (error) throw error;
 
       toast({
         title: "Success",
-        description: "Return added successfully.",
-      })
-      onReturnAdded()
-      handleClose()
+        description: `Return ${isEditMode ? 'updated' : 'added'} successfully.`,
+      });
+      onSuccess();
+      onClose();
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message || "Failed to add return.",
-      })
+        description: error.message || `Failed to ${isEditMode ? 'save' : 'add'} return.`,
+      });
     } finally {
-        setIsSubmitting(false)
+        setIsSubmitting(false);
     }
   }
 
   return (
-    <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
+    <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Add New Return</DialogTitle>
+          <DialogTitle>{isEditMode ? 'Edit' : 'Add New'} Return</DialogTitle>
           <DialogDescription>
-            Enter the details for the new return. Stock will be adjusted automatically.
+            {isEditMode ? 'Update the details of this return.' : 'Enter the details for the new return. Stock will be adjusted if restockable.'}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" suppressHydrationWarning>
+             <FormField control={form.control} name="return_date" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Return Date</FormLabel>
+                  <FormControl><Input type="date" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
             <div className="grid grid-cols-2 gap-4">
                 <FormField
                 control={form.control}
@@ -145,7 +161,7 @@ export function AddReturnModal({ isOpen, onClose, onReturnAdded }: AddReturnModa
                 render={({ field }) => (
                     <FormItem>
                     <FormLabel>Platform</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                         <SelectTrigger>
                             <SelectValue placeholder="Select a platform" />
@@ -167,7 +183,7 @@ export function AddReturnModal({ isOpen, onClose, onReturnAdded }: AddReturnModa
                 render={({ field }) => (
                     <FormItem>
                     <FormLabel>Variant</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl>
                         <SelectTrigger>
                             <SelectValue placeholder="Select a variant SKU" />
@@ -215,7 +231,7 @@ export function AddReturnModal({ isOpen, onClose, onReturnAdded }: AddReturnModa
                 />
             </div>
 
-            <p className="text-sm font-medium">Losses</p>
+            <p className="text-sm font-medium">Losses {isEditMode && '(re-enter to update)'}</p>
             <div className="grid grid-cols-3 gap-4">
                 <FormField
                 control={form.control}
@@ -259,11 +275,11 @@ export function AddReturnModal({ isOpen, onClose, onReturnAdded }: AddReturnModa
             </div>
             
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={handleClose}>
+              <Button type="button" variant="outline" onClick={onClose}>
                 Cancel
               </Button>
               <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? 'Saving...' : 'Save Return'}
+                {isSubmitting ? 'Saving...' : (isEditMode ? 'Save Changes' : 'Save Return')}
                 </Button>
             </DialogFooter>
           </form>

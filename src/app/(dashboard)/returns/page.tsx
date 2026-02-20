@@ -1,7 +1,7 @@
 
 "use client"
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -22,10 +22,20 @@ import {
   TableBody,
   TableCell,
 } from '@/components/ui/table';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { AddReturnModal } from './components/add-return-modal';
-import { PlusCircle } from 'lucide-react';
+import { PlusCircle, Pencil, Trash2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export type Return = {
@@ -36,19 +46,31 @@ export type Return = {
   quantity: number;
   restockable: boolean;
   total_loss: number;
+  is_deleted: boolean;
+  created_at: string;
   product_variants: {
     variant_sku: string;
   } | null;
 };
 
+type ItemToDelete = {
+  id: string;
+  description: string;
+}
+
 export default function ReturnsPage() {
   const supabase = createClient();
+  const { toast } = useToast();
+  
   const [returns, setReturns] = useState<Return[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const { toast } = useToast();
+  
+  const [returnToEdit, setReturnToEdit] = useState<Return | null>(null);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
 
-  async function fetchReturns() {
+  const [itemToDelete, setItemToDelete] = useState<ItemToDelete | null>(null);
+
+  const fetchReturns = useCallback(async () => {
     setLoading(true);
     const { data, error } = await supabase
       .from('returns')
@@ -58,45 +80,82 @@ export default function ReturnsPage() {
           variant_sku
         )
       `)
+      .eq('is_deleted', false)
       .order('created_at', { ascending: false });
 
     if (error) {
-      console.error('Error fetching returns:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to fetch returns.',
-      });
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch returns.' });
       setReturns([]);
     } else {
       setReturns(data as Return[]);
     }
     setLoading(false);
-  }
+  }, [supabase, toast]);
 
-  useEffect(() => {
-    fetchReturns();
-     const handleDataChange = () => fetchReturns();
-
-    window.addEventListener('data-changed', handleDataChange);
-
-    return () => {
-      window.removeEventListener('data-changed', handleDataChange);
-    };
-  }, []);
-
-  const handleReturnAdded = () => {
+  const handleSuccess = useCallback(() => {
     fetchReturns();
     window.dispatchEvent(new Event('data-changed'));
+  }, [fetchReturns]);
+
+  useEffect(() => {
+    handleSuccess();
+    window.addEventListener('data-changed', handleSuccess);
+    return () => {
+      window.removeEventListener('data-changed', handleSuccess);
+    };
+  }, [handleSuccess]);
+
+  const handleOpenModal = (returnItem?: Return | null) => {
+    if (returnItem) {
+      setReturnToEdit(returnItem);
+    } else {
+      setReturnToEdit(null);
+      setIsAddModalOpen(true);
+    }
+  }
+
+  const handleCloseModal = () => {
+    setReturnToEdit(null);
+    setIsAddModalOpen(false);
+  }
+
+  const handleConfirmDelete = async () => {
+    if (!itemToDelete) return;
+    const { error } = await supabase.from('returns').update({ is_deleted: true }).eq('id', itemToDelete.id);
+
+    if (error) {
+      toast({ variant: 'destructive', title: 'Error deleting return', description: error.message });
+    } else {
+      toast({ title: 'Success', description: 'The return has been deleted.' });
+      handleSuccess();
+    }
+    setItemToDelete(null);
   };
 
   return (
     <div className="p-6">
       <AddReturnModal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        onReturnAdded={handleReturnAdded}
+        isOpen={isAddModalOpen || !!returnToEdit}
+        onClose={handleCloseModal}
+        onSuccess={handleSuccess}
+        returnItem={returnToEdit}
       />
+      <AlertDialog open={!!itemToDelete} onOpenChange={() => setItemToDelete(null)}>
+        <AlertDialogContent>
+            <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+                This will mark the item "{itemToDelete?.description}" as deleted. This action cannot be undone.
+            </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive hover:bg-destructive/90">
+                Delete
+            </AlertDialogAction>
+            </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
       <Card>
         <CardHeader>
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -105,7 +164,7 @@ export default function ReturnsPage() {
               <CardDescription>View and manage customer returns.</CardDescription>
             </div>
             <div className="flex items-center gap-2 w-full md:w-auto">
-              <Button onClick={() => setIsModalOpen(true)}>
+              <Button onClick={() => handleOpenModal()}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Return
               </Button>
             </div>
@@ -122,40 +181,33 @@ export default function ReturnsPage() {
                   <TableHead>Quantity</TableHead>
                   <TableHead>Restockable</TableHead>
                   <TableHead>Total Loss</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   Array.from({ length: 5 }).map((_, i) => (
-                    <TableRow key={i}>
-                      <TableCell colSpan={6}>
-                        <Skeleton className="h-8 w-full" />
-                      </TableCell>
-                    </TableRow>
+                    <TableRow key={i}><TableCell colSpan={7}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
                   ))
                 ) : returns.length > 0 ? (
                   returns.map(item => (
                       <TableRow key={item.id}>
                         <TableCell>{format(new Date(item.return_date), 'dd MMM yyyy')}</TableCell>
-                        <TableCell>
-                          <Badge variant="secondary">{item.platform}</Badge>
-                        </TableCell>
+                        <TableCell><Badge variant="secondary">{item.platform}</Badge></TableCell>
                         <TableCell className="font-medium">{item.product_variants?.variant_sku}</TableCell>
                         <TableCell>{item.quantity}</TableCell>
-                        <TableCell>
-                          <Badge variant={item.restockable ? 'default' : 'destructive'} className={item.restockable ? 'bg-green-500' : ''}>
-                            {item.restockable ? 'Yes' : 'No'}
-                          </Badge>
-                        </TableCell>
+                        <TableCell><Badge variant={item.restockable ? 'default' : 'destructive'} className={item.restockable ? 'bg-green-500' : ''}>{item.restockable ? 'Yes' : 'No'}</Badge></TableCell>
                         <TableCell>{formatINR(item.total_loss)}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex justify-end gap-1">
+                            <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenModal(item)}><Pencil className="h-4 w-4" /></Button>
+                            <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive" onClick={() => setItemToDelete({id: item.id, description: `Return for ${item.product_variants?.variant_sku || 'N/A'}`})}><Trash2 className="h-4 w-4" /></Button>
+                          </div>
+                        </TableCell>
                       </TableRow>
                     ))
                 ) : (
-                  <TableRow>
-                    <TableCell colSpan={6} className="h-24 text-center">
-                      No returns found.
-                    </TableCell>
-                  </TableRow>
+                  <TableRow><TableCell colSpan={7} className="h-24 text-center">No returns found.</TableCell></TableRow>
                 )}
               </TableBody>
             </Table>
