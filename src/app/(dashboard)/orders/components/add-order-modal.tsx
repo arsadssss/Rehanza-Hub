@@ -159,7 +159,6 @@ export function AddOrderModal({ isOpen, onClose, onSuccess, order }: AddOrderMod
       const orderData = {
         ...values,
         selling_price: sellingPrice,
-        total_amount: sellingPrice * values.quantity,
       };
 
       const { error } = isEditMode
