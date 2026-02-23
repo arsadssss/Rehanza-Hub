@@ -23,6 +23,7 @@ import {
   BarChart2,
   Settings,
   CreditCard,
+  ListTodo,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -33,6 +34,7 @@ const navItems = [
   { href: '/products', icon: Package, label: 'Products' },
   { href: '/inventory', icon: Warehouse, label: 'Inventory' },
   { href: '/orders', icon: ShoppingCart, label: 'Orders' },
+  { href: '/tasks', icon: ListTodo, label: 'Tasks' },
   { href: '/vendors', icon: Building, label: 'Vendors' },
   { href: '/analytics', icon: BarChart2, label: 'Report' },
   { href: '/expenses', icon: CreditCard, label: 'Expenses' },
