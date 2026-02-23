@@ -209,7 +209,7 @@ export default function TasksPage() {
                 </AlertDialogContent>
             </AlertDialog>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
                 <ProgressCard title="Overall Tasks Progress" stats={progressStats.overall} gradient="from-indigo-500 to-purple-600" loading={loadingProgress} />
                 <ProgressCard title="Fashion Tasks Progress" stats={progressStats.fashion} gradient="from-blue-500 to-cyan-600" loading={loadingProgress} />
                 <ProgressCard title="Cosmetics Tasks Progress" stats={progressStats.cosmetics} gradient="from-pink-500 to-rose-600" loading={loadingProgress} />
