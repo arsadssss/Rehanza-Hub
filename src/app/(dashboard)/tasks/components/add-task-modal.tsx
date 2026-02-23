@@ -21,6 +21,7 @@ const formSchema = z.object({
   task_date: z.string({ required_error: "Task date is required" }).min(1, "Task date is required"),
   task_group: z.enum(["Fashion", "Cosmetics"], { required_error: "Task group is required" }),
   status: z.enum(["Pending", "In Progress", "Completed"], { required_error: "Status is required" }),
+  notes: z.string().optional(),
 })
 
 type TaskFormValues = z.infer<typeof formSchema>
@@ -43,6 +44,7 @@ export function AddTaskModal({ isOpen, onClose, onSuccess, task }: AddTaskModalP
     defaultValues: {
       task_name: "",
       task_date: format(new Date(), 'yyyy-MM-dd'),
+      notes: "",
     },
   })
 
@@ -53,6 +55,7 @@ export function AddTaskModal({ isOpen, onClose, onSuccess, task }: AddTaskModalP
         task_date: format(new Date(task.task_date), "yyyy-MM-dd"),
         task_group: task.task_group,
         status: task.status,
+        notes: task.notes || "",
       });
     } else if (isOpen) {
       form.reset({
@@ -60,6 +63,7 @@ export function AddTaskModal({ isOpen, onClose, onSuccess, task }: AddTaskModalP
         task_date: format(new Date(), "yyyy-MM-dd"),
         task_group: undefined,
         status: "Pending",
+        notes: "",
       });
     }
   }, [isOpen, task, form]);
@@ -114,6 +118,17 @@ export function AddTaskModal({ isOpen, onClose, onSuccess, task }: AddTaskModalP
                 <FormItem>
                   <FormLabel>Task Name</FormLabel>
                   <FormControl><Textarea placeholder="Describe the task..." {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="notes"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Notes (Optional)</FormLabel>
+                  <FormControl><Textarea placeholder="Add any relevant notes..." {...field} value={field.value ?? ""} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )}

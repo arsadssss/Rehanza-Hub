@@ -9,12 +9,13 @@ import { format } from 'date-fns';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from "@/components/ui/progress"
-import { PlusCircle, Pencil, Trash2 } from 'lucide-react';
+import { PlusCircle, Pencil, Trash2, FileText } from 'lucide-react';
 import { AddTaskModal } from './components/add-task-modal';
 import { cn } from '@/lib/utils';
 
@@ -26,6 +27,7 @@ export type Task = {
   task_group: 'Fashion' | 'Cosmetics';
   is_deleted: boolean;
   created_at: string;
+  notes: string | null;
 };
 
 type ItemToDelete = {
@@ -82,6 +84,7 @@ export default function TasksPage() {
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
     const [itemToDelete, setItemToDelete] = useState<ItemToDelete | null>(null);
+    const [viewingTaskNotes, setViewingTaskNotes] = useState<Task | null>(null);
 
     // Pagination
     const [page, setPage] = useState(1);
@@ -208,6 +211,19 @@ export default function TasksPage() {
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
+            <Dialog open={!!viewingTaskNotes} onOpenChange={() => setViewingTaskNotes(null)}>
+                <DialogContent>
+                    <DialogHeader>
+                        <DialogTitle>Notes for: {viewingTaskNotes?.task_name}</DialogTitle>
+                    </DialogHeader>
+                    <div className="text-sm text-muted-foreground py-4 max-h-60 overflow-y-auto whitespace-pre-wrap">
+                        {viewingTaskNotes?.notes || "No notes have been added for this task."}
+                    </div>
+                    <DialogFooter>
+                        <Button variant="outline" onClick={() => setViewingTaskNotes(null)}>Close</Button>
+                    </DialogFooter>
+                </DialogContent>
+            </Dialog>
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
                 <ProgressCard title="Overall Tasks Progress" stats={progressStats.overall} gradient="from-indigo-500 to-purple-600" loading={loadingProgress} />
@@ -261,7 +277,16 @@ export default function TasksPage() {
                                     tasks.map(task => (
                                         <TableRow key={task.id}>
                                             <TableCell>{format(new Date(task.task_date), 'dd MMM yyyy')}</TableCell>
-                                            <TableCell className="font-medium">{task.task_name}</TableCell>
+                                            <TableCell className="font-medium">
+                                                <div className="flex items-center gap-2">
+                                                    <span>{task.task_name}</span>
+                                                    {task.notes && (
+                                                        <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full" onClick={() => setViewingTaskNotes(task)}>
+                                                            <FileText className="h-4 w-4 text-muted-foreground" />
+                                                        </Button>
+                                                    )}
+                                                </div>
+                                            </TableCell>
                                             <TableCell><Badge className={cn("text-white", getGroupBadge(task.task_group))}>{task.task_group}</Badge></TableCell>
                                             <TableCell><Badge className={cn("text-white", getStatusBadge(task.status))}>{task.status}</Badge></TableCell>
                                             <TableCell className="text-right">
