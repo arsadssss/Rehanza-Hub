@@ -1,6 +1,7 @@
+
 "use client"
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { formatINR } from '@/lib/format';
@@ -29,11 +30,10 @@ import {
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Checkbox } from '@/components/ui/checkbox';
 import { AddProductModal } from './components/add-product-modal';
 import { AddVariantModal } from './components/add-variant-modal';
 import { EditVariantModal } from './components/edit-variant-modal';
-import { PlusCircle, Search, Trash2, Pencil } from 'lucide-react';
+import { PlusCircle, Search, Trash2, Pencil, Package, Archive, ArchiveX, Warehouse } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
 export type Product = {
@@ -64,15 +64,46 @@ export type Variant = {
   } | null;
 };
 
+type SummaryStats = {
+  totalProducts: number;
+  inStockProducts: number;
+  outOfStockProducts: number;
+  totalInventoryUnits: number;
+}
+
+const SummaryCard = ({ title, value, icon: Icon, loading }: { title: string; value: string | number; icon: React.ElementType, loading: boolean }) => (
+  <Card>
+    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+      <CardTitle className="text-sm font-medium">{title}</CardTitle>
+      <Icon className="h-4 w-4 text-muted-foreground" />
+    </CardHeader>
+    <CardContent>
+      {loading ? <Skeleton className="h-8 w-24" /> : (
+        <div className="text-2xl font-bold">{value}</div>
+      )}
+    </CardContent>
+  </Card>
+);
+
 export default function ProductsPage() {
   const supabase = createClient();
+  const { toast } = useToast();
+
   // Products state
   const [products, setProducts] = useState<Product[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
   const [searchTermProducts, setSearchTermProducts] = useState('');
-  const [selectedProductRows, setSelectedProductRows] = useState<string[]>([]);
   const [isAddProductModalOpen, setIsAddProductModalOpen] = useState(false);
-  const { toast } = useToast();
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  
+  // Products pagination
+  const [productsPage, setProductsPage] = useState(1);
+  const [productsPageSize] = useState(10);
+  const [productsTotalRows, setProductsTotalRows] = useState(0);
+
+  // Summary state
+  const [summaryStats, setSummaryStats] = useState<SummaryStats | null>(null);
+  const [loadingSummary, setLoadingSummary] = useState(true);
 
   // Variants state
   const [variants, setVariants] = useState<Variant[]>([]);
@@ -82,183 +113,113 @@ export default function ProductsPage() {
   const [isAddVariantModalOpen, setIsAddVariantModalOpen] = useState(false);
   const [editingVariant, setEditingVariant] = useState<Variant | null>(null);
 
-  // Fetch Products
-  async function fetchProducts() {
+  const fetchProductsAndSummary = useCallback(async () => {
     setLoadingProducts(true);
-    const { data, error } = await supabase.from('allproducts').select('*').order('created_at', { ascending: false });
+    setLoadingSummary(true);
+
+    // Fetch summary in parallel
+    const summaryPromise = supabase.from('allproducts').select('stock');
+    
+    // Fetch paginated products
+    const from = (productsPage - 1) * productsPageSize;
+    const to = from + productsPageSize - 1;
+
+    let query = supabase.from('allproducts')
+        .select('*', { count: 'exact' })
+        .order('created_at', { ascending: false });
+    
+    if (searchTermProducts) {
+      query = query.or(`sku.ilike.%${searchTermProducts}%,product_name.ilike.%${searchTermProducts}%`);
+    }
+
+    const { data, error, count } = await query.range(from, to);
 
     if (error) {
       console.error('Error fetching products:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to fetch products.',
-      });
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch products.' });
       setProducts([]);
     } else {
       setProducts(data as any as Product[]);
+      setProductsTotalRows(count || 0);
     }
     setLoadingProducts(false);
-  }
+
+    // Process summary
+    const { data: summaryData, error: summaryError } = await summaryPromise;
+    if (summaryError) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to calculate summary stats.' });
+        setSummaryStats(null);
+    } else {
+        const totalProducts = summaryData.length;
+        const inStockProducts = summaryData.filter(p => p.stock > 0).length;
+        const outOfStockProducts = totalProducts - inStockProducts;
+        const totalInventoryUnits = summaryData.reduce((acc, p) => acc + p.stock, 0);
+        setSummaryStats({ totalProducts, inStockProducts, outOfStockProducts, totalInventoryUnits });
+    }
+    setLoadingSummary(false);
+
+  }, [supabase, toast, productsPage, productsPageSize, searchTermProducts]);
+
 
   // Fetch Variants
-  async function fetchVariants() {
+  const fetchVariants = useCallback(async () => {
     setLoadingVariants(true);
     const { data, error } = await supabase
       .from('product_variants')
-      .select(`
-        id,
-        variant_sku,
-        color,
-        size,
-        stock,
-        allproducts (
-          sku,
-          product_name
-        )
-      `)
+      .select(`id, variant_sku, color, size, stock, allproducts (sku, product_name)`)
       .order('created_at', { ascending: false });
 
     if (error) {
       console.error('Error fetching variants:', error);
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to fetch product variants.',
-      });
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch product variants.' });
       setVariants([]);
     } else {
       setVariants(data as any as Variant[]);
     }
     setLoadingVariants(false);
-  }
+  }, [supabase, toast]);
+  
+  // Initial and reactive fetches
+  useEffect(() => {
+    fetchProductsAndSummary();
+  }, [fetchProductsAndSummary]);
+  
+  useEffect(() => {
+    fetchVariants();
+  }, [fetchVariants]);
 
   useEffect(() => {
-    fetchProducts();
+    setProductsPage(1);
+  }, [searchTermProducts]);
+
+  const handleSuccess = () => {
+    fetchProductsAndSummary();
     fetchVariants();
-    
-    const handleDataChange = () => {
-      fetchProducts();
-      fetchVariants();
-    };
-
-    window.addEventListener('data-changed', handleDataChange);
-
-    return () => {
-      window.removeEventListener('data-changed', handleDataChange);
-    };
-  }, []);
-
-  // Product handlers
-  const handleProductAdded = () => {
-    fetchProducts(); // Refetch to get the latest list
-  };
-
-  const handleDeleteSelectedProducts = async () => {
-    if (selectedProductRows.length === 0) return;
-
-    const { data: variants, error: variantError } = await supabase
-      .from('product_variants')
-      .select('product_id')
-      .in('product_id', selectedProductRows);
-
-    if (variantError) {
-      toast({
-        variant: 'destructive',
-        title: 'Error checking for variants',
-        description: variantError.message,
-      });
-      return;
-    }
-
-    if (variants && variants.length > 0) {
-      const productsWithVariants = products
-        .filter(p => variants.some(v => v.product_id === p.id))
-        .map(p => p.sku)
-        .join(', ');
-
-      toast({
-        variant: 'destructive',
-        title: 'Cannot delete product(s)',
-        description: `The following products have associated variants and cannot be deleted: ${productsWithVariants}. Please delete the variants first.`,
-        duration: 8000,
-      });
-      return;
-    }
-
-    const { error } = await supabase.from('allproducts').delete().in('id', selectedProductRows);
-
-    if (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Error deleting products',
-        description: error.message,
-      });
-    } else {
-      setProducts(products.filter(p => !selectedProductRows.includes(p.id)));
-      setSelectedProductRows([]);
-      toast({
-        title: 'Success',
-        description: `${selectedProductRows.length} product(s) deleted successfully.`,
-      });
-    }
-  };
-
-  const filteredProducts = useMemo(() => {
-    if (!searchTermProducts) return products;
-    return products.filter(
-      p =>
-        p.sku.toLowerCase().includes(searchTermProducts.toLowerCase()) ||
-        p.product_name.toLowerCase().includes(searchTermProducts.toLowerCase())
-    );
-  }, [products, searchTermProducts]);
-
-  const handleSelectAllProducts = (checked: boolean) => {
-    if (checked) {
-      setSelectedProductRows(filteredProducts.map(p => p.id));
-    } else {
-      setSelectedProductRows([]);
-    }
-  };
-
-  const handleRowSelectProduct = (id: string) => {
-    setSelectedProductRows(prev =>
-      prev.includes(id) ? prev.filter(rowId => rowId !== id) : [...prev, id]
-    );
-  };
-
-  // Variant handlers
-  const handleVariantAdded = () => {
-    fetchVariants();
-    fetchProducts(); // Also refetch products to update total stock
     window.dispatchEvent(new Event('data-changed'));
   };
+
+  const handleOpenEditModal = (product: Product) => {
+    setEditingProduct(product);
+  }
+
+  const handleCloseModal = () => {
+    setIsAddProductModalOpen(false);
+    setEditingProduct(null);
+  }
   
-  const handleVariantUpdated = () => {
-    fetchVariants();
-    fetchProducts(); // Also refetch products to update total stock
-    window.dispatchEvent(new Event('data-changed'));
-  };
-
+  // Variant handlers
   const handleDeleteSelectedVariants = async () => {
     if (selectedVariantRows.length === 0) return;
 
     const { error } = await supabase.from('product_variants').delete().in('id', selectedVariantRows);
 
     if (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Error deleting variants',
-        description: error.message,
-      });
+      toast({ variant: 'destructive', title: 'Error deleting variants', description: error.message });
     } else {
       setVariants(variants.filter(v => !selectedVariantRows.includes(v.id)));
       setSelectedVariantRows([]);
-      toast({
-        title: 'Success',
-        description: `${selectedVariantRows.length} variant(s) deleted successfully.`,
-      });
-       window.dispatchEvent(new Event('data-changed'));
+      toast({ title: 'Success', description: `${selectedVariantRows.length} variant(s) deleted successfully.` });
+       handleSuccess();
     }
   };
 
@@ -291,19 +252,20 @@ export default function ProductsPage() {
   return (
     <div className="p-6">
       <AddProductModal
-        isOpen={isAddProductModalOpen}
-        onClose={() => setIsAddProductModalOpen(false)}
-        onProductAdded={handleProductAdded}
+        isOpen={isAddProductModalOpen || !!editingProduct}
+        onClose={handleCloseModal}
+        onSuccess={handleSuccess}
+        product={editingProduct}
       />
       <AddVariantModal
         isOpen={isAddVariantModalOpen}
         onClose={() => setIsAddVariantModalOpen(false)}
-        onVariantAdded={handleVariantAdded}
+        onVariantAdded={handleSuccess}
       />
       <EditVariantModal
         isOpen={!!editingVariant}
         onClose={() => setEditingVariant(null)}
-        onVariantUpdated={handleVariantUpdated}
+        onVariantUpdated={handleSuccess}
         variant={editingVariant}
       />
       
@@ -313,6 +275,12 @@ export default function ProductsPage() {
           <TabsTrigger value="variants">Variants</TabsTrigger>
         </TabsList>
         <TabsContent value="products">
+           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
+              <SummaryCard title="Total Products" value={summaryStats?.totalProducts ?? 0} icon={Package} loading={loadingSummary} />
+              <SummaryCard title="Products In Stock" value={summaryStats?.inStockProducts ?? 0} icon={Archive} loading={loadingSummary} />
+              <SummaryCard title="Out of Stock" value={summaryStats?.outOfStockProducts ?? 0} icon={ArchiveX} loading={loadingSummary} />
+              <SummaryCard title="Total Inventory Units" value={summaryStats?.totalInventoryUnits ?? 0} icon={Warehouse} loading={loadingSummary} />
+            </div>
           <Card>
             <CardHeader>
               <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -330,11 +298,6 @@ export default function ProductsPage() {
                       onChange={e => setSearchTermProducts(e.target.value)}
                     />
                   </div>
-                  {selectedProductRows.length > 0 && (
-                    <Button variant="destructive" size="icon" onClick={handleDeleteSelectedProducts}>
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
-                  )}
                   <Button onClick={() => setIsAddProductModalOpen(true)}>
                     <PlusCircle className="mr-2 h-4 w-4" /> Add Product
                   </Button>
@@ -346,15 +309,6 @@ export default function ProductsPage() {
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="w-[50px]">
-                        <Checkbox
-                          checked={
-                            selectedProductRows.length > 0 &&
-                            selectedProductRows.length === filteredProducts.length
-                          }
-                          onCheckedChange={handleSelectAllProducts}
-                        />
-                      </TableHead>
                       <TableHead>SKU</TableHead>
                       <TableHead>Product Name</TableHead>
                       <TableHead>Cost</TableHead>
@@ -364,19 +318,20 @@ export default function ProductsPage() {
                       <TableHead>Amazon</TableHead>
                       <TableHead>Stock</TableHead>
                       <TableHead>Status</TableHead>
+                      <TableHead className="text-right">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {loadingProducts ? (
-                      Array.from({ length: 5 }).map((_, i) => (
+                      Array.from({ length: productsPageSize }).map((_, i) => (
                         <TableRow key={i}>
                           <TableCell colSpan={10}>
                             <Skeleton className="h-8 w-full" />
                           </TableCell>
                         </TableRow>
                       ))
-                    ) : filteredProducts.length > 0 ? (
-                      filteredProducts.map(product => {
+                    ) : products.length > 0 ? (
+                      products.map(product => {
                         const stock = product.stock || 0;
                         let statusText: string;
                         let badgeVariant: 'destructive' | 'default' = 'default';
@@ -395,16 +350,7 @@ export default function ProductsPage() {
                         }
 
                         return (
-                          <TableRow
-                            key={product.id}
-                            data-state={selectedProductRows.includes(product.id) && "selected"}
-                          >
-                            <TableCell>
-                              <Checkbox
-                                checked={selectedProductRows.includes(product.id)}
-                                onCheckedChange={() => handleRowSelectProduct(product.id)}
-                              />
-                            </TableCell>
+                          <TableRow key={product.id}>
                             <TableCell className="font-medium">{product.sku}</TableCell>
                             <TableCell>{product.product_name}</TableCell>
                             <TableCell>{formatINR(product.cost_price)}</TableCell>
@@ -421,6 +367,11 @@ export default function ProductsPage() {
                                 {statusText}
                               </Badge>
                             </TableCell>
+                             <TableCell className="text-right">
+                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenEditModal(product)}>
+                                    <Pencil className="h-4 w-4" />
+                                </Button>
+                             </TableCell>
                           </TableRow>
                         );
                       })
@@ -433,6 +384,17 @@ export default function ProductsPage() {
                     )}
                   </TableBody>
                 </Table>
+              </div>
+               <div className="flex items-center justify-end space-x-2 py-4">
+                  <span className="text-sm text-muted-foreground">
+                    {productsTotalRows > 0 ? `Page ${productsPage} of ${Math.ceil(productsTotalRows / productsPageSize)}` : 'Page 0 of 0'}
+                  </span>
+                  <Button variant="outline" size="sm" onClick={() => setProductsPage(p => p - 1)} disabled={productsPage === 1}>
+                    Previous
+                  </Button>
+                  <Button variant="outline" size="sm" onClick={() => setProductsPage(p => p + 1)} disabled={(productsPage * productsPageSize) >= productsTotalRows}>
+                    Next
+                  </Button>
               </div>
             </CardContent>
           </Card>
@@ -511,8 +473,8 @@ export default function ProductsPage() {
                                 </TableCell>
                                 <TableCell className="font-medium">{variant.variant_sku}</TableCell>
                                 <TableCell>{variant.allproducts?.product_name}</TableCell>
-                                <TableCell>{variant.color}</TableCell>
-                                <TableCell>{variant.size}</TableCell>
+                                <TableCell>{variant.color || 'N/A'}</TableCell>
+                                <TableCell>{variant.size || 'N/A'}</TableCell>
                                 <TableCell>{variant.stock}</TableCell>
                                 <TableCell>
                                 <Button variant="ghost" size="icon" onClick={() => setEditingVariant(variant)}>

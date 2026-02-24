@@ -33,12 +33,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
+import type { Product } from "../page"
+import { formatINR } from "@/lib/format"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 
 const formSchema = z.object({
   sku: z.string().min(1, "SKU is required"),
   product_name: z.string().min(1, "Product Name is required"),
   category: z.string().optional(),
-  size: z.string().optional(),
   cost_price: z.coerce.number().positive("Cost Price must be positive"),
   margin: z.coerce.number().positive("Margin is required"),
   low_stock_threshold: z.coerce.number().min(0, "Low stock threshold cannot be negative").default(5),
@@ -55,16 +57,20 @@ const BASE_CHARGES = 45
 
 const marginValues = [20, 30, 45, 50, 60, 80, 100, 150, 200, 300, 500]
 
-interface AddProductModalProps {
+interface ProductModalProps {
   isOpen: boolean
   onClose: () => void
-  onProductAdded: () => void
+  onSuccess: () => void
+  product?: Product | null
 }
 
-export function AddProductModal({ isOpen, onClose, onProductAdded }: AddProductModalProps) {
+export function AddProductModal({ isOpen, onClose, onSuccess, product }: ProductModalProps) {
   const supabase = createClient();
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
+  const isEditMode = !!product;
+
+  const [previewPrices, setPreviewPrices] = React.useState({ meesho: 0, flipkart: 0, amazon: 0 })
 
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(formSchema),
@@ -72,41 +78,73 @@ export function AddProductModal({ isOpen, onClose, onProductAdded }: AddProductM
       sku: "",
       product_name: "",
       category: "",
-      size: "",
       cost_price: 0,
       low_stock_threshold: 5,
     },
   })
 
+  const cost_price = form.watch("cost_price")
+  const margin = form.watch("margin")
+
+  React.useEffect(() => {
+    const cost = Number(cost_price) || 0;
+    const prof = Number(margin) || 0;
+
+    if (cost > 0 && prof > 0) {
+      const meeshoPrice = cost + BASE_CHARGES + prof
+      const flipkartPrice = meeshoPrice
+      const amazonPrice = meeshoPrice + AMAZON_SHIP
+      setPreviewPrices({ meesho: meeshoPrice, flipkart: flipkartPrice, amazon: amazonPrice })
+    } else {
+      setPreviewPrices({ meesho: 0, flipkart: 0, amazon: 0 })
+    }
+  }, [cost_price, margin]);
+
+  React.useEffect(() => {
+    if (isOpen) {
+      if (isEditMode && product) {
+        form.reset({
+          sku: product.sku,
+          product_name: product.product_name,
+          category: product.category || "",
+          cost_price: product.cost_price,
+          margin: product.margin,
+          low_stock_threshold: product.low_stock_threshold,
+        })
+      } else {
+        form.reset({
+          sku: "",
+          product_name: "",
+          category: "",
+          cost_price: 0,
+          margin: undefined,
+          low_stock_threshold: 5,
+        })
+      }
+    }
+  }, [isOpen, product, isEditMode, form])
+
   const handleClose = () => {
-    form.reset()
     onClose()
   }
 
   async function onSubmit(values: ProductFormValues) {
     setIsSubmitting(true)
     try {
-      // Calculate prices
-      const meeshoPrice = values.cost_price + BASE_CHARGES + values.margin
-      const flipkartPrice = meeshoPrice
-      const amazonPrice = meeshoPrice + AMAZON_SHIP
-
-      const newProductData = {
+      const productData = {
         ...values,
         promo_ads: PROMO_ADS,
         tax_other: TAX_OTHER,
         packing: PACKING,
         amazon_ship: AMAZON_SHIP,
-        meesho_price: meeshoPrice,
-        flipkart_price: flipkartPrice,
-        amazon_price: amazonPrice,
+        meesho_price: previewPrices.meesho,
+        flipkart_price: previewPrices.flipkart,
+        amazon_price: previewPrices.amazon,
       }
       
-      const { data, error } = await supabase
-        .from("allproducts")
-        .insert([newProductData])
-        .select()
-        .single()
+      const { error } = isEditMode
+        ? await supabase.from("allproducts").update(productData).eq('id', product.id)
+        : await supabase.from("allproducts").insert([productData])
 
       if (error) {
         throw error
@@ -114,15 +152,15 @@ export function AddProductModal({ isOpen, onClose, onProductAdded }: AddProductM
 
       toast({
         title: "Success",
-        description: "Product added successfully.",
+        description: `Product ${isEditMode ? 'updated' : 'added'} successfully.`,
       })
-      onProductAdded()
+      onSuccess()
       handleClose()
     } catch (error: any) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message || "Failed to add product.",
+        description: error.message || `Failed to ${isEditMode ? 'update' : 'add'} product.`,
       })
     } finally {
         setIsSubmitting(false)
@@ -131,24 +169,24 @@ export function AddProductModal({ isOpen, onClose, onProductAdded }: AddProductM
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="sm:max-w-[425px]">
+      <DialogContent className="sm:max-w-3xl">
         <DialogHeader>
-          <DialogTitle>Add New Product</DialogTitle>
+          <DialogTitle>{isEditMode ? 'Edit' : 'Add New'} Product</DialogTitle>
           <DialogDescription>
-            Enter the details of the new product. Selling prices will be calculated automatically.
+            {isEditMode ? 'Update the details for this product.' : 'Enter the details of the new product. Selling prices will be calculated automatically.'}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
+          <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
+            <div className="space-y-4">
+               <FormField
                 control={form.control}
                 name="sku"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>SKU</FormLabel>
                     <FormControl>
-                      <Input placeholder="e.g., TS-BL-L" {...field} />
+                      <Input placeholder="e.g., TS-BL-L" {...field} disabled={isEditMode} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -167,8 +205,6 @@ export function AddProductModal({ isOpen, onClose, onProductAdded }: AddProductM
                   </FormItem>
                 )}
               />
-            </div>
-             <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="category"
@@ -182,78 +218,90 @@ export function AddProductModal({ isOpen, onClose, onProductAdded }: AddProductM
                   </FormItem>
                 )}
               />
-              <FormField
-                control={form.control}
-                name="size"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Size</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., L" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                  control={form.control}
+                  name="cost_price"
+                  render={({ field }) => (
+                      <FormItem>
+                      <FormLabel>Cost Price</FormLabel>
+                      <FormControl>
+                          <Input type="number" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                      </FormItem>
+                  )}
+                  />
+                  <FormField
+                  control={form.control}
+                  name="margin"
+                  render={({ field }) => (
+                      <FormItem>
+                      <FormLabel>Margin</FormLabel>
+                       <Select onValueChange={(value) => field.onChange(Number(value))} value={String(field.value || '')}>
+                          <FormControl>
+                          <SelectTrigger>
+                              <SelectValue placeholder="Select margin" />
+                          </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                          {marginValues.map(m => (
+                              <SelectItem key={m} value={String(m)}>{formatINR(m)}</SelectItem>
+                          ))}
+                          </SelectContent>
+                      </Select>
+                      <FormMessage />
+                      </FormItem>
+                  )}
+                  />
+              </div>
+               <FormField
+                  control={form.control}
+                  name="low_stock_threshold"
+                  render={({ field }) => (
+                      <FormItem>
+                      <FormLabel>Low Stock Threshold</FormLabel>
+                      <FormControl>
+                          <Input type="number" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                      </FormItem>
+                  )}
+                />
             </div>
-            <div className="grid grid-cols-2 gap-4">
-                <FormField
-                control={form.control}
-                name="cost_price"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Cost Price</FormLabel>
-                    <FormControl>
-                        <Input type="number" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
-                <FormField
-                control={form.control}
-                name="margin"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Margin</FormLabel>
-                     <Select onValueChange={(value) => field.onChange(Number(value))} defaultValue={String(field.value)}>
-                        <FormControl>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Select margin" />
-                        </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                        {marginValues.map(m => (
-                            <SelectItem key={m} value={String(m)}>{m}</SelectItem>
-                        ))}
-                        </SelectContent>
-                    </Select>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
+
+            <div className="space-y-4">
+              <Card className="bg-muted/50">
+                <CardHeader className="pb-4">
+                  <CardTitle className="text-lg">Live Price Preview</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                    <div className="flex justify-between items-center text-sm">
+                      <span className="text-muted-foreground">Meesho Price:</span>
+                      <span className="font-semibold">{formatINR(previewPrices.meesho)}</span>
+                    </div>
+                     <div className="flex justify-between items-center text-sm">
+                      <span className="text-muted-foreground">Flipkart Price:</span>
+                      <span className="font-semibold">{formatINR(previewPrices.flipkart)}</span>
+                    </div>
+                     <div className="flex justify-between items-center text-sm">
+                      <span className="text-muted-foreground">Amazon Price:</span>
+                      <span className="font-semibold">{formatINR(previewPrices.amazon)}</span>
+                    </div>
+                </CardContent>
+              </Card>
             </div>
-             <FormField
-                control={form.control}
-                name="low_stock_threshold"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Low Stock Threshold</FormLabel>
-                    <FormControl>
-                        <Input type="number" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
-            <DialogFooter>
-              <Button type="button" variant="outline" onClick={handleClose}>
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? 'Saving...' : 'Save Product'}
+            
+            <div className="col-span-1 md:col-span-2">
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={handleClose}>
+                  Cancel
                 </Button>
-            </DialogFooter>
+                <Button type="submit" disabled={isSubmitting}>
+                  {isSubmitting ? 'Saving...' : (isEditMode ? 'Save Changes' : 'Save Product')}
+                  </Button>
+              </DialogFooter>
+            </div>
           </form>
         </Form>
       </DialogContent>
