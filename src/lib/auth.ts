@@ -25,8 +25,6 @@ export const authOptions: NextAuthOptions = {
         }
 
         try {
-          console.log("Auth: Attempting login for:", credentials.email);
-
           // Query user from Neon using case-insensitive email matching
           const users = await sql`
             SELECT id, email, password, name, role 
@@ -38,27 +36,27 @@ export const authOptions: NextAuthOptions = {
           const user = users[0];
 
           if (!user) {
-            console.log("Auth: User not found in database");
+            console.log("Authorize user: Not found");
             return null;
           }
 
           // Verify password using bcrypt
-          const isPasswordValid = await bcrypt.compare(
+          const isValid = await bcrypt.compare(
             credentials.password,
             user.password
           );
 
-          console.log("Auth: Database user found:", { email: user.email, role: user.role });
-          console.log("Auth: Password valid:", isPasswordValid);
+          console.log("Authorize user:", { id: user.id, email: user.email, role: user.role });
+          console.log("Password valid:", isValid);
 
-          if (!isPasswordValid) {
-            console.log("Auth: Invalid password provided");
+          if (!isValid) {
+            console.log("Auth: Invalid password");
             return null;
           }
 
-          // Return successful user object
+          // Return successful user object with string ID
           return {
-            id: user.id,
+            id: String(user.id),
             email: user.email,
             name: user.name || user.email.split('@')[0],
             role: user.role,
@@ -73,15 +71,15 @@ export const authOptions: NextAuthOptions = {
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
+        token.id = (user as any).id;
         token.role = (user as any).role;
-        token.id = user.id;
       }
       return token;
     },
     async session({ session, token }) {
       if (session.user) {
-        (session.user as any).role = token.role;
         (session.user as any).id = token.id;
+        (session.user as any).role = token.role;
       }
       return session;
     },
