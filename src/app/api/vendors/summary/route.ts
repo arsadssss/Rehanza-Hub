@@ -3,6 +3,10 @@ import { NextResponse } from 'next/server';
 
 export const revalidate = 0;
 
+/**
+ * GET detailed vendor summary for the dashboard UI
+ * Aggregates purchases and payments per vendor.
+ */
 export async function GET() {
   try {
     const [vendorsRes, purchasesRes, paymentsRes] = await Promise.all([
@@ -40,6 +44,10 @@ export async function GET() {
     });
   } catch (error: any) {
     console.error("Vendor Summary API Error:", error);
-    return NextResponse.json({ success: false, message: 'Failed to fetch vendor summary', error: error.message }, { status: 500 });
+    return NextResponse.json({ 
+        success: false, 
+        message: 'Failed to fetch vendor summary', 
+        error: error.message 
+    }, { status: 500 });
   }
 }
