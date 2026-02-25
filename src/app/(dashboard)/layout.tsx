@@ -12,8 +12,14 @@ export default async function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
-  // Check session
-  const session = await getServerSession(authOptions);
+  let session = null;
+  
+  try {
+    // Wrap in try/catch to prevent database/auth issues from showing 500 HTML page
+    session = await getServerSession(authOptions);
+  } catch (error) {
+    console.error("DashboardLayout: Session fetch failed", error);
+  }
   
   if (!session) {
     redirect("/login");
@@ -22,7 +28,6 @@ export default async function DashboardLayout({
   const cookieStore = await cookies();
   const sidebarState = cookieStore.get("sidebar_state")?.value;
   
-  // Default to true (open) if the cookie is missing
   const defaultOpen = sidebarState === undefined ? true : sidebarState === "true";
 
   return (

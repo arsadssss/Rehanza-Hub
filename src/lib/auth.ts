@@ -8,8 +8,8 @@ export const authOptions: NextAuthOptions = {
     strategy: "jwt",
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
-  secret: process.env.NEXTAUTH_SECRET,
-  debug: true, // Keep enabled to debug cloud environment handshake
+  secret: process.env.NEXTAUTH_SECRET || "fallback-secret-for-dev-only",
+  debug: process.env.NODE_ENV === "development",
   pages: {
     signIn: "/login",
     error: "/login",
@@ -23,14 +23,11 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          console.error("Auth: Missing credentials in request");
           return null;
         }
 
         try {
-          console.log(`Auth: Attempting login for ${credentials.email}`);
-          
-          // Query user from Neon using case-insensitive email matching
+          // Use the simplified sql helper
           const users = await sql`
             SELECT id, email, password, name, role 
             FROM users 
@@ -45,7 +42,6 @@ export const authOptions: NextAuthOptions = {
 
           const user = users[0];
 
-          // Verify password using bcrypt
           const isValid = await bcrypt.compare(
             credentials.password,
             user.password
@@ -56,9 +52,6 @@ export const authOptions: NextAuthOptions = {
             return null;
           }
 
-          console.log(`Auth: Success! User ${user.email} authenticated.`);
-
-          // Return successful user object with string ID
           return {
             id: String(user.id),
             email: user.email,
@@ -66,7 +59,8 @@ export const authOptions: NextAuthOptions = {
             role: user.role || 'admin',
           };
         } catch (error) {
-          console.error("Auth: Fatal error during authorization query:", error);
+          console.error("Auth: Authorization database error:", error);
+          // Return null instead of throwing to avoid 500 HTML error pages
           return null;
         }
       },

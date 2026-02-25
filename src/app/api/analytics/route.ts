@@ -19,7 +19,7 @@ export async function GET() {
       // Total Sales (Last 7 days)
       sql`SELECT total_amount FROM orders WHERE is_deleted = false AND order_date >= ${sixDaysAgo}`,
       
-      // Returns Summary (Last 7 days) - Aggregated manually to avoid missing view
+      // Returns Summary (Last 7 days)
       sql`
         SELECT 
           DATE(return_date) as return_date, 
@@ -52,7 +52,7 @@ export async function GET() {
         WHERE r.is_deleted = false
       `,
       
-      // Sales Trend (Last 7 days) - Aggregated manually to avoid missing view
+      // Sales Trend (Last 7 days)
       sql`
         SELECT 
           DATE(order_date) as label, 
@@ -86,9 +86,9 @@ export async function GET() {
 
     const returnImpact = (returnsWithMarginRes || []).reduce((acc: number, ret: any) => {
         if (ret.restockable) {
-            return acc + (Number(ret.quantity || 0) * 45); // Fixed loss for restockable
+            return acc + (Number(ret.quantity || 0) * 45); // Fixed loss fallback
         }
-        return acc + (Number(ret.quantity || 0) * Number(ret.margin || 0)); // Loss of margin for non-restockable
+        return acc + (Number(ret.quantity || 0) * Number(ret.margin || 0)); // Loss of margin
     }, 0);
 
     const netProfit = grossMargin - returnImpact;
@@ -113,7 +113,7 @@ export async function GET() {
     });
 
   } catch (error: any) {
-    console.error("Analytics API Error:", error);
+    console.error("Analytics API Error Trace:", error);
     return NextResponse.json({ success: false, message: "Failed to fetch analytics data", error: error.message }, { status: 500 });
   }
 }

@@ -5,6 +5,8 @@ export const revalidate = 0;
 
 export async function GET() {
   try {
+    console.log("Dashboard API: Fetching consolidated data...");
+
     const [
       platformRes,
       ordersReturnsRes,
@@ -124,7 +126,7 @@ export async function GET() {
     });
 
   } catch (error: any) {
-    console.error("Dashboard API Error:", error);
+    console.error("Dashboard API Final Catch:", error);
     return NextResponse.json(
       { success: false, message: "Failed to fetch dashboard data", error: error.message },
       { status: 500 }

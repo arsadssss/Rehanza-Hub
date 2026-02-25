@@ -1,4 +1,3 @@
-
 import { sql } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
@@ -14,8 +13,7 @@ export async function GET(request: Request) {
       ORDER BY v.created_at DESC;
     `;
 
-    // Manually structure the nested `allproducts` object to match client expectation
-    const formattedData = variants.map(v => ({
+    const formattedData = variants.map((v: any) => ({
         id: v.id,
         variant_sku: v.variant_sku,
         color: v.color,
@@ -98,10 +96,10 @@ export async function DELETE(request: Request) {
             return NextResponse.json({ message: 'Array of variant IDs is required' }, { status: 400 });
         }
 
-        // Use a placeholder for each ID in the array
         const placeholders = ids.map((_, i) => `$${i + 1}`).join(', ');
         
-        const result = await sql.unsafe(
+        // Use standard function call for dynamic query string
+        const result = await sql(
             `DELETE FROM product_variants WHERE id IN (${placeholders}) RETURNING id`,
             ids
         );
