@@ -1,4 +1,3 @@
-
 import { sql } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
@@ -65,7 +64,7 @@ export async function GET() {
         ORDER BY total_units_sold DESC
         LIMIT 5
       `,
-      // Vendor Totals
+      // Vendor Raw Data for dashboard financial components
       sql`SELECT vendor_id, quantity, cost_per_unit FROM vendor_purchases WHERE is_deleted = false`,
       sql`SELECT vendor_id, amount FROM vendor_payments WHERE is_deleted = false`,
       // Aggregated Summary
@@ -79,18 +78,14 @@ export async function GET() {
     ]);
 
     // Calculate Return Rate
-    const totalOrdersCount = platformRes.reduce((acc: number, p: any) => acc + Number(p.total_units), 0);
+    const totalUnitsSold = Number(summaryStatsRes[0]?.total_units || 0);
     const totalReturnsCount = ordersReturnsRes.reduce((acc: number, d: any) => acc + Number(d.total_returns), 0);
-    const returnRate = totalOrdersCount > 0 ? (totalReturnsCount / totalOrdersCount) * 100 : 0;
-
-    // Financial calculations
-    const purchases = vendorPurchasesRes.map((p: any) => ({ ...p, quantity: Number(p.quantity), cost_per_unit: Number(p.cost_per_unit) }));
-    const payments = vendorPaymentsRes.map((p: any) => ({ ...p, amount: Number(p.amount) }));
+    const returnRate = totalUnitsSold > 0 ? (totalReturnsCount / totalUnitsSold) * 100 : 0;
 
     const summary = {
-      total_units: Number(summaryStatsRes[0]?.total_units || 0),
+      total_units: totalUnitsSold,
       gross_revenue: Number(summaryStatsRes[0]?.gross_revenue || 0),
-      net_profit: Number(summaryStatsRes[0]?.gross_revenue || 0) * 0.2, // Fallback margin calculation
+      net_profit: Number(summaryStatsRes[0]?.gross_revenue || 0) * 0.2, // Est fallback margin
       return_rate: returnRate,
     };
 
@@ -102,7 +97,11 @@ export async function GET() {
         total_units: Number(p.total_units),
         total_revenue: Number(p.total_revenue)
       })),
-      ordersReturnsData: ordersReturnsRes,
+      ordersReturnsData: ordersReturnsRes.map((d: any) => ({
+        ...d,
+        total_orders: Number(d.total_orders),
+        total_returns: Number(d.total_returns)
+      })),
       recentOrders: recentOrdersRes.map((o: any) => ({
         ...o,
         quantity: Number(o.quantity),
@@ -113,8 +112,15 @@ export async function GET() {
         total_revenue: Number(p.total_revenue),
         total_units_sold: Number(p.total_units_sold)
       })),
-      vendorPurchases: purchases,
-      vendorPayments: payments,
+      vendorPurchases: vendorPurchasesRes.map((p: any) => ({
+        ...p,
+        quantity: Number(p.quantity),
+        cost_per_unit: Number(p.cost_per_unit)
+      })),
+      vendorPayments: vendorPaymentsRes.map((p: any) => ({
+        ...p,
+        amount: Number(p.amount)
+      })),
     });
 
   } catch (error: any) {

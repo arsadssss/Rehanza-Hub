@@ -1,4 +1,3 @@
-
 import { sql } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
@@ -17,7 +16,7 @@ export async function GET(request: Request) {
 
   try {
     let whereClauses = ['o.is_deleted = false'];
-    let params = [];
+    let params: any[] = [];
     let paramIndex = 1;
 
     if (platform && platform !== 'all') {
@@ -102,7 +101,7 @@ export async function POST(request: Request) {
 
         const result = await sql`
             INSERT INTO orders (order_date, platform, variant_id, quantity, selling_price, total_amount)
-            VALUES (${order_date}, ${platform}, ${variant_id}, ${quantity}, ${selling_price}, ${quantity * selling_price})
+            VALUES (${order_date}, ${platform}, ${variant_id}, ${quantity}, ${selling_price}, ${Number(quantity) * Number(selling_price)})
             RETURNING *;
         `;
         
@@ -129,7 +128,7 @@ export async function PUT(request: Request) {
                 variant_id = ${variant_id}, 
                 quantity = ${quantity}, 
                 selling_price = ${selling_price},
-                total_amount = ${quantity * selling_price}
+                total_amount = ${Number(quantity) * Number(selling_price)}
             WHERE id = ${id} AND is_deleted = false
             RETURNING *;
         `;
