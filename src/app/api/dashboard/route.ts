@@ -19,7 +19,15 @@ export async function GET() {
       allOrdersRes,
     ] = await Promise.all([
       sql`SELECT * FROM dashboard_summary LIMIT 1`,
-      sql`SELECT * FROM platform_performance`,
+      sql`
+        SELECT 
+          platform,
+          COALESCE(SUM(quantity), 0) as total_units,
+          COALESCE(SUM(total_amount), 0) as total_revenue
+        FROM orders
+        WHERE is_deleted = false
+        GROUP BY platform
+      `,
       sql`SELECT * FROM weekly_orders_vs_returns`,
       sql`SELECT * FROM best_selling_sku LIMIT 1`,
       sql`SELECT * FROM low_stock_items LIMIT 1`,
@@ -84,8 +92,6 @@ export async function GET() {
         allOrders: allOrdersRes.map((o: any) => ({ ...o, quantity: Number(o.quantity), selling_price: Number(o.selling_price) })),
         vendorPayments: vendorPaymentsRes.map((p: any) => ({ ...p, amount: Number(p.amount) })),
     };
-
-    console.log("Dashboard API response summary:", summary);
 
     return NextResponse.json(responseData);
 
