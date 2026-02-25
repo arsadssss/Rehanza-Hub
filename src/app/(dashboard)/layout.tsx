@@ -10,15 +10,18 @@ export default async function DashboardLayout({
   children: React.ReactNode;
 }) {
   const cookieStore = await cookies();
-  const defaultOpen = cookieStore.get("sidebar_state")?.value === "true";
+  const sidebarState = cookieStore.get("sidebar_state")?.value;
+  
+  // Default to true (open) if the cookie is missing
+  const defaultOpen = sidebarState === undefined ? true : sidebarState === "true";
 
   return (
     <SidebarProvider defaultOpen={defaultOpen}>
       <div className="flex min-h-screen">
         <SidebarNav />
-        <main className="flex-1 min-w-0 bg-background">
+        <main className="flex-1 min-w-0 bg-background flex flex-col">
           <MobileHeader />
-          <div className="w-full">
+          <div className="flex-1 w-full">
             {children}
           </div>
         </main>
