@@ -142,6 +142,8 @@ const ReturnRateCard = ({ rate, loading }: { rate: number; loading: boolean }) =
     );
   };
 
+  const numericRate = Number(rate) || 0;
+
   return (
     <Card className="text-white shadow-lg rounded-2xl border-0 overflow-hidden bg-gradient-to-br from-amber-500 to-orange-600">
       {loading ? (
@@ -157,14 +159,14 @@ const ReturnRateCard = ({ rate, loading }: { rate: number; loading: boolean }) =
           <div className="flex-1">
             <h3 className="text-sm font-medium uppercase tracking-wider">Return Rate</h3>
             <p className="text-4xl font-bold font-headline mt-2">
-              {(rate || 0).toFixed(1)}%
+              {numericRate.toFixed(1)}%
             </p>
           </div>
           <div className="relative w-24 h-24">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
-                  data={[{ value: rate || 0 }, { value: 100 - (rate || 0) }]}
+                  data={[{ value: numericRate }, { value: 100 - numericRate }]}
                   cx="50%"
                   cy="50%"
                   dataKey="value"
@@ -684,6 +686,7 @@ export default function DashboardPage() {
                   <TableHead>Date</TableHead>
                   <TableHead>Platform</TableHead>
                   <TableHead>SKU</TableHead>
+                  <TableHead>Product Name</TableHead>
                   <TableHead className="text-center">Quantity</TableHead>
                   <TableHead className="text-right">Amount</TableHead>
                   <TableHead className="text-center">Status</TableHead>
@@ -693,7 +696,7 @@ export default function DashboardPage() {
                 {loading ? (
                    Array.from({ length: 5 }).map((_, i) => (
                       <TableRow key={i} className="hover:bg-transparent">
-                        <TableCell colSpan={6}><Skeleton className="h-8 w-full" /></TableCell>
+                        <TableCell colSpan={7}><Skeleton className="h-8 w-full" /></TableCell>
                       </TableRow>
                     ))
                 ) : recentOrders.length > 0 ? (
@@ -702,6 +705,7 @@ export default function DashboardPage() {
                       <TableCell>{new Date(order.created_at).toLocaleDateString('en-IN')}</TableCell>
                       <TableCell><Badge variant="secondary">{order.platform}</Badge></TableCell>
                       <TableCell className="font-medium">{order.variant_sku || 'N/A'}</TableCell>
+                      <TableCell>{(order as any).product_name || 'N/A'}</TableCell>
                       <TableCell className="text-center">{order.quantity}</TableCell>
                       <TableCell className="text-right">{formatINR(order.total_amount)}</TableCell>
                       <TableCell className="text-center"><Badge>Shipped</Badge></TableCell>
@@ -709,7 +713,7 @@ export default function DashboardPage() {
                   ))
                 ) : (
                   <TableRow>
-                    <TableCell colSpan={6} className="text-center h-24">No recent orders.</TableCell>
+                    <TableCell colSpan={7} className="text-center h-24">No recent orders.</TableCell>
                   </TableRow>
                 )}
               </TableBody>
