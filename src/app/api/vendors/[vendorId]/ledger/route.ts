@@ -1,24 +1,28 @@
-
 import { sql } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
 export const revalidate = 0;
 
-export async function GET(request: Request, { params }: { params: { vendorId: string } }) {
-  const { vendorId } = params;
-
-  if (!vendorId) {
-    return NextResponse.json({ message: 'Vendor ID is required' }, { status: 400 });
-  }
-
+export async function GET(request: Request, { params }: { params: Promise<{ vendorId: string }> }) {
   try {
+    const { vendorId } = await params;
+
+    if (!vendorId) {
+      return NextResponse.json({ success: false, message: 'Vendor ID is required' }, { status: 400 });
+    }
+
     const [purchases, payments] = await Promise.all([
       sql`SELECT * FROM vendor_purchases WHERE vendor_id = ${vendorId} AND is_deleted = false`,
       sql`SELECT * FROM vendor_payments WHERE vendor_id = ${vendorId} AND is_deleted = false`
     ]);
 
-    return NextResponse.json({ purchases, payments });
+    return NextResponse.json({ 
+      success: true,
+      purchases: (purchases || []).map((p: any) => ({ ...p, quantity: Number(p.quantity), cost_per_unit: Number(p.cost_per_unit) })), 
+      payments: (payments || []).map((p: any) => ({ ...p, amount: Number(p.amount) }))
+    });
   } catch (error: any) {
-    return NextResponse.json({ message: 'Failed to fetch ledger', error: error.message }, { status: 500 });
+    console.error("API Vendor Ledger Error:", error);
+    return NextResponse.json({ success: false, message: 'Failed to fetch ledger', error: error.message }, { status: 500 });
   }
 }

@@ -1,21 +1,19 @@
 import { neon } from '@neondatabase/serverless';
 
-if (!process.env.DATABASE_URL) {
-  throw new Error('DATABASE_URL environment variable is not set');
-}
-
-const neonConnection = neon(process.env.DATABASE_URL);
-
 /**
  * Enhanced sql helper that supports both tagged template literals and direct calls.
- * 
- * Usage 1 (Tagged Template): 
- *   await sql`SELECT * FROM users WHERE id = ${id}`
- * 
- * Usage 2 (Direct Call for dynamic queries): 
- *   await sql("SELECT * FROM users WHERE id = $1", [id])
+ * This version is more resilient to missing environment variables during initialization.
  */
 export async function sql(strings: TemplateStringsArray | string, ...values: any[]) {
+  const dbUrl = process.env.DATABASE_URL;
+  
+  if (!dbUrl) {
+    console.error('DATABASE_URL is not set in environment variables');
+    throw new Error('Database connection string is missing');
+  }
+
+  const neonConnection = neon(dbUrl);
+  
   // If strings is a string, it's a direct call with (query, params)
   if (typeof strings === 'string') {
     return neonConnection(strings, values[0] || []);
