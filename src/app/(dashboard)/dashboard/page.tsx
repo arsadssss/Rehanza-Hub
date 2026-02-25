@@ -51,7 +51,7 @@ import { cn } from '@/lib/utils';
 import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
 
 
-// Types from Supabase views (assuming structure)
+// Types
 type DashboardSummary = {
   total_units: number;
   gross_revenue: number;
@@ -69,15 +69,6 @@ type WeeklyOrdersVsReturns = {
   day_label: string;
   total_orders: number;
   total_returns: number;
-};
-
-type BestSellingSku = {
-  variant_sku: string;
-  total_sold: number;
-};
-
-type LowStockItems = {
-  low_stock_count: number;
 };
 
 type TopSellingProduct = {
@@ -365,10 +356,10 @@ const ChannelPerformanceCard = ({ data, loading }: { data: PlatformPerformance[]
 
     const chartData = useMemo(() => data.map(item => ({
         name: item.platform,
-        value: item.total_units,
+        value: Number(item.total_units) || 0,
     })), [data]);
 
-    const totalUnits = useMemo(() => data.reduce((acc, curr) => acc + curr.total_units, 0), [data]);
+    const totalUnits = useMemo(() => chartData.reduce((acc, curr) => acc + curr.value, 0), [chartData]);
 
     return (
         <Card className="rounded-2xl shadow-lg bg-white/70 dark:bg-black/20 backdrop-blur-sm border-0 lg:col-span-1">
@@ -416,7 +407,7 @@ const ChannelPerformanceCard = ({ data, loading }: { data: PlatformPerformance[]
 };
 
 const TopSellingProductsCard = ({ products, loading }: { products: TopSellingProduct[], loading: boolean }) => {
-  const totalRevenue = useMemo(() => products.reduce((acc, p) => acc + p.total_revenue, 0), [products]);
+  const totalRevenue = useMemo(() => products.reduce((acc, p) => acc + Number(p.total_revenue || 0), 0), [products]);
 
   const rankIcons = [
     <Medal key="gold" className="h-5 w-5 text-amber-400" />,
@@ -461,7 +452,7 @@ const TopSellingProductsCard = ({ products, loading }: { products: TopSellingPro
                     </div>
                   </div>
                   <div className="text-right flex-shrink-0 ml-4">
-                    <p className="font-semibold">{product.total_units_sold.toLocaleString()} units</p>
+                    <p className="font-semibold">{Number(product.total_units_sold || 0).toLocaleString()} units</p>
                     <p className="text-sm text-emerald-600 dark:text-emerald-500 font-medium">{formatINR(product.total_revenue)}</p>
                   </div>
                 </div>
@@ -504,29 +495,15 @@ export default function DashboardPage() {
         }
         const data = await res.json();
         
+        console.log("Frontend Dashboard received data:", data);
+
         setSummary(data.summary);
+        setPlatformPerformance(data.platformPerformance || []);
         setOrdersReturnsData(data.ordersReturnsData || []);
         setRecentOrders(data.recentOrders || []);
         setTopSellingProducts(data.topSellingProducts || []);
 
-        const allOrders = data.allOrders || [];
-        const platformRevenues = allOrders.reduce((acc: any, order: any) => {
-            const platform = order.platform;
-            if (!acc[platform]) {
-            acc[platform] = 0;
-            }
-            const price = Number(order.selling_price || 0);
-            const qty = Number(order.quantity || 0);
-            acc[platform] += price * qty;
-            return acc;
-        }, { Meesho: 0, Flipkart: 0, Amazon: 0 });
-
-        const updatedPlatformPerformance = (data.platformPerformance || []).map((p: PlatformPerformance) => ({
-            ...p,
-            total_revenue: platformRevenues[p.platform] || 0,
-        }));
-        setPlatformPerformance(updatedPlatformPerformance);
-
+        // Financial metrics aggregation with strict number parsing
         const purchases = data.vendorPurchases || [];
         const payments = data.vendorPayments || [];
         
@@ -539,13 +516,7 @@ export default function DashboardPage() {
         const totalPaid = payments.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
         
         setTotalDueAllVendors(totalPurchase - totalPaid);
-        
-        const totalValue = purchases.reduce((sum: number, purchase: any) => {
-            const qty = Number(purchase.quantity || 0);
-            const cost = Number(purchase.cost_per_unit || 0);
-            return sum + (qty * cost);
-        }, 0);
-        setTotalInventoryValue(totalValue);
+        setTotalInventoryValue(totalPurchase);
 
       } catch (error: any) {
         toast({
@@ -564,7 +535,6 @@ export default function DashboardPage() {
 
   return (
     <div className="p-6 md:p-8 space-y-6 bg-gray-50/50 dark:bg-black/50">
-       {/* New Financial Summary Cards */}
        <div className="grid gap-6 md:grid-cols-2">
         <div className="bg-gradient-to-r from-red-500 to-orange-600 text-white rounded-2xl p-6 shadow-lg">
           {loading ? (
@@ -572,7 +542,6 @@ export default function DashboardPage() {
               <div>
                 <Skeleton className="h-5 w-48 bg-white/20" />
                 <Skeleton className="h-10 w-32 mt-2 bg-white/20" />
-                <Skeleton className="h-4 w-36 mt-2 bg-white/20" />
               </div>
               <Skeleton className="h-14 w-14 rounded-full bg-white/20 opacity-20" />
             </div>
@@ -598,7 +567,6 @@ export default function DashboardPage() {
               <div>
                 <Skeleton className="h-5 w-56 bg-white/20" />
                 <Skeleton className="h-10 w-32 mt-2 bg-white/20" />
-                <Skeleton className="h-4 w-48 mt-2 bg-white/20" />
               </div>
               <Skeleton className="h-14 w-14 rounded-full bg-white/20 opacity-20" />
             </div>
@@ -619,11 +587,10 @@ export default function DashboardPage() {
         </div>
       </div>
       
-      {/* KPI Row */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           title="Total Units Sold"
-          value={loading || !isMounted ? '...' : (summary?.total_units || 0).toLocaleString('en-IN')}
+          value={loading || !isMounted ? '...' : (Number(summary?.total_units || 0)).toLocaleString('en-IN')}
           icon={Package}
           gradient="from-purple-500 to-indigo-600"
           loading={loading}
@@ -645,17 +612,16 @@ export default function DashboardPage() {
         <ReturnRateCard rate={summary?.return_rate || 0} loading={loading} />
       </div>
 
-      {/* Platform Performance */}
       <div className="grid gap-6 md:grid-cols-3">
           {['Meesho', 'Flipkart', 'Amazon'].map(p => {
               const data = platformPerformance.find(item => item.platform === p);
-              const totalUnits = summary?.total_units || 1;
+              const totalUnits = Number(summary?.total_units) || 1;
               return (
                   <PlatformPerformanceCard 
                       key={p}
                       platform={p as 'Meesho' | 'Flipkart' | 'Amazon'}
-                      units={data?.total_units || 0}
-                      revenue={data?.total_revenue || 0}
+                      units={Number(data?.total_units || 0)}
+                      revenue={Number(data?.total_revenue || 0)}
                       totalUnits={totalUnits}
                       loading={loading}
                   />
@@ -670,7 +636,6 @@ export default function DashboardPage() {
 
       <TopSellingProductsCard products={topSellingProducts} loading={loading} />
       
-      {/* Recent Orders */}
       <Card className="rounded-2xl shadow-md bg-white/70 dark:bg-black/20 backdrop-blur-sm border-0">
         <CardHeader>
           <CardTitle>Recent Orders</CardTitle>
@@ -704,7 +669,7 @@ export default function DashboardPage() {
                       <TableCell><Badge variant="secondary">{order.platform}</Badge></TableCell>
                       <TableCell className="font-medium">{order.variant_sku || 'N/A'}</TableCell>
                       <TableCell>{(order as any).product_name || 'N/A'}</TableCell>
-                      <TableCell className="text-center">{order.quantity}</TableCell>
+                      <TableCell className="text-center">{Number(order.quantity || 0)}</TableCell>
                       <TableCell className="text-right">{formatINR(order.total_amount)}</TableCell>
                       <TableCell className="text-center"><Badge>Shipped</Badge></TableCell>
                     </TableRow>

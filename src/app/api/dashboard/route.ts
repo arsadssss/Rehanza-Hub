@@ -37,20 +37,57 @@ export async function GET() {
       sql`SELECT vendor_id, amount FROM vendor_payments WHERE is_deleted = false`,
       sql`SELECT platform, quantity, selling_price FROM orders WHERE is_deleted = false`,
     ]);
-    
-    return NextResponse.json({
-        summary: summaryRes[0] || {},
-        platformPerformance: platformRes,
-        ordersReturnsData: ordersReturnsRes,
+
+    // Ensure numeric parsing for all database results
+    const summary = summaryRes[0] ? {
+        total_units: Number(summaryRes[0].total_units || 0),
+        gross_revenue: Number(summaryRes[0].gross_revenue || 0),
+        net_profit: Number(summaryRes[0].net_profit || 0),
+        return_rate: Number(summaryRes[0].return_rate || 0),
+    } : { total_units: 0, gross_revenue: 0, net_profit: 0, return_rate: 0 };
+
+    const platformPerformance = platformRes.map((p: any) => ({
+        platform: p.platform,
+        total_units: Number(p.total_units || 0),
+        total_revenue: Number(p.total_revenue || 0),
+    }));
+
+    const ordersReturnsData = ordersReturnsRes.map((d: any) => ({
+        day_label: d.day_label,
+        total_orders: Number(d.total_orders || 0),
+        total_returns: Number(d.total_returns || 0),
+    }));
+
+    const topSellingProducts = topSellingRes.map((p: any) => ({
+        product_name: p.product_name,
+        variant_sku: p.variant_sku,
+        total_revenue: Number(p.total_revenue || 0),
+        total_units_sold: Number(p.total_units_sold || 0),
+    }));
+
+    const recentOrders = recentOrdersRes.map((o: any) => ({
+        ...o,
+        quantity: Number(o.quantity || 0),
+        total_amount: Number(o.total_amount || 0),
+    }));
+
+    const responseData = {
+        summary,
+        platformPerformance,
+        ordersReturnsData,
         bestSeller: bestSellerRes[0] || {},
         lowStock: lowStockRes[0] || {},
-        recentOrders: recentOrdersRes,
-        topSellingProducts: topSellingRes,
+        recentOrders,
+        topSellingProducts,
         vendors: vendorsRes,
-        vendorPurchases: vendorPurchasesRes,
-        allOrders: allOrdersRes,
-        vendorPayments: vendorPaymentsRes,
-    });
+        vendorPurchases: vendorPurchasesRes.map((p: any) => ({ ...p, quantity: Number(p.quantity), cost_per_unit: Number(p.cost_per_unit) })),
+        allOrders: allOrdersRes.map((o: any) => ({ ...o, quantity: Number(o.quantity), selling_price: Number(o.selling_price) })),
+        vendorPayments: vendorPaymentsRes.map((p: any) => ({ ...p, amount: Number(p.amount) })),
+    };
+
+    console.log("Dashboard API response summary:", summary);
+
+    return NextResponse.json(responseData);
 
   } catch (error: any) {
     console.error("Dashboard API Error:", error);
