@@ -2,7 +2,6 @@
 "use client"
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { formatINR } from '@/lib/format';
@@ -97,7 +96,6 @@ const StatCard = ({ title, value, icon: Icon, gradient, loading, subtext }: { ti
 );
 
 export default function ExpensesPage() {
-  const supabase = createClient();
   const { toast } = useToast();
 
   const [expenses, setExpenses] = useState<BusinessExpense[]>([]);
@@ -138,88 +136,70 @@ export default function ExpensesPage() {
 
   const fetchTotals = useCallback(async () => {
     setLoading(true);
-    const [expenseRes, payoutRes] = await Promise.all([
-      supabase.from('business_expenses').select('amount').eq('is_deleted', false),
-      supabase.from('platform_payouts').select('gst_account, amount').eq('is_deleted', false)
-    ]);
-    
-    if (expenseRes.data) {
-        const total = expenseRes.data.reduce((sum, item) => sum + Number(item.amount || 0), 0);
-        setTotalExpenses(total);
+    try {
+        const res = await fetch('/api/financials/summary');
+        if (!res.ok) throw new Error('Failed to fetch summary');
+        const data = await res.json();
+        
+        setTotalExpenses(data.totalExpenses);
+        setTotalPayouts(data.totalPayouts);
+        setTotalFashionPayouts(data.totalFashionPayouts);
+        setTotalCosmeticsPayouts(data.totalCosmeticsPayouts);
+
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } finally {
+        setLoading(false);
     }
-     if (payoutRes.data) {
-        const fashionTotal = payoutRes.data
-            .filter(row => row.gst_account === "Fashion")
-            .reduce((sum, row) => sum + Number(row.amount || 0), 0);
-        setTotalFashionPayouts(fashionTotal);
-
-        const cosmeticsTotal = payoutRes.data
-            .filter(row => row.gst_account === "Cosmetics")
-            .reduce((sum, row) => sum + Number(row.amount || 0), 0);
-        setTotalCosmeticsPayouts(cosmeticsTotal);
-
-        setTotalPayouts(fashionTotal + cosmeticsTotal);
-     }
-    
-    setLoading(false);
-  }, [supabase]);
+  }, [toast]);
 
   const fetchExpenses = useCallback(async () => {
     setLoadingExpenses(true);
-    const from = (expensesPage - 1) * expensesPageSize;
-    const to = from + expensesPageSize - 1;
-
-    let query = supabase
-      .from('business_expenses')
-      .select('*', { count: 'exact' })
-      .eq('is_deleted', false);
-
-    if (expenseDateFrom) query = query.gte('expense_date', expenseDateFrom);
-    if (expenseDateTo) query = query.lte('expense_date', expenseDateTo);
-    if (expenseSearch) query = query.ilike('description', `%${expenseSearch}%`);
-
-    query = query.order('expense_date', { ascending: false }).range(from, to);
-
-    const { data, error, count } = await query;
-    
-    if (error) {
+    try {
+        const params = new URLSearchParams({
+            page: expensesPage.toString(),
+            pageSize: expensesPageSize.toString(),
+            from: expenseDateFrom,
+            to: expenseDateTo,
+            search: expenseSearch,
+        });
+        const res = await fetch(`/api/expenses?${params.toString()}`);
+        if (!res.ok) throw new Error('Failed to fetch expenses');
+        const { data, count } = await res.json();
+        setExpenses(data);
+        setExpensesTotalRows(count);
+    } catch(error: any) {
         toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch business expenses.' });
         setExpenses([]);
-      } else {
-        setExpenses(data as BusinessExpense[]);
-        setExpensesTotalRows(count || 0);
-      }
-    setLoadingExpenses(false);
-  }, [supabase, toast, expensesPage, expensesPageSize, expenseDateFrom, expenseDateTo, expenseSearch]);
+    } finally {
+        setLoadingExpenses(false);
+    }
+  }, [toast, expensesPage, expensesPageSize, expenseDateFrom, expenseDateTo, expenseSearch]);
 
   const fetchPayouts = useCallback(async () => {
     setLoadingPayouts(true);
-    const from = (payoutsPage - 1) * payoutsPageSize;
-    const to = from + payoutsPageSize - 1;
+    try {
+        const params = new URLSearchParams({
+            page: payoutsPage.toString(),
+            pageSize: payoutsPageSize.toString(),
+            account: accountFilter,
+            platform: platformFilter,
+            from: dateFromFilter,
+            to: dateToFilter,
+        });
 
-    let query = supabase
-      .from('platform_payouts')
-      .select('*', { count: 'exact' })
-      .eq('is_deleted', false);
-
-    if (accountFilter && accountFilter !== 'all') query = query.eq('gst_account', accountFilter);
-    if (platformFilter && platformFilter !== 'all') query = query.eq('platform', platformFilter);
-    if (dateFromFilter) query = query.gte('payout_date', dateFromFilter);
-    if (dateToFilter) query = query.lte('payout_date', dateToFilter);
-    
-    query = query.order('payout_date', { ascending: false }).range(from, to);
-
-    const { data, error, count } = await query;
-
-    if (error) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch platform payouts.' });
-      setPayouts([]);
-    } else {
-      setPayouts(data as PlatformPayout[]);
-      setPayoutsTotalRows(count || 0);
+        const res = await fetch(`/api/payouts?${params.toString()}`);
+        if (!res.ok) throw new Error('Failed to fetch payouts');
+        const { data, count } = await res.json();
+        setPayouts(data);
+        setPayoutsTotalRows(count);
+    } catch(error: any) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch platform payouts.' });
+        setPayouts([]);
+    } finally {
+        setLoadingPayouts(false);
     }
-    setLoadingPayouts(false);
-  }, [supabase, toast, payoutsPage, payoutsPageSize, accountFilter, platformFilter, dateFromFilter, dateToFilter]);
+  }, [toast, payoutsPage, payoutsPageSize, accountFilter, platformFilter, dateFromFilter, dateToFilter]);
 
   useEffect(() => {
     fetchTotals();
@@ -252,28 +232,30 @@ export default function ExpensesPage() {
 
   const handleConfirmDelete = async () => {
     if (!itemToDelete) return;
+    const { id, type } = itemToDelete;
+    const endpoint = type === 'expense' ? '/api/expenses' : '/api/payouts';
 
-    const table = itemToDelete.type === 'expense' ? 'business_expenses' : 'platform_payouts';
-    
-    const { error } = await supabase
-      .from(table)
-      .update({ is_deleted: true })
-      .eq('id', itemToDelete.id);
+    try {
+        const res = await fetch(`${endpoint}?id=${id}`, { method: 'DELETE' });
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.message);
+        }
+        toast({
+            title: 'Success',
+            description: `The ${itemToDelete.type} has been deleted.`,
+        });
+        handleSuccess();
 
-    if (error) {
-      toast({
-        variant: 'destructive',
-        title: 'Error deleting item',
-        description: error.message,
-      });
-    } else {
-      toast({
-        title: 'Success',
-        description: `The ${itemToDelete.type} has been deleted.`,
-      });
-      handleSuccess();
+    } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Error deleting item',
+            description: error.message,
+        });
+    } finally {
+        setItemToDelete(null);
     }
-    setItemToDelete(null);
   };
   
   const resetExpenseFilters = () => {

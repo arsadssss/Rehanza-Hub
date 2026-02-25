@@ -5,7 +5,6 @@ import * as React from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog"
@@ -34,7 +33,6 @@ interface AddTaskModalProps {
 }
 
 export function AddTaskModal({ isOpen, onClose, onSuccess, task }: AddTaskModalProps) {
-  const supabase = createClient()
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const isEditMode = !!task;
@@ -72,16 +70,18 @@ export function AddTaskModal({ isOpen, onClose, onSuccess, task }: AddTaskModalP
   async function onSubmit(values: TaskFormValues) {
     setIsSubmitting(true)
     try {
-      let error;
-      if (isEditMode) {
-        const { error: updateError } = await supabase.from("tasks").update(values).eq('id', task.id);
-        error = updateError;
-      } else {
-        const { error: insertError } = await supabase.from("tasks").insert([values]);
-        error = insertError;
-      }
+      const payload = { ...values, id: task?.id };
+      
+      const res = await fetch('/api/tasks', {
+          method: isEditMode ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+      });
 
-      if (error) throw error
+      if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.message || 'Failed to save task.');
+      }
 
       toast({
         title: "Success",
@@ -93,7 +93,7 @@ export function AddTaskModal({ isOpen, onClose, onSuccess, task }: AddTaskModalP
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message || `Failed to ${isEditMode ? 'update' : 'add'} task.`,
+        description: error.message,
       })
     } finally {
       setIsSubmitting(false)

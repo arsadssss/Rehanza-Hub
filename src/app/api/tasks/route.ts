@@ -1,0 +1,121 @@
+
+import { sql } from '@/lib/db';
+import { NextResponse } from 'next/server';
+
+export const revalidate = 0;
+
+// Utility to calculate progress stats
+const calculateProgress = (allTasks: any[]) => {
+    const overallTotal = allTasks.length;
+    const overallCompleted = allTasks.filter(t => t.status === 'Completed').length;
+    
+    const fashionTasks = allTasks.filter(t => t.task_group === 'Fashion');
+    const fashionTotal = fashionTasks.length;
+    const fashionCompleted = fashionTasks.filter(t => t.status === 'Completed').length;
+
+    const cosmeticsTasks = allTasks.filter(t => t.task_group === 'Cosmetics');
+    const cosmeticsTotal = cosmeticsTasks.length;
+    const cosmeticsCompleted = cosmeticsTasks.filter(t => t.status === 'Completed').length;
+
+    return {
+        overall: { total: overallTotal, completed: overallCompleted, percentage: overallTotal > 0 ? (overallCompleted / overallTotal) * 100 : 0 },
+        fashion: { total: fashionTotal, completed: fashionCompleted, percentage: fashionTotal > 0 ? (fashionCompleted / fashionTotal) * 100 : 0 },
+        cosmetics: { total: cosmeticsTotal, completed: cosmeticsCompleted, percentage: cosmeticsTotal > 0 ? (cosmeticsCompleted / cosmeticsTotal) * 100 : 0 },
+    };
+};
+
+export async function GET(request: Request) {
+  const { searchParams } = new URL(request.url);
+  const page = parseInt(searchParams.get('page') || '1', 10);
+  const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
+  const group = searchParams.get('group');
+  const status = searchParams.get('status');
+  const offset = (page - 1) * pageSize;
+
+  try {
+    let whereClauses = ['is_deleted = false'];
+    let params: string[] = [];
+    let paramIndex = 1;
+
+    if (group && group !== 'all') {
+        whereClauses.push(`task_group = $${paramIndex++}`);
+        params.push(group);
+    }
+    if (status && status !== 'all') {
+        whereClauses.push(`status = $${paramIndex++}`);
+        params.push(status);
+    }
+
+    const whereString = `WHERE ${whereClauses.join(' AND ')}`;
+    
+    const dataQuery = `SELECT * FROM tasks ${whereString} ORDER BY task_date DESC, created_at DESC LIMIT ${pageSize} OFFSET ${offset}`;
+    const countQuery = `SELECT COUNT(*) FROM tasks ${whereString}`;
+    const progressQuery = `SELECT status, task_group FROM tasks WHERE is_deleted = false`;
+
+    const [data, countResult, progressResult] = await Promise.all([
+        sql(dataQuery, params),
+        sql(countQuery, params),
+        sql(progressQuery)
+    ]);
+    
+    const progress = calculateProgress(progressResult);
+
+    return NextResponse.json({ data, count: Number(countResult[0].count), progress });
+
+  } catch (error: any) {
+    return NextResponse.json({ message: 'Failed to fetch tasks', error: error.message }, { status: 500 });
+  }
+}
+
+export async function POST(request: Request) {
+    try {
+        const body = await request.json();
+        const { task_name, task_date, task_group, status, notes } = body;
+        if (!task_name || !task_date || !task_group || !status) {
+            return NextResponse.json({ message: 'Missing required fields' }, { status: 400 });
+        }
+        const result = await sql`
+            INSERT INTO tasks (task_name, task_date, task_group, status, notes)
+            VALUES (${task_name}, ${task_date}, ${task_group}, ${status}, ${notes})
+            RETURNING *;
+        `;
+        return NextResponse.json(result[0], { status: 201 });
+    } catch (error: any) {
+        return NextResponse.json({ message: 'Failed to create task', error: error.message }, { status: 500 });
+    }
+}
+
+export async function PUT(request: Request) {
+    try {
+        const body = await request.json();
+        const { id, task_name, task_date, task_group, status, notes } = body;
+        if (!id) return NextResponse.json({ message: 'ID is required' }, { status: 400 });
+
+        const result = await sql`
+            UPDATE tasks
+            SET task_name = ${task_name}, task_date = ${task_date}, task_group = ${task_group}, status = ${status}, notes = ${notes}
+            WHERE id = ${id}
+            RETURNING *;
+        `;
+        if (result.length === 0) return NextResponse.json({ message: 'Task not found' }, { status: 404 });
+        return NextResponse.json(result[0]);
+    } catch (error: any) {
+        return NextResponse.json({ message: 'Failed to update task', error: error.message }, { status: 500 });
+    }
+}
+
+export async function DELETE(request: Request) {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    if (!id) return NextResponse.json({ message: 'ID is required' }, { status: 400 });
+
+    try {
+        const result = await sql`
+            UPDATE tasks SET is_deleted = true WHERE id = ${id} RETURNING id;
+        `;
+        if (result.length === 0) return NextResponse.json({ message: 'Task not found' }, { status: 404 });
+        return NextResponse.json({ message: 'Task deleted' });
+    } catch (error: any) {
+        return NextResponse.json({ message: 'Failed to delete task', error: error.message }, { status: 500 });
+    }
+}

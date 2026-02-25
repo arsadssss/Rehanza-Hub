@@ -1,7 +1,7 @@
+
 "use client"
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { formatINR } from '@/lib/format';
 
@@ -37,7 +37,6 @@ type InventoryItem = {
 };
 
 export default function InventoryPage() {
-  const supabase = createClient();
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -49,10 +48,12 @@ export default function InventoryPage() {
     setIsMounted(true);
     async function fetchInventory() {
       setLoading(true);
-      // The view should ideally join with allproducts to get low_stock_threshold
-      const { data, error } = await supabase.from('inventory_summary').select('*');
-  
-      if (error) {
+      try {
+        const res = await fetch('/api/inventory');
+        if (!res.ok) throw new Error('Failed to fetch inventory');
+        const data = await res.json();
+        setInventory(data);
+      } catch (error: any) {
         console.error('Error fetching inventory summary:', error);
         toast({
           variant: 'destructive',
@@ -60,18 +61,12 @@ export default function InventoryPage() {
           description: 'Failed to fetch inventory summary.',
         });
         setInventory([]);
-      } else {
-        // Temporary fix: If low_stock_threshold is not in the view, add it with a default
-        const dataWithFormatting = data.map(item => ({
-            ...item,
-            low_stock_threshold: item.low_stock_threshold || 5,
-        }));
-        setInventory(dataWithFormatting as InventoryItem[]);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     }
     fetchInventory();
-  }, [toast, supabase]);
+  }, [toast]);
 
   const filteredInventory = useMemo(() => {
     let filtered = inventory;

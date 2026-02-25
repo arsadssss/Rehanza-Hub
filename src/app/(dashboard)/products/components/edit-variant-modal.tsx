@@ -6,7 +6,6 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 
-import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import {
@@ -42,7 +41,6 @@ interface EditVariantModalProps {
 }
 
 export function EditVariantModal({ isOpen, onClose, onVariantUpdated, variant }: EditVariantModalProps) {
-  const supabase = createClient();
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
 
@@ -65,15 +63,15 @@ export function EditVariantModal({ isOpen, onClose, onVariantUpdated, variant }:
     if (!variant) return;
     setIsSubmitting(true)
     try {
-      const { data, error } = await supabase
-        .from("product_variants")
-        .update({ stock: values.stock })
-        .eq('id', variant.id)
-        .select()
-        .single()
+      const res = await fetch('/api/variants', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: variant.id, stock: values.stock })
+      });
 
-      if (error) {
-        throw error
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Failed to update variant stock.");
       }
 
       toast({
@@ -86,7 +84,7 @@ export function EditVariantModal({ isOpen, onClose, onVariantUpdated, variant }:
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message || "Failed to update variant stock.",
+        description: error.message,
       })
     } finally {
         setIsSubmitting(false)

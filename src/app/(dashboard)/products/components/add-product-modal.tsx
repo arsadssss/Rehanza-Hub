@@ -6,7 +6,6 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 
-import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import {
@@ -65,7 +64,6 @@ interface ProductModalProps {
 }
 
 export function AddProductModal({ isOpen, onClose, onSuccess, product }: ProductModalProps) {
-  const supabase = createClient();
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const isEditMode = !!product;
@@ -133,6 +131,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: Product
     try {
       const productData = {
         ...values,
+        id: product?.id, // for updates
         promo_ads: PROMO_ADS,
         tax_other: TAX_OTHER,
         packing: PACKING,
@@ -142,12 +141,15 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: Product
         amazon_price: previewPrices.amazon,
       }
       
-      const { error } = isEditMode
-        ? await supabase.from("allproducts").update(productData).eq('id', product.id)
-        : await supabase.from("allproducts").insert([productData])
+      const res = await fetch('/api/products', {
+          method: isEditMode ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(productData)
+      });
 
-      if (error) {
-        throw error
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || `Failed to ${isEditMode ? 'update' : 'add'} product.`);
       }
 
       toast({
@@ -160,7 +162,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: Product
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message || `Failed to ${isEditMode ? 'update' : 'add'} product.`,
+        description: error.message,
       })
     } finally {
         setIsSubmitting(false)

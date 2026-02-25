@@ -5,7 +5,6 @@ import * as React from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import {
@@ -45,7 +44,6 @@ interface AddExpenseModalProps {
 }
 
 export function AddExpenseModal({ isOpen, onClose, onSuccess, expense }: AddExpenseModalProps) {
-  const supabase = createClient()
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const isEditMode = !!expense;
@@ -80,21 +78,20 @@ export function AddExpenseModal({ isOpen, onClose, onSuccess, expense }: AddExpe
     setIsSubmitting(true)
     try {
       const expenseData = {
-        description: values.description,
-        amount: values.amount,
-        expense_date: values.expense_date,
+        ...values,
+        id: expense?.id,
       }
 
-      let error;
-      if (isEditMode) {
-        const { error: updateError } = await supabase.from("business_expenses").update(expenseData).eq('id', expense.id);
-        error = updateError;
-      } else {
-        const { error: insertError } = await supabase.from("business_expenses").insert([expenseData]);
-        error = insertError;
-      }
+      const res = await fetch('/api/expenses', {
+        method: isEditMode ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(expenseData),
+      });
 
-      if (error) throw error
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || `Failed to ${isEditMode ? 'update' : 'add'} expense.`);
+      }
 
       toast({
         title: "Success",
@@ -106,7 +103,7 @@ export function AddExpenseModal({ isOpen, onClose, onSuccess, expense }: AddExpe
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message || `Failed to ${isEditMode ? 'update' : 'add'} expense.`,
+        description: error.message,
       })
     } finally {
       setIsSubmitting(false)

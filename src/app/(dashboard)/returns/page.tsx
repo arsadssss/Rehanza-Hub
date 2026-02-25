@@ -2,7 +2,6 @@
 "use client"
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { formatINR } from '@/lib/format';
@@ -59,7 +58,6 @@ type ItemToDelete = {
 }
 
 export default function ReturnsPage() {
-  const supabase = createClient();
   const { toast } = useToast();
   
   const [returns, setReturns] = useState<Return[]>([]);
@@ -72,25 +70,18 @@ export default function ReturnsPage() {
 
   const fetchReturns = useCallback(async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('returns')
-      .select(`
-        *,
-        product_variants (
-          variant_sku
-        )
-      `)
-      .eq('is_deleted', false)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch returns.' });
+    try {
+        const res = await fetch('/api/returns');
+        if (!res.ok) throw new Error('Failed to fetch returns.');
+        const data = await res.json();
+        setReturns(data);
+    } catch(error: any) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
       setReturns([]);
-    } else {
-      setReturns(data as Return[]);
+    } finally {
+        setLoading(false);
     }
-    setLoading(false);
-  }, [supabase, toast]);
+  }, [toast]);
 
   const handleSuccess = useCallback(() => {
     fetchReturns();
@@ -99,9 +90,10 @@ export default function ReturnsPage() {
 
   useEffect(() => {
     handleSuccess();
-    window.addEventListener('data-changed', handleSuccess);
+    const handleDataChange = () => handleSuccess();
+    window.addEventListener('data-changed', handleDataChange);
     return () => {
-      window.removeEventListener('data-changed', handleSuccess);
+      window.removeEventListener('data-changed', handleDataChange);
     };
   }, [handleSuccess]);
 
@@ -110,8 +102,8 @@ export default function ReturnsPage() {
       setReturnToEdit(returnItem);
     } else {
       setReturnToEdit(null);
-      setIsAddModalOpen(true);
     }
+    setIsAddModalOpen(true);
   }
 
   const handleCloseModal = () => {
@@ -121,13 +113,16 @@ export default function ReturnsPage() {
 
   const handleConfirmDelete = async () => {
     if (!itemToDelete) return;
-    const { error } = await supabase.from('returns').update({ is_deleted: true }).eq('id', itemToDelete.id);
-
-    if (error) {
-      toast({ variant: 'destructive', title: 'Error deleting return', description: error.message });
-    } else {
-      toast({ title: 'Success', description: 'The return has been deleted.' });
-      handleSuccess();
+    try {
+        const res = await fetch(`/api/returns?id=${itemToDelete.id}`, { method: 'DELETE' });
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.message || 'Failed to delete return');
+        }
+        toast({ title: 'Success', description: 'The return has been deleted.' });
+        handleSuccess();
+    } catch(error: any) {
+        toast({ variant: 'destructive', title: 'Error deleting return', description: error.message });
     }
     setItemToDelete(null);
   };

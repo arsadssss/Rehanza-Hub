@@ -6,7 +6,6 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 
-import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import {
@@ -51,22 +50,25 @@ interface AddVariantModalProps {
 }
 
 export function AddVariantModal({ isOpen, onClose, onVariantAdded }: AddVariantModalProps) {
-  const supabase = createClient();
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [products, setProducts] = React.useState<Pick<Product, 'id' | 'sku'>[]>([])
 
   React.useEffect(() => {
     async function fetchProducts() {
-      const { data, error } = await supabase.from("allproducts").select("id, sku").order("sku");
-      if (data) {
-        setProducts(data);
+      try {
+          const res = await fetch('/api/products?type=list');
+          if (!res.ok) throw new Error('Failed to fetch products');
+          const data = await res.json();
+          setProducts(data);
+      } catch (error) {
+          toast({ variant: 'destructive', title: 'Error', description: 'Could not load products for selection.'})
       }
     }
     if (isOpen) {
       fetchProducts();
     }
-  }, [isOpen, supabase]);
+  }, [isOpen, toast]);
 
   const form = useForm<VariantFormValues>({
     resolver: zodResolver(formSchema),
@@ -101,25 +103,18 @@ export function AddVariantModal({ isOpen, onClose, onVariantAdded }: AddVariantM
         variant_sku: variantSku,
       };
 
-      const { data, error } = await supabase
-        .from("product_variants")
-        .insert([newVariantData])
-        .select()
-        .single()
+      const res = await fetch('/api/variants', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(newVariantData)
+      });
+      
+      const resData = await res.json();
 
-      if (error) {
-         if (error.code === '23505') {
-             toast({
-                variant: "destructive",
-                title: "Error: Duplicate SKU",
-                description: `Variant with SKU '${variantSku}' already exists. Please choose a different color or size combination.`,
-            })
-            setIsSubmitting(false)
-            return;
-        }
-        throw error
+      if (!res.ok) {
+        throw new Error(resData.message || "Failed to add variant.");
       }
-
+      
       toast({
         title: "Success",
         description: "Product variant added successfully.",
@@ -130,7 +125,7 @@ export function AddVariantModal({ isOpen, onClose, onVariantAdded }: AddVariantM
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message || "Failed to add variant.",
+        description: error.message,
       })
     } finally {
         setIsSubmitting(false)

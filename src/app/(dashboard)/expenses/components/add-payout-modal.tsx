@@ -5,7 +5,6 @@ import * as React from "react"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import {
@@ -59,7 +58,6 @@ interface AddPayoutModalProps {
 }
 
 export function AddPayoutModal({ isOpen, onClose, onSuccess, payout }: AddPayoutModalProps) {
-  const supabase = createClient()
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const isEditMode = !!payout;
@@ -101,19 +99,20 @@ export function AddPayoutModal({ isOpen, onClose, onSuccess, payout }: AddPayout
         platform,
         amount: values.amount,
         payout_date: values.payout_date,
-        reference: values.reference
+        reference: values.reference,
+        id: payout?.id,
       }
 
-      let error;
-      if (isEditMode) {
-        const { error: updateError } = await supabase.from("platform_payouts").update(payoutData).eq('id', payout.id);
-        error = updateError;
-      } else {
-        const { error: insertError } = await supabase.from("platform_payouts").insert([payoutData]);
-        error = insertError;
-      }
+      const res = await fetch('/api/payouts', {
+        method: isEditMode ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payoutData),
+      });
 
-      if (error) throw error
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || `Failed to ${isEditMode ? 'update' : 'add'} payout.`);
+      }
 
       toast({
         title: "Success",
@@ -125,7 +124,7 @@ export function AddPayoutModal({ isOpen, onClose, onSuccess, payout }: AddPayout
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message || `Failed to ${isEditMode ? 'update' : 'add'} payout.`,
+        description: error.message,
       })
     } finally {
       setIsSubmitting(false)

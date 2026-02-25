@@ -6,7 +6,6 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 
-import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import {
@@ -34,8 +33,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-import type { Variant } from "../../variants/page"
-import type { Return } from "../../orders/page"
+import type { Return } from "../page"
 import { format } from "date-fns"
 
 const formSchema = z.object({
@@ -59,10 +57,9 @@ interface AddReturnModalProps {
 }
 
 export function AddReturnModal({ isOpen, onClose, onSuccess, returnItem }: AddReturnModalProps) {
-  const supabase = createClient();
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [variants, setVariants] = React.useState<Pick<Variant, 'id' | 'variant_sku' | 'stock'>[]>([])
+  const [variants, setVariants] = React.useState<{id: string, variant_sku: string, stock: number}[]>([])
   const isEditMode = !!returnItem?.id;
 
   const form = useForm<ReturnFormValues>({
@@ -79,8 +76,14 @@ export function AddReturnModal({ isOpen, onClose, onSuccess, returnItem }: AddRe
 
   React.useEffect(() => {
     async function fetchVariants() {
-      const { data } = await supabase.from("product_variants").select(`id, variant_sku, stock`).order("variant_sku");
-      if (data) { setVariants(data as any); }
+        try {
+            const res = await fetch('/api/products?type=variants');
+            if (!res.ok) throw new Error('Failed to fetch variants');
+            const data = await res.json();
+            setVariants(data);
+        } catch(e) {
+            toast({ variant: 'destructive', title: 'Error', description: 'Could not load product variants.'})
+        }
     }
     if (isOpen) {
       fetchVariants();
@@ -108,17 +111,27 @@ export function AddReturnModal({ isOpen, onClose, onSuccess, returnItem }: AddRe
         });
       }
     }
-  }, [isOpen, returnItem, supabase, form]);
+  }, [isOpen, returnItem, toast, form]);
 
   async function onSubmit(values: ReturnFormValues) {
     setIsSubmitting(true)
     try {
-      const { error } = isEditMode
-        ? await supabase.from("returns").update(values).eq('id', returnItem.id)
-        : await supabase.from("returns").insert([values]);
+      const payload = {
+          ...values,
+          id: returnItem?.id,
+      };
 
-      if (error) throw error;
-
+      const res = await fetch('/api/returns', {
+          method: isEditMode ? 'PUT' : 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+      });
+      
+      if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.message || 'Failed to save return.');
+      }
+      
       toast({
         title: "Success",
         description: `Return ${isEditMode ? 'updated' : 'added'} successfully.`,
@@ -129,7 +142,7 @@ export function AddReturnModal({ isOpen, onClose, onSuccess, returnItem }: AddRe
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message || `Failed to ${isEditMode ? 'save' : 'add'} return.`,
+        description: error.message,
       });
     } finally {
         setIsSubmitting(false);

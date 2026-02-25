@@ -2,7 +2,6 @@
 "use client"
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 
@@ -66,7 +65,6 @@ const ProgressCard = ({ title, stats, gradient, loading }: { title: string; stat
 );
 
 export default function TasksPage() {
-    const supabase = createClient();
     const { toast } = useToast();
 
     const [tasks, setTasks] = useState<Task[]>([]);
@@ -94,67 +92,38 @@ export default function TasksPage() {
     // Filtering
     const [groupFilter, setGroupFilter] = useState('all');
     const [statusFilter, setStatusFilter] = useState('all');
-    
-    const calculateProgress = (allTasks: Task[]): typeof progressStats => {
-        const overallTotal = allTasks.length;
-        const overallCompleted = allTasks.filter(t => t.status === 'Completed').length;
-        
-        const fashionTasks = allTasks.filter(t => t.task_group === 'Fashion');
-        const fashionTotal = fashionTasks.length;
-        const fashionCompleted = fashionTasks.filter(t => t.status === 'Completed').length;
-
-        const cosmeticsTasks = allTasks.filter(t => t.task_group === 'Cosmetics');
-        const cosmeticsTotal = cosmeticsTasks.length;
-        const cosmeticsCompleted = cosmeticsTasks.filter(t => t.status === 'Completed').length;
-
-        return {
-            overall: { total: overallTotal, completed: overallCompleted, percentage: overallTotal > 0 ? (overallCompleted / overallTotal) * 100 : 0 },
-            fashion: { total: fashionTotal, completed: fashionCompleted, percentage: fashionTotal > 0 ? (fashionCompleted / fashionTotal) * 100 : 0 },
-            cosmetics: { total: cosmeticsTotal, completed: cosmeticsCompleted, percentage: cosmeticsTotal > 0 ? (cosmeticsCompleted / cosmeticsTotal) * 100 : 0 },
-        };
-    };
 
     const fetchPageData = useCallback(async () => {
         setLoadingTasks(true);
-        const from = (page - 1) * pageSize;
-        const to = from + pageSize - 1;
-
-        let query = supabase.from('tasks').select('*', { count: 'exact' }).eq('is_deleted', false);
-        if (groupFilter !== 'all') query = query.eq('task_group', groupFilter);
-        if (statusFilter !== 'all') query = query.eq('status', statusFilter);
-        
-        query = query.order('task_date', { ascending: false }).range(from, to);
-        const { data, error, count } = await query;
-        
-        if (error) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch tasks.' });
-            setTasks([]);
-        } else {
-            setTasks(data as Task[]);
-            setTotalRows(count || 0);
-        }
-        setLoadingTasks(false);
-    }, [supabase, toast, page, pageSize, groupFilter, statusFilter]);
-
-    const fetchProgressData = useCallback(async () => {
         setLoadingProgress(true);
-        const { data, error } = await supabase.from('tasks').select('status, task_group').eq('is_deleted', false);
-        if (error) {
-            toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch progress data.' });
-        } else {
-            setProgressStats(calculateProgress(data as any));
+        try {
+            const params = new URLSearchParams({
+                page: page.toString(),
+                pageSize: pageSize.toString(),
+                group: groupFilter,
+                status: statusFilter,
+            });
+            const res = await fetch(`/api/tasks?${params.toString()}`);
+            if (!res.ok) throw new Error('Failed to fetch tasks');
+
+            const { data, count, progress } = await res.json();
+            setTasks(data);
+            setTotalRows(count);
+            setProgressStats(progress);
+        } catch(error: any) {
+            toast({ variant: 'destructive', title: 'Error', description: error.message });
+        } finally {
+            setLoadingTasks(false);
+            setLoadingProgress(false);
         }
-        setLoadingProgress(false);
-    }, [supabase, toast]);
+    }, [page, pageSize, groupFilter, statusFilter, toast]);
 
     useEffect(() => { fetchPageData(); }, [fetchPageData]);
-    useEffect(() => { fetchProgressData(); }, [fetchProgressData]);
     
     useEffect(() => { setPage(1); }, [groupFilter, statusFilter]);
     
     const handleSuccess = () => {
         fetchPageData();
-        fetchProgressData();
     };
 
     const handleOpenModal = (task?: Task) => {
@@ -169,14 +138,19 @@ export default function TasksPage() {
 
     const handleConfirmDelete = async () => {
         if (!itemToDelete) return;
-        const { error } = await supabase.from('tasks').update({ is_deleted: true }).eq('id', itemToDelete.id);
-        if (error) {
-            toast({ variant: 'destructive', title: 'Error deleting task', description: error.message });
-        } else {
+        try {
+            const res = await fetch(`/api/tasks?id=${itemToDelete.id}`, { method: 'DELETE' });
+            if (!res.ok) {
+                const errorData = await res.json();
+                throw new Error(errorData.message || 'Failed to delete task');
+            }
             toast({ title: 'Success', description: 'The task has been deleted.' });
             handleSuccess();
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Error deleting task', description: error.message });
+        } finally {
+            setItemToDelete(null);
         }
-        setItemToDelete(null);
     };
 
     const getStatusBadge = (status: Task['status']) => {

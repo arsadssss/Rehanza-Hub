@@ -5,7 +5,6 @@ import React, { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { createClient } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import {
   Card,
@@ -108,7 +107,6 @@ const DEFAULT_SETTINGS: Settings = {
 // --- Main Settings Page ---
 
 export default function SettingsPage() {
-  const supabase = createClient();
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
@@ -116,50 +114,53 @@ export default function SettingsPage() {
   useEffect(() => {
     async function fetchSettings() {
       setLoading(true);
-      const { data, error } = await supabase.from('app_settings').select('*');
+      try {
+        const res = await fetch('/api/settings');
+        if (!res.ok) throw new Error('Failed to fetch settings');
+        const loadedSettings = await res.json();
+        
+        const mergedSettings = { ...DEFAULT_SETTINGS, ...loadedSettings };
+        setSettings(mergedSettings);
 
-      if (error) {
-        toast({
+      } catch (error: any) {
+         toast({
           variant: 'destructive',
           title: 'Error fetching settings',
           description: error.message,
         });
         setSettings(DEFAULT_SETTINGS);
-      } else {
-        const loadedSettings = data.reduce((acc, { setting_key, setting_value }) => {
-          acc[setting_key as keyof Settings] = setting_value;
-          return acc;
-        }, {} as Settings);
-        
-        const mergedSettings = { ...DEFAULT_SETTINGS, ...loadedSettings };
-        setSettings(mergedSettings);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     }
 
     fetchSettings();
-  }, [toast, supabase]);
+  }, [toast]);
 
   const handleSave = async (setting_key: keyof Settings, setting_value: any) => {
-    const { error } = await supabase.from('app_settings').upsert(
-      { setting_key, setting_value },
-      { onConflict: 'setting_key' }
-    );
-
-    if (error) {
-      toast({
-        variant: 'destructive',
-        title: `Failed to save ${setting_key.replace(/_/g, ' ')}`,
-        description: error.message,
-      });
-      return false;
-    } else {
-      toast({
-        title: 'Settings Saved',
-        description: `Your changes to ${setting_key.replace(/_/g, ' ')} have been saved.`,
-      });
-      setSettings(prev => prev ? ({ ...prev, [setting_key]: setting_value }) : null);
-      return true;
+    try {
+        const res = await fetch('/api/settings', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ key: setting_key, value: setting_value }),
+        });
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.message);
+        }
+        toast({
+            title: 'Settings Saved',
+            description: `Your changes to ${setting_key.replace(/_/g, ' ')} have been saved.`,
+        });
+        setSettings(prev => prev ? ({ ...prev, [setting_key]: setting_value }) : null);
+        return true;
+    } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: `Failed to save ${setting_key.replace(/_/g, ' ')}`,
+            description: error.message,
+        });
+        return false;
     }
   };
 

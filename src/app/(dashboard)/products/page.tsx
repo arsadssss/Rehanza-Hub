@@ -2,7 +2,6 @@
 "use client"
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { formatINR } from '@/lib/format';
 
@@ -27,6 +26,7 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/components/ui/tabs';
+import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
@@ -86,7 +86,6 @@ const SummaryCard = ({ title, value, icon: Icon, loading }: { title: string; val
 );
 
 export default function ProductsPage() {
-  const supabase = createClient();
   const { toast } = useToast();
 
   // Products state
@@ -117,67 +116,53 @@ export default function ProductsPage() {
     setLoadingProducts(true);
     setLoadingSummary(true);
 
-    // Fetch summary in parallel
-    const summaryPromise = supabase.from('allproducts').select('stock');
-    
-    // Fetch paginated products
-    const from = (productsPage - 1) * productsPageSize;
-    const to = from + productsPageSize - 1;
+    try {
+        const productParams = new URLSearchParams({
+            page: productsPage.toString(),
+            pageSize: productsPageSize.toString(),
+            search: searchTermProducts,
+        });
 
-    let query = supabase.from('allproducts')
-        .select('*', { count: 'exact' })
-        .order('created_at', { ascending: false });
-    
-    if (searchTermProducts) {
-      query = query.or(`sku.ilike.%${searchTermProducts}%,product_name.ilike.%${searchTermProducts}%`);
+        // Fetch paginated products and summary in parallel
+        const [productsRes, summaryRes] = await Promise.all([
+            fetch(`/api/products?${productParams.toString()}`),
+            fetch('/api/products/summary')
+        ]);
+        
+        if (!productsRes.ok) throw new Error('Failed to fetch products');
+        if (!summaryRes.ok) throw new Error('Failed to fetch summary stats');
+
+        const { data, count } = await productsRes.json();
+        const summaryData = await summaryRes.json();
+
+        setProducts(data);
+        setProductsTotalRows(count);
+        setSummaryStats(summaryData);
+
+    } catch (error: any) {
+        toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } finally {
+        setLoadingProducts(false);
+        setLoadingSummary(false);
     }
-
-    const { data, error, count } = await query.range(from, to);
-
-    if (error) {
-      console.error('Error fetching products:', error);
-      toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch products.' });
-      setProducts([]);
-    } else {
-      setProducts(data as any as Product[]);
-      setProductsTotalRows(count || 0);
-    }
-    setLoadingProducts(false);
-
-    // Process summary
-    const { data: summaryData, error: summaryError } = await summaryPromise;
-    if (summaryError) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Failed to calculate summary stats.' });
-        setSummaryStats(null);
-    } else {
-        const totalProducts = summaryData.length;
-        const inStockProducts = summaryData.filter(p => p.stock > 0).length;
-        const outOfStockProducts = totalProducts - inStockProducts;
-        const totalInventoryUnits = summaryData.reduce((acc, p) => acc + p.stock, 0);
-        setSummaryStats({ totalProducts, inStockProducts, outOfStockProducts, totalInventoryUnits });
-    }
-    setLoadingSummary(false);
-
-  }, [supabase, toast, productsPage, productsPageSize, searchTermProducts]);
+  }, [toast, productsPage, productsPageSize, searchTermProducts]);
 
 
   // Fetch Variants
   const fetchVariants = useCallback(async () => {
     setLoadingVariants(true);
-    const { data, error } = await supabase
-      .from('product_variants')
-      .select(`id, variant_sku, color, size, stock, allproducts (sku, product_name)`)
-      .order('created_at', { ascending: false });
-
-    if (error) {
-      console.error('Error fetching variants:', error);
-      toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch product variants.' });
+    try {
+        const res = await fetch('/api/variants');
+        if (!res.ok) throw new Error('Failed to fetch product variants');
+        const data = await res.json();
+        setVariants(data);
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
       setVariants([]);
-    } else {
-      setVariants(data as any as Variant[]);
+    } finally {
+        setLoadingVariants(false);
     }
-    setLoadingVariants(false);
-  }, [supabase, toast]);
+  }, [toast]);
   
   // Initial and reactive fetches
   useEffect(() => {
@@ -200,6 +185,7 @@ export default function ProductsPage() {
 
   const handleOpenEditModal = (product: Product) => {
     setEditingProduct(product);
+    setIsAddProductModalOpen(true);
   }
 
   const handleCloseModal = () => {
@@ -211,15 +197,21 @@ export default function ProductsPage() {
   const handleDeleteSelectedVariants = async () => {
     if (selectedVariantRows.length === 0) return;
 
-    const { error } = await supabase.from('product_variants').delete().in('id', selectedVariantRows);
-
-    if (error) {
-      toast({ variant: 'destructive', title: 'Error deleting variants', description: error.message });
-    } else {
-      setVariants(variants.filter(v => !selectedVariantRows.includes(v.id)));
-      setSelectedVariantRows([]);
-      toast({ title: 'Success', description: `${selectedVariantRows.length} variant(s) deleted successfully.` });
-       handleSuccess();
+    try {
+        const res = await fetch('/api/variants', {
+            method: 'DELETE',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ ids: selectedVariantRows })
+        });
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.message || 'Failed to delete variants');
+        }
+        toast({ title: 'Success', description: `${selectedVariantRows.length} variant(s) deleted successfully.` });
+        handleSuccess();
+        setSelectedVariantRows([]);
+    } catch(error: any) {
+        toast({ variant: 'destructive', title: 'Error deleting variants', description: error.message });
     }
   };
 
