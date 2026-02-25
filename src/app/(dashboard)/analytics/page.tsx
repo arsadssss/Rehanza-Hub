@@ -2,7 +2,6 @@
 "use client"
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { subDays, format, parseISO, addDays } from 'date-fns';
 import {
@@ -32,13 +31,6 @@ import { Button } from '@/components/ui/button';
 import { DollarSign, ShoppingCart, Undo2, TrendingUp, ArrowUpRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { formatINR } from '@/lib/format';
-
-type AnalyticsSummary = {
-  order_date: string;
-  platform: 'Meesho' | 'Flipkart' | 'Amazon';
-  total_revenue: number;
-  total_orders: number;
-};
 
 type ReturnsSummary = {
   return_date: string;
@@ -91,7 +83,6 @@ const SalesTooltip = ({ active, payload, label }: any) => {
 
 
 export default function AnalyticsPage() {
-  const supabase = createClient();
   const [loading, setLoading] = useState(true);
   const [returnsData, setReturnsData] = useState<ReturnsSummary[]>([]);
   const [platformOrders, setPlatformOrders] = useState<{ name: string; value: number }[]>([]);
@@ -106,118 +97,43 @@ export default function AnalyticsPage() {
 
   useEffect(() => {
     setIsMounted(true);
-    async function fetchSummaryData() {
+    async function fetchAnalyticsData() {
       setLoading(true);
-      
-      const { data: ordersForSales, error: ordersForSalesError } = await supabase
-        .from('orders')
-        .select('total_amount')
-        .gte('created_at', format(subDays(new Date(), 7), 'yyyy-MM-dd'));
-
-      if (ordersForSalesError) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch total sales.' });
-      } else {
-        const total = (ordersForSales || []).reduce((acc, order) => acc + order.total_amount, 0);
-        setTotalSales(total);
-      }
-
-      const { data: returns, error: returnsError } = await supabase
-        .from('returns_summary')
-        .select('*')
-        .gte('return_date', format(subDays(new Date(), 6), 'yyyy-MM-dd'));
-      
-      if (returnsError) {
-         toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch returns summary.' });
-      } else {
-         setReturnsData(returns || []);
-      }
+      setLoadingSales(true);
+      try {
+        const res = await fetch('/api/analytics');
+        if (!res.ok) {
+          const errorData = await res.json();
+          throw new Error(errorData.message || 'Failed to fetch analytics data');
+        }
+        const data = await res.json();
         
-      const { data: allOrders, error: ordersError } = await supabase
-        .from("orders")
-        .select("platform");
-
-      if (ordersError) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch platform orders.' });
-      } else if (allOrders) {
-        const meesho = allOrders.filter(o => o.platform === "Meesho").length;
-        const flipkart = allOrders.filter(o => o.platform === "Flipkart").length;
-        const amazon = allOrders.filter(o => o.platform === "Amazon").length;
-
-        const pieData = [
-          { name: 'Meesho', value: meesho },
-          { name: 'Flipkart', value: flipkart },
-          { name: 'Amazon', value: amazon },
-        ].filter(p => p.value > 0);
+        setTotalSales(data.totalSales);
+        setReturnsData(data.returnsData || []);
+        setPlatformOrders(data.platformOrders || []);
+        setTotalPlatformOrders(data.totalPlatformOrders || 0);
+        setNetProfit(data.netProfit || 0);
         
-        setPlatformOrders(pieData);
-        setTotalPlatformOrders(meesho + flipkart + amazon);
-      }
-      
-      // Calculate Net Profit
-      const { data: ordersWithMargin, error: ordersMarginError } = await supabase
-        .from('orders')
-        .select('quantity, product_variants(allproducts(margin))');
-
-      const { data: returnsWithMargin, error: returnsMarginError } = await supabase
-        .from('returns')
-        .select('quantity, restockable, product_variants(allproducts(margin))');
-
-      if (ordersMarginError || returnsMarginError) {
+        const processedSalesData = (data.salesData || []).map((d: any) => ({
+            label: format(parseISO(d.label), 'dd MMM'),
+            total_sales: Number(d.total_sales) || 0,
+            total_orders: Number(d.total_orders) || 0,
+        }));
+        setSalesData(processedSalesData);
+        
+      } catch (error: any) {
         toast({
           variant: 'destructive',
-          title: 'Error calculating Net Profit',
-          description: ordersMarginError?.message || returnsMarginError?.message,
+          title: 'Error',
+          description: error.message,
         });
-        setNetProfit(0);
-      } else {
-        const grossMargin = (ordersWithMargin || []).reduce((acc: number, order: any) => {
-          const margin = order.product_variants?.allproducts?.margin || 0;
-          return acc + (order.quantity * margin);
-        }, 0);
-
-        const returnImpact = (returnsWithMargin || []).reduce((acc: number, ret: any) => {
-          if (ret.restockable) {
-            return acc + (ret.quantity * 45); // Fixed loss for restockable
-          }
-          const margin = ret.product_variants?.allproducts?.margin || 0;
-          return acc + (ret.quantity * margin); // Loss of margin for non-restockable
-        }, 0);
-
-        setNetProfit(grossMargin - returnImpact);
-      }
-
-
-      setLoading(false);
-    }
-    fetchSummaryData();
-  }, [toast, supabase]);
-
-  useEffect(() => {
-    async function fetchSalesData() {
-        setLoadingSales(true);
-        const { data, error } = await supabase.from('analytics_last_7_days').select('*');
-
-        if (error) {
-            console.error("Error fetching sales data:", error);
-            toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch sales data.' });
-            setSalesData([]);
-        } else if (data) {
-            
-            const processedData = data.map(d => {
-                return {
-                    label: format(parseISO(d.label), 'dd MMM'),
-                    total_sales: Number(d.total_sales) || 0,
-                    total_orders: Number(d.total_orders) || 0,
-                };
-            });
-            
-            setSalesData(processedData);
-        }
-        
+      } finally {
+        setLoading(false);
         setLoadingSales(false);
+      }
     }
-    fetchSalesData();
-  }, [toast, supabase]);
+    fetchAnalyticsData();
+  }, [toast]);
 
 
   const kpiStats = useMemo(() => {
