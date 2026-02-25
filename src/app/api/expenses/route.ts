@@ -1,4 +1,3 @@
-
 import { sql } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
@@ -15,7 +14,7 @@ export async function GET(request: Request) {
 
   try {
     let whereClauses = ['is_deleted = false'];
-    let params: string[] = [];
+    let params: any[] = [];
     let paramIndex = 1;
 
     if (fromDate) {
@@ -36,14 +35,21 @@ export async function GET(request: Request) {
     const dataQuery = `SELECT * FROM business_expenses ${whereString} ORDER BY expense_date DESC LIMIT ${pageSize} OFFSET ${offset}`;
     const countQuery = `SELECT COUNT(*) FROM business_expenses ${whereString}`;
     
+    // sql helper now supports (query, params) pattern correctly
     const [data, countResult] = await Promise.all([
         sql(dataQuery, params),
         sql(countQuery, params),
     ]);
 
-    return NextResponse.json({ data, count: Number(countResult[0].count) });
+    const formattedData = (data || []).map((e: any) => ({
+        ...e,
+        amount: Number(e.amount || 0)
+    }));
+
+    return NextResponse.json({ data: formattedData, count: Number(countResult[0]?.count || 0) });
 
   } catch (error: any) {
+    console.error("API Expenses GET Error:", error);
     return NextResponse.json({ message: 'Failed to fetch expenses', error: error.message }, { status: 500 });
   }
 }

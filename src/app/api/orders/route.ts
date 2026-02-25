@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 
 export const revalidate = 0;
 
-// GET paginated orders
+// GET paginated orders with filters
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
   const page = parseInt(searchParams.get('page') || '1', 10);
@@ -20,7 +20,7 @@ export async function GET(request: Request) {
     let params = [];
     let paramIndex = 1;
 
-    if (platform) {
+    if (platform && platform !== 'all') {
       whereClauses.push(`o.platform = $${paramIndex++}`);
       params.push(platform);
     }
@@ -38,34 +38,52 @@ export async function GET(request: Request) {
       paramIndex++;
     }
 
-    const whereString = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+    const whereString = `WHERE ${whereClauses.join(' AND ')}`;
     
     const query = `
-      SELECT o.id, o.order_date, o.platform, o.quantity, o.selling_price, o.total_amount, pv.variant_sku, p.product_name
+      SELECT 
+        o.id, 
+        o.created_at, 
+        o.order_date, 
+        o.platform, 
+        o.quantity, 
+        o.selling_price, 
+        o.total_amount, 
+        pv.variant_sku, 
+        p.product_name
       FROM orders o
       LEFT JOIN product_variants pv ON o.variant_id = pv.id
       LEFT JOIN allproducts p ON pv.product_id = p.id
       ${whereString}
-      ORDER BY o.order_date DESC
+      ORDER BY o.order_date DESC, o.created_at DESC
       LIMIT ${pageSize} OFFSET ${offset}
     `;
 
     const countQuery = `
-      SELECT COUNT(o.id)
+      SELECT COUNT(*)
       FROM orders o
       LEFT JOIN product_variants pv ON o.variant_id = pv.id
       LEFT JOIN allproducts p ON pv.product_id = p.id
       ${whereString}
     `;
 
-    const [orders, total] = await Promise.all([
+    // sql helper now supports (query, params) pattern correctly
+    const [ordersResult, totalResult] = await Promise.all([
         sql(query, params),
         sql(countQuery, params)
     ]);
 
+    // Strict numeric casting for frontend stability
+    const formattedOrders = (ordersResult || []).map((o: any) => ({
+        ...o,
+        quantity: Number(o.quantity || 0),
+        selling_price: Number(o.selling_price || 0),
+        total_amount: Number(o.total_amount || 0),
+    }));
+
     return NextResponse.json({
-        data: orders,
-        totalRows: Number(total[0].count)
+        data: formattedOrders,
+        totalRows: Number(totalResult[0]?.count || 0)
     });
 
   } catch (error: any) {

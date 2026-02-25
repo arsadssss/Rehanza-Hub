@@ -1,4 +1,3 @@
-
 import { sql } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
@@ -34,7 +33,7 @@ export async function GET(request: Request) {
 
   try {
     let whereClauses = ['is_deleted = false'];
-    let params: string[] = [];
+    let params: any[] = [];
     let paramIndex = 1;
 
     if (group && group !== 'all') {
@@ -52,6 +51,7 @@ export async function GET(request: Request) {
     const countQuery = `SELECT COUNT(*) FROM tasks ${whereString}`;
     const progressQuery = `SELECT status, task_group FROM tasks WHERE is_deleted = false`;
 
+    // sql helper now supports (query, params) pattern correctly
     const [data, countResult, progressResult] = await Promise.all([
         sql(dataQuery, params),
         sql(countQuery, params),
@@ -60,9 +60,10 @@ export async function GET(request: Request) {
     
     const progress = calculateProgress(progressResult);
 
-    return NextResponse.json({ data, count: Number(countResult[0].count), progress });
+    return NextResponse.json({ data, count: Number(countResult[0]?.count || 0), progress });
 
   } catch (error: any) {
+    console.error("API Tasks GET Error:", error);
     return NextResponse.json({ message: 'Failed to fetch tasks', error: error.message }, { status: 500 });
   }
 }

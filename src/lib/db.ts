@@ -6,11 +6,23 @@ if (!process.env.DATABASE_URL) {
 
 const neonConnection = neon(process.env.DATABASE_URL);
 
-// Create a template literal tag function to mimic @vercel/postgres `sql`
-// This provides a safer and more convenient way to write queries with parameters.
-export async function sql(strings: TemplateStringsArray, ...values: any[]) {
+/**
+ * Enhanced sql helper that supports both tagged template literals and direct calls.
+ * 
+ * Usage 1 (Tagged Template): 
+ *   await sql`SELECT * FROM users WHERE id = ${id}`
+ * 
+ * Usage 2 (Direct Call for dynamic queries): 
+ *   await sql("SELECT * FROM users WHERE id = $1", [id])
+ */
+export async function sql(strings: TemplateStringsArray | string, ...values: any[]) {
+  // If strings is a string, it's a direct call with (query, params)
+  if (typeof strings === 'string') {
+    return neonConnection(strings, values[0] || []);
+  }
+  
+  // Standard tagged template literal logic
   const query = strings.reduce((acc, part, i) => {
-    // Replace `?` with numbered placeholders `$1`, `$2`, etc.
     return acc + part + (i < values.length ? `$${i + 1}` : '');
   }, '');
   
