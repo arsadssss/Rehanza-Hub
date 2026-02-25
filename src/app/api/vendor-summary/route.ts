@@ -1,3 +1,4 @@
+
 import { sql } from '@/lib/neon';
 import { NextResponse } from 'next/server';
 
@@ -5,9 +6,12 @@ export const revalidate = 0;
 
 /**
  * GET overall vendor financial summary
+ * Used for high-level dashboard metrics.
  */
 export async function GET() {
   try {
+    console.log("Vendor Summary API (Singular) hit");
+
     const [purchasesRes, paymentsRes] = await Promise.all([
       sql`
         SELECT COALESCE(SUM(quantity * cost_per_unit), 0) as total_purchase 
@@ -25,6 +29,8 @@ export async function GET() {
     const totalPaid = Number(paymentsRes[0]?.total_paid || 0);
     const totalDue = totalPurchase - totalPaid;
 
+    console.log("Overall Totals Calculated:", { totalPurchase, totalPaid, totalDue });
+
     return NextResponse.json({
       success: true,
       data: {
@@ -34,7 +40,7 @@ export async function GET() {
     });
 
   } catch (error: any) {
-    console.error("API Vendor overall summary error:", error);
+    console.error("Vendor Summary API (Singular) Error:", error);
     return NextResponse.json(
       { success: false, error: error.message },
       { status: 500 }

@@ -1,17 +1,18 @@
+
 import { sql } from '@/lib/neon';
 import { NextResponse } from 'next/server';
 
 export const revalidate = 0;
 
 /**
- * GET list of all active vendors
+ * GET list of all vendors
+ * Used for dropdowns and listing.
  */
 export async function GET() {
     try {
         const vendors = await sql`
             SELECT id, vendor_name, contact_person, email, phone 
             FROM vendors 
-            WHERE is_deleted = false 
             ORDER BY vendor_name ASC
         `;
         return NextResponse.json({

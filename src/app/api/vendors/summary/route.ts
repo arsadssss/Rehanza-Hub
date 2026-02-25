@@ -1,28 +1,34 @@
-import { sql } from '@/lib/db';
+
+import { sql } from '@/lib/neon';
 import { NextResponse } from 'next/server';
 
 export const revalidate = 0;
 
 /**
- * GET detailed vendor summary for the dashboard UI
- * Aggregates purchases and payments per vendor.
+ * GET detailed vendor summary for the Vendors Page UI
+ * Aggregates purchases and payments per individual vendor.
  */
 export async function GET() {
   try {
+    console.log("Vendors Breakdown API (Plural) hit");
+
+    // Fetch base data using the correct Neon schema
     const [vendorsRes, purchasesRes, paymentsRes] = await Promise.all([
-        sql`SELECT id, vendor_name FROM vendors WHERE is_deleted = false`,
+        sql`SELECT id, vendor_name FROM vendors`, // Safely fetch vendors without is_deleted filter
         sql`SELECT vendor_id, (quantity * cost_per_unit)::numeric as line_total FROM vendor_purchases WHERE is_deleted = false`,
         sql`SELECT vendor_id, amount::numeric as amount FROM vendor_payments WHERE is_deleted = false`,
     ]);
 
+    console.log(`Fetched ${vendorsRes.length} vendors, ${purchasesRes.length} purchases, ${paymentsRes.length} payments`);
+
     const summaryData = vendorsRes.map((vendor: any) => {
       const total_purchase = purchasesRes
         .filter((p: any) => p.vendor_id === vendor.id)
-        .reduce((sum: number, p: any) => sum + Number(p.line_total), 0);
+        .reduce((sum: number, p: any) => sum + Number(p.line_total || 0), 0);
       
       const total_paid = paymentsRes
         .filter((p: any) => p.vendor_id === vendor.id)
-        .reduce((sum: number, p: any) => sum + Number(p.amount), 0);
+        .reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
 
       return {
         id: vendor.id,
@@ -33,8 +39,9 @@ export async function GET() {
       };
     });
 
+    // Calculate overall aggregates for the summary cards
     const totalDue = summaryData.reduce((acc: number, v: any) => acc + (v.balance_due > 0 ? v.balance_due : 0), 0);
-    const totalInventoryValue = purchasesRes.reduce((acc: number, p: any) => acc + Number(p.line_total), 0);
+    const totalInventoryValue = purchasesRes.reduce((acc: number, p: any) => acc + Number(p.line_total || 0), 0);
     
     return NextResponse.json({
         success: true,
@@ -42,8 +49,9 @@ export async function GET() {
         totalDueAllVendors: totalDue,
         totalInventoryValue: totalInventoryValue
     });
+
   } catch (error: any) {
-    console.error("Vendor Summary API Error:", error);
+    console.error("Vendors Breakdown API (Plural) Error:", error);
     return NextResponse.json({ 
         success: false, 
         message: 'Failed to fetch vendor summary', 
