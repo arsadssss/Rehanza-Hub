@@ -484,16 +484,16 @@ export default function DashboardPage() {
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [platformPerformance, setPlatformPerformance] = useState<PlatformPerformance[]>([]);
   const [ordersReturnsData, setOrdersReturnsData] = useState<WeeklyOrdersVsReturns[]>([]);
-  const [bestSeller, setBestSeller] = useState<BestSellingSku | null>(null);
-  const [lowStock, setLowStock] = useState<LowStockItems | null>(null);
   const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([]);
   const [topSellingProducts, setTopSellingProducts] = useState<TopSellingProduct[]>([]);
   const [loading, setLoading] = useState(true);
+  const [isMounted, setIsMounted] = useState(false);
 
   const [totalDueAllVendors, setTotalDueAllVendors] = useState(0);
   const [totalInventoryValue, setTotalInventoryValue] = useState(0);
 
   useEffect(() => {
+    setIsMounted(true);
     async function fetchData() {
       setLoading(true);
       try {
@@ -506,8 +506,6 @@ export default function DashboardPage() {
         
         setSummary(data.summary);
         setOrdersReturnsData(data.ordersReturnsData || []);
-        setBestSeller(data.bestSeller);
-        setLowStock(data.lowStock);
         setRecentOrders(data.recentOrders || []);
         setTopSellingProducts(data.topSellingProducts || []);
 
@@ -582,7 +580,7 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between">
               <div>
                   <h3 className="text-sm font-medium">Total Due Across Vendors</h3>
-                  <div className="text-4xl font-bold font-headline mt-1">{formatINR(totalDueAllVendors)}</div>
+                  <div className="text-4xl font-bold font-headline mt-1">{isMounted ? formatINR(totalDueAllVendors) : '...'}</div>
                   <p className="text-xs text-white/80">
                     {totalDueAllVendors > 0 ? "Outstanding Payable" : "All Vendors Settled"}
                   </p>
@@ -608,7 +606,7 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between">
               <div>
                 <h3 className="text-sm font-medium">Total Inventory Purchase Value</h3>
-                <div className="text-4xl font-bold font-headline mt-1">{formatINR(totalInventoryValue)}</div>
+                <div className="text-4xl font-bold font-headline mt-1">{isMounted ? formatINR(totalInventoryValue) : '...'}</div>
                 <p className="text-xs text-white/80">
                     {totalInventoryValue > 0 ? "Capital Invested in Stock" : "No Inventory in Stock"}
                 </p>
@@ -625,21 +623,21 @@ export default function DashboardPage() {
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <KpiCard
           title="Total Units Sold"
-          value={loading ? '...' : (summary?.total_units || 0).toLocaleString('en-IN')}
+          value={loading || !isMounted ? '...' : (summary?.total_units || 0).toLocaleString('en-IN')}
           icon={Package}
           gradient="from-purple-500 to-indigo-600"
           loading={loading}
         />
         <KpiCard
           title="Gross Revenue"
-          value={loading ? '...' : formatINR(summary?.gross_revenue || 0)}
+          value={loading || !isMounted ? '...' : formatINR(summary?.gross_revenue || 0)}
           icon={CircleDollarSign}
           gradient="from-cyan-500 to-blue-600"
           loading={loading}
         />
         <KpiCard
           title="Net Profit"
-          value={loading ? '...' : formatINR(summary?.net_profit || 0)}
+          value={loading || !isMounted ? '...' : formatINR(summary?.net_profit || 0)}
           icon={TrendingUp}
           gradient="from-emerald-500 to-green-600"
           loading={loading}
@@ -693,7 +691,7 @@ export default function DashboardPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {loading ? (
+                {loading || !isMounted ? (
                    Array.from({ length: 5 }).map((_, i) => (
                       <TableRow key={i} className="hover:bg-transparent">
                         <TableCell colSpan={7}><Skeleton className="h-8 w-full" /></TableCell>
