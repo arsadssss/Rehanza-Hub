@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, Suspense } from "react";
 import { signIn } from "next-auth/react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
@@ -18,7 +18,7 @@ import { Label } from "@/components/ui/label";
 import { Package, Loader2, AlertCircle } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
-export default function LoginPage() {
+function LoginForm() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -27,13 +27,12 @@ export default function LoginPage() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
 
-  // Check for errors in URL (NextAuth redirects here on failure)
   useEffect(() => {
     const errorParam = searchParams.get("error");
     if (errorParam === "CredentialsSignin") {
       setError("Invalid email or password. Please try again.");
     } else if (errorParam) {
-      setError("An error occurred during authentication. Please check your configuration.");
+      setError(`Authentication error: ${errorParam}. Check server logs.`);
     }
   }, [searchParams]);
 
@@ -42,45 +41,35 @@ export default function LoginPage() {
     setIsLoading(true);
     setError(null);
 
-    console.log("LoginPage: Starting sign-in process...");
-
     try {
+      console.log("LoginPage: Initiating signIn...");
       const result = await signIn("credentials", {
         email,
         password,
         redirect: false,
+        callbackUrl: "/dashboard",
       });
 
-      console.log("LoginPage: Sign-in result received:", result);
+      console.log("LoginPage: result:", result);
 
       if (result?.error) {
-        let message = "Invalid email or password. Please check your credentials.";
-        if (result.error === "Configuration") {
-          message = "Server configuration error. Check your NEXTAUTH_SECRET and NEXTAUTH_URL.";
-        }
-        
-        setError(message);
+        setError(result.error === "CredentialsSignin" ? "Invalid email or password." : result.error);
         toast({
           variant: "destructive",
           title: "Login Failed",
-          description: message,
+          description: result.error,
         });
-      } else {
+      } else if (result?.ok) {
         toast({
           title: "Welcome back!",
-          description: "Login successful. Redirecting to dashboard...",
+          description: "Login successful. Redirecting...",
         });
         router.push("/dashboard");
         router.refresh();
       }
-    } catch (error: any) {
-      console.error("LoginPage: Client-side crash during signIn:", error);
-      setError("A network or system error occurred. Please try again later.");
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: "An unexpected error occurred.",
-      });
+    } catch (err: any) {
+      console.error("LoginPage: Fetch error:", err);
+      setError("Failed to connect to the authentication server. Please check your internet connection and workstation URL.");
     } finally {
       setIsLoading(false);
     }
@@ -94,14 +83,14 @@ export default function LoginPage() {
             <Package className="h-10 w-10 text-white" />
           </div>
           <h1 className="text-3xl font-bold font-headline tracking-tight">Rehanza Hub</h1>
-          <p className="text-muted-foreground text-sm">Welcome back! Please enter your details.</p>
+          <p className="text-muted-foreground text-sm">Sign in to your management console</p>
         </div>
 
         <Card className="border-0 shadow-xl rounded-2xl overflow-hidden bg-white/80 dark:bg-black/20 backdrop-blur-xl">
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl font-bold text-center">Login</CardTitle>
             <CardDescription className="text-center">
-              Access your brand management console
+              Enter your credentials to continue
             </CardDescription>
           </CardHeader>
           <form onSubmit={handleSubmit}>
@@ -127,9 +116,7 @@ export default function LoginPage() {
                 />
               </div>
               <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="password">Password</Label>
-                </div>
+                <Label htmlFor="password">Password</Label>
                 <Input
                   id="password"
                   type="password"
@@ -152,13 +139,18 @@ export default function LoginPage() {
                   "Sign In"
                 )}
               </Button>
-              <p className="text-xs text-center text-muted-foreground">
-                By signing in, you agree to our Terms of Service and Privacy Policy.
-              </p>
             </CardFooter>
           </form>
         </Card>
       </div>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<div className="flex min-h-screen items-center justify-center">Loading...</div>}>
+      <LoginForm />
+    </Suspense>
   );
 }

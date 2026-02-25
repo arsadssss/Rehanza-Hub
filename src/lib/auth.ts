@@ -9,7 +9,7 @@ export const authOptions: NextAuthOptions = {
     maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   secret: process.env.NEXTAUTH_SECRET,
-  debug: process.env.NODE_ENV === "development",
+  debug: true, // Keep enabled to debug cloud environment handshake
   pages: {
     signIn: "/login",
     error: "/login",
@@ -38,12 +38,12 @@ export const authOptions: NextAuthOptions = {
             LIMIT 1
           `;
 
-          const user = users[0];
-
-          if (!user) {
+          if (!users || users.length === 0) {
             console.warn(`Auth: No user found with email ${credentials.email}`);
             return null;
           }
+
+          const user = users[0];
 
           // Verify password using bcrypt
           const isValid = await bcrypt.compare(
@@ -67,7 +67,6 @@ export const authOptions: NextAuthOptions = {
           };
         } catch (error) {
           console.error("Auth: Fatal error during authorization query:", error);
-          // Return null to indicate failure to NextAuth
           return null;
         }
       },
