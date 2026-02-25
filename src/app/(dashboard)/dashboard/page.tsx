@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useEffect, useState, useMemo } from 'react';
-import { createClient } from '@/lib/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 import { formatINR } from '@/lib/format';
 import {
   Card,
@@ -93,9 +93,7 @@ type RecentOrder = {
   platform: 'Meesho' | 'Flipkart' | 'Amazon';
   quantity: number;
   total_amount: number;
-  product_variants: {
-    variant_sku: string;
-  } | null;
+  variant_sku: string | null;
 };
 
 // --- SUB-COMPONENTS ---
@@ -480,7 +478,7 @@ const TopSellingProductsCard = ({ products, loading }: { products: TopSellingPro
 
 // Main Page Component
 export default function DashboardPage() {
-  const supabase = createClient();
+  const { toast } = useToast();
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [platformPerformance, setPlatformPerformance] = useState<PlatformPerformance[]>([]);
   const [ordersReturnsData, setOrdersReturnsData] = useState<WeeklyOrdersVsReturns[]>([]);
@@ -496,96 +494,72 @@ export default function DashboardPage() {
   useEffect(() => {
     async function fetchData() {
       setLoading(true);
-
-      const [
-        summaryRes,
-        platformRes,
-        ordersReturnsRes,
-        bestSellerRes,
-        lowStockRes,
-        recentOrdersRes,
-        topSellingRes,
-        vendorsRes,
-        vendorPurchasesRes,
-        vendorPaymentsRes,
-        allOrdersRes,
-      ] = await Promise.all([
-        supabase.from('dashboard_summary').select('*').single(),
-        supabase.from('platform_performance').select('*'),
-        supabase.from('weekly_orders_vs_returns').select('*'),
-        supabase.from('best_selling_sku').select('*').single(),
-        supabase.from('low_stock_items').select('*').single(),
-        supabase.from('orders').select(`
-            id,
-            created_at,
-            platform,
-            quantity,
-            total_amount,
-            product_variants (
-              variant_sku
-            )
-        `).order('created_at', { ascending: false }).limit(5),
-        supabase.from('top_selling_products').select('*').limit(5),
-        supabase.from('vendors').select('id, vendor_name'),
-        supabase.from('vendor_purchases').select('vendor_id, quantity, cost_per_unit').eq('is_deleted', false),
-        supabase.from('vendor_payments').select('vendor_id, amount').eq('is_deleted', false),
-        supabase.from('orders').select('platform, quantity, selling_price'),
-      ]);
-
-      setSummary(summaryRes.data);
-
-      const allOrders = allOrdersRes.data || [];
-      const platformRevenues = allOrders.reduce((acc: any, order: any) => {
-        const platform = order.platform;
-        if (!acc[platform]) {
-          acc[platform] = 0;
+      try {
+        const res = await fetch('/api/dashboard');
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.message || 'Failed to fetch dashboard data');
         }
-        const price = Number(order.selling_price || 0);
-        const qty = Number(order.quantity || 0);
-        acc[platform] += price * qty;
-        return acc;
-      }, { Meesho: 0, Flipkart: 0, Amazon: 0 });
+        const data = await res.json();
+        
+        setSummary(data.summary);
+        setOrdersReturnsData(data.ordersReturnsData || []);
+        setBestSeller(data.bestSeller);
+        setLowStock(data.lowStock);
+        setRecentOrders(data.recentOrders || []);
+        setTopSellingProducts(data.topSellingProducts || []);
 
-      const updatedPlatformPerformance = (platformRes.data || []).map((p: PlatformPerformance) => ({
-        ...p,
-        total_revenue: platformRevenues[p.platform] || 0,
-      }));
-      setPlatformPerformance(updatedPlatformPerformance);
+        const allOrders = data.allOrders || [];
+        const platformRevenues = allOrders.reduce((acc: any, order: any) => {
+            const platform = order.platform;
+            if (!acc[platform]) {
+            acc[platform] = 0;
+            }
+            const price = Number(order.selling_price || 0);
+            const qty = Number(order.quantity || 0);
+            acc[platform] += price * qty;
+            return acc;
+        }, { Meesho: 0, Flipkart: 0, Amazon: 0 });
 
-      setOrdersReturnsData(ordersReturnsRes.data || []);
-      setBestSeller(bestSellerRes.data);
-      setLowStock(lowStockRes.data);
-      setRecentOrders(recentOrdersRes.data as RecentOrder[] || []);
-      setTopSellingProducts(topSellingRes.data || []);
+        const updatedPlatformPerformance = (data.platformPerformance || []).map((p: PlatformPerformance) => ({
+            ...p,
+            total_revenue: platformRevenues[p.platform] || 0,
+        }));
+        setPlatformPerformance(updatedPlatformPerformance);
 
-      // Calculate total due from frontend
-      const vendors = vendorsRes.data || [];
-      const purchases = vendorPurchasesRes.data || [];
-      const payments = vendorPaymentsRes.data || [];
-      
-      const totalPurchase = purchases.reduce((sum, p) => {
-        const qty = Number(p.quantity || 0);
-        const cost = Number(p.cost_per_unit || 0);
-        return sum + (qty * cost);
-      }, 0);
+        const purchases = data.vendorPurchases || [];
+        const payments = data.vendorPayments || [];
+        
+        const totalPurchase = purchases.reduce((sum: number, p: any) => {
+            const qty = Number(p.quantity || 0);
+            const cost = Number(p.cost_per_unit || 0);
+            return sum + (qty * cost);
+        }, 0);
 
-      const totalPaid = payments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
-      
-      setTotalDueAllVendors(totalPurchase - totalPaid);
-      
-      // Calculate inventory purchase value from all purchases
-      const totalValue = purchases.reduce((sum, purchase) => {
-          const qty = Number(purchase.quantity || 0);
-          const cost = Number(purchase.cost_per_unit || 0);
-          return sum + (qty * cost);
-      }, 0);
-      setTotalInventoryValue(totalValue);
+        const totalPaid = payments.reduce((sum: number, p: any) => sum + Number(p.amount || 0), 0);
+        
+        setTotalDueAllVendors(totalPurchase - totalPaid);
+        
+        const totalValue = purchases.reduce((sum: number, purchase: any) => {
+            const qty = Number(purchase.quantity || 0);
+            const cost = Number(purchase.cost_per_unit || 0);
+            return sum + (qty * cost);
+        }, 0);
+        setTotalInventoryValue(totalValue);
 
-      setLoading(false);
+      } catch (error: any) {
+        toast({
+          variant: 'destructive',
+          title: 'Error fetching dashboard data',
+          description: error.message,
+        });
+      } finally {
+        setLoading(false);
+      }
     }
 
     fetchData();
-  }, [supabase]);
+  }, [toast]);
   
 
   return (
@@ -727,7 +701,7 @@ export default function DashboardPage() {
                     <TableRow key={order.id} className="hover:bg-gray-50/50 dark:hover:bg-white/5">
                       <TableCell>{new Date(order.created_at).toLocaleDateString('en-IN')}</TableCell>
                       <TableCell><Badge variant="secondary">{order.platform}</Badge></TableCell>
-                      <TableCell className="font-medium">{order.product_variants?.variant_sku || 'N/A'}</TableCell>
+                      <TableCell className="font-medium">{order.variant_sku || 'N/A'}</TableCell>
                       <TableCell className="text-center">{order.quantity}</TableCell>
                       <TableCell className="text-right">{formatINR(order.total_amount)}</TableCell>
                       <TableCell className="text-center"><Badge>Shipped</Badge></TableCell>

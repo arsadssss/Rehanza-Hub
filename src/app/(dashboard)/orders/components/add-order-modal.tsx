@@ -6,7 +6,6 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 
-import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import {
@@ -33,20 +32,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import type { Variant } from "../../products/page"
 import { formatINR } from "@/lib/format"
 import { format } from "date-fns"
 import type { Order } from "../page"
 
 // A more detailed type for variants that includes the parent product's prices
-type VariantWithProduct = Variant & {
-  allproducts: {
-    sku: string;
-    product_name: string;
-    meesho_price: number;
-    flipkart_price: number;
-    amazon_price: number;
-  } | null;
+type VariantWithProduct = {
+  id: string;
+  variant_sku: string;
+  stock: number;
+  meesho_price: number;
+  flipkart_price: number;
+  amazon_price: number;
 };
 
 const formSchema = z.object({
@@ -66,7 +63,6 @@ interface AddOrderModalProps {
 }
 
 export function AddOrderModal({ isOpen, onClose, onSuccess, order }: AddOrderModalProps) {
-  const supabase = createClient();
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const [variants, setVariants] = React.useState<VariantWithProduct[]>([])
@@ -83,22 +79,13 @@ export function AddOrderModal({ isOpen, onClose, onSuccess, order }: AddOrderMod
 
   React.useEffect(() => {
     async function fetchVariants() {
-      const { data } = await supabase
-        .from("product_variants")
-        .select(`
-          *,
-          allproducts (
-            sku,
-            product_name,
-            meesho_price,
-            flipkart_price,
-            amazon_price
-          )
-        `)
-        .order("variant_sku");
-        
-      if (data) {
-        setVariants(data as any as VariantWithProduct[]);
+      try {
+        const res = await fetch('/api/products?type=variants');
+        if (!res.ok) throw new Error("Failed to fetch variants");
+        const data = await res.json();
+        setVariants(data);
+      } catch (error) {
+        toast({ variant: 'destructive', title: 'Error', description: 'Could not load product variants.' });
       }
     }
     if (isOpen) {
@@ -119,7 +106,7 @@ export function AddOrderModal({ isOpen, onClose, onSuccess, order }: AddOrderMod
         });
       }
     }
-  }, [isOpen, order, supabase, form]);
+  }, [isOpen, order, form, toast]);
 
   const platform = form.watch("platform")
   const variantId = form.watch("variant_id")
@@ -127,11 +114,11 @@ export function AddOrderModal({ isOpen, onClose, onSuccess, order }: AddOrderMod
   React.useEffect(() => {
     if (platform && variantId) {
       const selectedVariant = variants.find(v => v.id === variantId);
-      if (selectedVariant?.allproducts) {
+      if (selectedVariant) {
         switch (platform) {
-          case "Meesho": setSellingPrice(selectedVariant.allproducts.meesho_price); break;
-          case "Flipkart": setSellingPrice(selectedVariant.allproducts.flipkart_price); break;
-          case "Amazon": setSellingPrice(selectedVariant.allproducts.amazon_price); break;
+          case "Meesho": setSellingPrice(selectedVariant.meesho_price); break;
+          case "Flipkart": setSellingPrice(selectedVariant.flipkart_price); break;
+          case "Amazon": setSellingPrice(selectedVariant.amazon_price); break;
           default: setSellingPrice(null);
         }
       }
@@ -158,15 +145,19 @@ export function AddOrderModal({ isOpen, onClose, onSuccess, order }: AddOrderMod
     try {
       const orderData = {
         ...values,
+        id: order?.id, // Include id for updates
         selling_price: sellingPrice,
       };
 
-      const { error } = isEditMode
-        ? await supabase.from("orders").update(orderData).eq('id', order.id)
-        : await supabase.from("orders").insert([orderData]);
+      const res = await fetch('/api/orders', {
+        method: isEditMode ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(orderData),
+      });
 
-      if (error) {
-        throw error
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || `Failed to ${isEditMode ? 'save' : 'add'} order.`);
       }
 
       toast({
@@ -179,7 +170,7 @@ export function AddOrderModal({ isOpen, onClose, onSuccess, order }: AddOrderMod
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message || `Failed to ${isEditMode ? 'save' : 'add'} order.`,
+        description: error.message,
       })
     } finally {
         setIsSubmitting(false)

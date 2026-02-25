@@ -1,10 +1,8 @@
-
 'use client';
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import React from 'react';
-import type { User } from '@supabase/supabase-js';
 import {
   Sidebar,
   SidebarHeader,
@@ -27,7 +25,6 @@ import {
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import LogoutButton from '@/components/LogoutButton';
 
 const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -41,8 +38,11 @@ const navItems = [
   { href: '/settings', icon: Settings, label: 'Settings' },
 ];
 
-export function SidebarNav({ user }: { user: User }) {
+export function SidebarNav() {
   const pathname = usePathname();
+
+  const email = 'Admin';
+  const firstLetter = email.charAt(0).toUpperCase();
 
   return (
     <Sidebar className="border-r">
@@ -54,13 +54,19 @@ export function SidebarNav({ user }: { user: User }) {
           </h1>
         </div>
       </SidebarHeader>
+
       <SidebarContent className="p-2">
         <SidebarMenu>
           {navItems.map((item) => (
             <SidebarMenuItem key={item.href}>
               <SidebarMenuButton
                 asChild
-                isActive={pathname.startsWith(item.href) && (item.href === '/dashboard' ? pathname === item.href : true)}
+                isActive={
+                  pathname.startsWith(item.href) &&
+                  (item.href === '/dashboard'
+                    ? pathname === item.href
+                    : true)
+                }
               >
                 <Link href={item.href}>
                   <item.icon className="h-5 w-5" />
@@ -71,17 +77,20 @@ export function SidebarNav({ user }: { user: User }) {
           ))}
         </SidebarMenu>
       </SidebarContent>
+
       <Separator className="my-2" />
-      <SidebarFooter className="p-4 space-y-4">
+
+      <SidebarFooter className="p-4">
         <div className="flex items-center gap-3">
           <Avatar className="h-9 w-9">
-            <AvatarFallback>{user.email?.[0].toUpperCase() ?? 'U'}</AvatarFallback>
+            <AvatarFallback>{firstLetter}</AvatarFallback>
           </Avatar>
           <div className="flex flex-col overflow-hidden">
-            <span className="text-sm font-medium text-sidebar-foreground truncate">{user.email}</span>
+            <span className="text-sm font-medium text-sidebar-foreground truncate">
+              {email}
+            </span>
           </div>
         </div>
-        <LogoutButton />
       </SidebarFooter>
     </Sidebar>
   );
