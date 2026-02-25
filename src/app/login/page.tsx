@@ -1,8 +1,8 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { signIn } from "next-auth/react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useToast } from "@/hooks/use-toast";
 import {
   Card,
@@ -25,11 +25,24 @@ export default function LoginPage() {
   const [error, setError] = useState<string | null>(null);
   const router = useRouter();
   const { toast } = useToast();
+  const searchParams = useSearchParams();
+
+  // Check for errors in URL (NextAuth redirects here on failure)
+  useEffect(() => {
+    const errorParam = searchParams.get("error");
+    if (errorParam === "CredentialsSignin") {
+      setError("Invalid email or password. Please try again.");
+    } else if (errorParam) {
+      setError("An error occurred during authentication. Please check your configuration.");
+    }
+  }, [searchParams]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
     setError(null);
+
+    console.log("LoginPage: Starting sign-in process...");
 
     try {
       const result = await signIn("credentials", {
@@ -38,12 +51,19 @@ export default function LoginPage() {
         redirect: false,
       });
 
+      console.log("LoginPage: Sign-in result received:", result);
+
       if (result?.error) {
-        setError("Invalid email or password. Please check your credentials and try again.");
+        let message = "Invalid email or password. Please check your credentials.";
+        if (result.error === "Configuration") {
+          message = "Server configuration error. Check your NEXTAUTH_SECRET and NEXTAUTH_URL.";
+        }
+        
+        setError(message);
         toast({
           variant: "destructive",
           title: "Login Failed",
-          description: "Invalid email or password.",
+          description: message,
         });
       } else {
         toast({
@@ -53,8 +73,9 @@ export default function LoginPage() {
         router.push("/dashboard");
         router.refresh();
       }
-    } catch (error) {
-      setError("An unexpected error occurred. Please try again later.");
+    } catch (error: any) {
+      console.error("LoginPage: Client-side crash during signIn:", error);
+      setError("A network or system error occurred. Please try again later.");
       toast({
         variant: "destructive",
         title: "Error",

@@ -6,10 +6,13 @@ import bcrypt from "bcryptjs";
 export const authOptions: NextAuthOptions = {
   session: {
     strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   secret: process.env.NEXTAUTH_SECRET,
+  debug: process.env.NODE_ENV === "development",
   pages: {
     signIn: "/login",
+    error: "/login",
   },
   providers: [
     CredentialsProvider({
@@ -20,11 +23,13 @@ export const authOptions: NextAuthOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.email || !credentials?.password) {
-          console.log("Auth: Missing credentials");
+          console.error("Auth: Missing credentials in request");
           return null;
         }
 
         try {
+          console.log(`Auth: Attempting login for ${credentials.email}`);
+          
           // Query user from Neon using case-insensitive email matching
           const users = await sql`
             SELECT id, email, password, name, role 
@@ -36,7 +41,7 @@ export const authOptions: NextAuthOptions = {
           const user = users[0];
 
           if (!user) {
-            console.log("Authorize user: Not found");
+            console.warn(`Auth: No user found with email ${credentials.email}`);
             return null;
           }
 
@@ -46,23 +51,23 @@ export const authOptions: NextAuthOptions = {
             user.password
           );
 
-          console.log("Authorize user:", { id: user.id, email: user.email, role: user.role });
-          console.log("Password valid:", isValid);
-
           if (!isValid) {
-            console.log("Auth: Invalid password");
+            console.warn(`Auth: Invalid password for user ${credentials.email}`);
             return null;
           }
+
+          console.log(`Auth: Success! User ${user.email} authenticated.`);
 
           // Return successful user object with string ID
           return {
             id: String(user.id),
             email: user.email,
             name: user.name || user.email.split('@')[0],
-            role: user.role,
+            role: user.role || 'admin',
           };
         } catch (error) {
-          console.error("Auth: Fatal error during authorization:", error);
+          console.error("Auth: Fatal error during authorization query:", error);
+          // Return null to indicate failure to NextAuth
           return null;
         }
       },
