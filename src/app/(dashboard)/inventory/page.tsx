@@ -4,6 +4,7 @@
 import React, { useEffect, useState, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { formatINR } from '@/lib/format';
+import { useRouter } from 'next/navigation';
 
 import {
   Card,
@@ -37,6 +38,7 @@ type InventoryItem = {
 };
 
 export default function InventoryPage() {
+  const router = useRouter();
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -197,7 +199,10 @@ export default function InventoryPage() {
                   </div>
                 </div>
 
-                <Button className="w-full mt-6 h-14 text-lg font-bold bg-white/50 dark:bg-black/20 text-black dark:text-white backdrop-blur-sm border border-white/30 dark:border-black/50 hover:bg-white/70 dark:hover:bg-black/30">
+                <Button 
+                  onClick={() => router.push(`/products?tab=variants&search=${encodeURIComponent(item.sku)}`)}
+                  className="w-full mt-6 h-14 text-lg font-bold bg-white/50 dark:bg-black/20 text-black dark:text-white backdrop-blur-sm border border-white/30 dark:border-black/50 hover:bg-white/70 dark:hover:bg-black/30"
+                >
                   EXPLORE SIZE BY <MoveHorizontal className="ml-2" />
                 </Button>
 

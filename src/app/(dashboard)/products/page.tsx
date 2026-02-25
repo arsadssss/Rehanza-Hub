@@ -1,9 +1,10 @@
 
 "use client"
 
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, Suspense } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { formatINR } from '@/lib/format';
+import { useSearchParams } from 'next/navigation';
 
 import {
   Card,
@@ -85,8 +86,12 @@ const SummaryCard = ({ title, value, icon: Icon, loading }: { title: string; val
   </Card>
 );
 
-export default function ProductsPage() {
+function ProductsContent() {
   const { toast } = useToast();
+  const searchParams = useSearchParams();
+  
+  const initialTab = searchParams.get('tab') === 'variants' ? 'variants' : 'products';
+  const initialSearch = searchParams.get('search') || '';
 
   // Products state
   const [products, setProducts] = useState<Product[]>([]);
@@ -107,7 +112,7 @@ export default function ProductsPage() {
   // Variants state
   const [variants, setVariants] = useState<Variant[]>([]);
   const [loadingVariants, setLoadingVariants] = useState(true);
-  const [searchTermVariants, setSearchTermVariants] = useState('');
+  const [searchTermVariants, setSearchTermVariants] = useState(initialSearch);
   const [selectedVariantRows, setSelectedVariantRows] = useState<string[]>([]);
   const [isAddVariantModalOpen, setIsAddVariantModalOpen] = useState(false);
   const [editingVariant, setEditingVariant] = useState<Variant | null>(null);
@@ -261,7 +266,7 @@ export default function ProductsPage() {
         variant={editingVariant}
       />
       
-      <Tabs defaultValue="products" className="w-full">
+      <Tabs defaultValue={initialTab} className="w-full">
         <TabsList className="grid w-full grid-cols-2">
           <TabsTrigger value="products">Products</TabsTrigger>
           <TabsTrigger value="variants">Variants</TabsTrigger>
@@ -490,5 +495,13 @@ export default function ProductsPage() {
         </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+export default function ProductsPage() {
+  return (
+    <Suspense fallback={<div className="p-6"><Skeleton className="h-10 w-full mb-6" /><Skeleton className="h-64 w-full" /></div>}>
+      <ProductsContent />
+    </Suspense>
   );
 }
