@@ -6,7 +6,6 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 
-import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import {
@@ -43,7 +42,6 @@ interface AddVendorModalProps {
 }
 
 export function AddVendorModal({ isOpen, onClose, onVendorAdded }: AddVendorModalProps) {
-  const supabase = createClient()
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
 
@@ -65,19 +63,15 @@ export function AddVendorModal({ isOpen, onClose, onVendorAdded }: AddVendorModa
   async function onSubmit(values: VendorFormValues) {
     setIsSubmitting(true)
     try {
-      const { error } = await supabase.from("vendors").insert([values])
+      const res = await fetch('/api/vendors', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(values),
+      });
 
-      if (error) {
-        if (error.code === '23505') { // Unique constraint violation
-          toast({
-            variant: "destructive",
-            title: "Error: Vendor exists",
-            description: `A vendor with the name "${values.vendor_name}" already exists.`,
-          })
-          setIsSubmitting(false)
-          return
-        }
-        throw error
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || "Failed to add vendor.");
       }
 
       toast({
@@ -90,7 +84,7 @@ export function AddVendorModal({ isOpen, onClose, onVendorAdded }: AddVendorModa
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message || "Failed to add vendor.",
+        description: error.message,
       })
     } finally {
       setIsSubmitting(false)

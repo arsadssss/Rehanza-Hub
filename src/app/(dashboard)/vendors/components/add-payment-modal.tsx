@@ -6,7 +6,6 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 
-import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import {
@@ -35,9 +34,7 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { format } from "date-fns"
-import type { VendorPayment } from "../page"
-
-type Vendor = { id: string; vendor_name: string };
+import type { VendorPayment, VendorBalance } from "../page"
 
 const formSchema = z.object({
   vendor_id: z.string().min(1, "Vendor is required"),
@@ -54,13 +51,12 @@ interface AddPaymentModalProps {
   onClose: () => void
   onSuccess: () => void
   payment?: VendorPayment | null
+  vendors: Pick<VendorBalance, 'id' | 'vendor_name'>[];
 }
 
-export function AddPaymentModal({ isOpen, onClose, onSuccess, payment }: AddPaymentModalProps) {
-  const supabase = createClient()
+export function AddPaymentModal({ isOpen, onClose, onSuccess, payment, vendors }: AddPaymentModalProps) {
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [vendors, setVendors] = React.useState<Vendor[]>([])
   const isEditMode = !!payment;
 
   const form = useForm<PaymentFormValues>({
@@ -73,12 +69,7 @@ export function AddPaymentModal({ isOpen, onClose, onSuccess, payment }: AddPaym
   })
 
   React.useEffect(() => {
-    async function fetchVendors() {
-      const { data, error } = await supabase.from("vendors").select("id, vendor_name").order("vendor_name")
-      if (data) setVendors(data)
-    }
     if (isOpen) {
-        fetchVendors()
         if (payment) {
             form.reset({
                 vendor_id: payment.vendor_id,
@@ -97,26 +88,26 @@ export function AddPaymentModal({ isOpen, onClose, onSuccess, payment }: AddPaym
             });
         }
     }
-  }, [isOpen, payment, supabase, form]);
+  }, [isOpen, payment, form]);
 
   async function onSubmit(values: PaymentFormValues) {
     setIsSubmitting(true)
     try {
       const paymentData = { 
         ...values, 
-        payment_date: values.payment_date
+        id: payment?.id
       };
 
-      let error;
-      if (isEditMode) {
-        const { error: updateError } = await supabase.from("vendor_payments").update(paymentData).eq('id', payment.id);
-        error = updateError;
-      } else {
-        const { error: insertError } = await supabase.from("vendor_payments").insert([paymentData]);
-        error = insertError;
-      }
+      const res = await fetch('/api/vendor-payments', {
+        method: isEditMode ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(paymentData),
+      });
 
-      if (error) throw error
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || `Failed to ${isEditMode ? 'update' : 'add'} payment.`);
+      }
 
       toast({
         title: "Success",
@@ -128,7 +119,7 @@ export function AddPaymentModal({ isOpen, onClose, onSuccess, payment }: AddPaym
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message || `Failed to ${isEditMode ? 'update' : 'add'} payment.`,
+        description: error.message,
       })
     } finally {
       setIsSubmitting(false)

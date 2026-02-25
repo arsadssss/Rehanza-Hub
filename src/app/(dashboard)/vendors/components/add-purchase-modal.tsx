@@ -6,7 +6,6 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 
-import { createClient } from "@/lib/supabase/client"
 import { useToast } from "@/hooks/use-toast"
 import { Button } from "@/components/ui/button"
 import {
@@ -35,9 +34,7 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { format } from "date-fns"
-import type { VendorPurchase } from "../page"
-
-type Vendor = { id: string; vendor_name: string };
+import type { VendorPurchase, VendorBalance } from "../page"
 
 const formSchema = z.object({
   vendor_id: z.string().min(1, "Vendor is required"),
@@ -55,13 +52,12 @@ interface AddPurchaseModalProps {
   onClose: () => void
   onSuccess: () => void
   purchase?: VendorPurchase | null;
+  vendors: Pick<VendorBalance, 'id' | 'vendor_name'>[];
 }
 
-export function AddPurchaseModal({ isOpen, onClose, onSuccess, purchase }: AddPurchaseModalProps) {
-  const supabase = createClient()
+export function AddPurchaseModal({ isOpen, onClose, onSuccess, purchase, vendors }: AddPurchaseModalProps) {
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
-  const [vendors, setVendors] = React.useState<Vendor[]>([])
   const isEditMode = !!purchase;
 
   const form = useForm<PurchaseFormValues>({
@@ -76,12 +72,7 @@ export function AddPurchaseModal({ isOpen, onClose, onSuccess, purchase }: AddPu
   })
 
   React.useEffect(() => {
-    async function fetchVendors() {
-      const { data: vendorData } = await supabase.from("vendors").select("id, vendor_name").order("vendor_name")
-      if (vendorData) setVendors(vendorData)
-    }
     if (isOpen) {
-        fetchVendors()
         if (purchase) {
             form.reset({
                 vendor_id: purchase.vendor_id,
@@ -102,26 +93,26 @@ export function AddPurchaseModal({ isOpen, onClose, onSuccess, purchase }: AddPu
             })
         }
     }
-  }, [isOpen, purchase, supabase, form])
+  }, [isOpen, purchase, form])
 
   async function onSubmit(values: PurchaseFormValues) {
     setIsSubmitting(true)
     try {
       const purchaseData = { 
         ...values,
-        purchase_date: values.purchase_date,
+        id: purchase?.id,
       };
 
-      let error;
-      if (isEditMode) {
-        const { error: updateError } = await supabase.from("vendor_purchases").update(purchaseData).eq('id', purchase.id);
-        error = updateError;
-      } else {
-        const { error: insertError } = await supabase.from("vendor_purchases").insert([purchaseData]);
-        error = insertError;
+      const res = await fetch('/api/vendor-purchases', {
+        method: isEditMode ? 'PUT' : 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(purchaseData),
+      });
+
+      if (!res.ok) {
+        const errorData = await res.json();
+        throw new Error(errorData.message || `Failed to ${isEditMode ? 'update' : 'add'} purchase.`);
       }
-      
-      if (error) throw error
 
       toast({
         title: "Success",
@@ -133,7 +124,7 @@ export function AddPurchaseModal({ isOpen, onClose, onSuccess, purchase }: AddPu
       toast({
         variant: "destructive",
         title: "Error",
-        description: error.message || `Failed to ${isEditMode ? 'update' : 'add'} purchase.`,
+        description: error.message,
       })
     } finally {
       setIsSubmitting(false)

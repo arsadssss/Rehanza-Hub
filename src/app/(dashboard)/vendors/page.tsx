@@ -2,7 +2,6 @@
 "use client"
 
 import React, { useEffect, useState, useCallback } from 'react';
-import { createClient } from '@/lib/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { formatINR } from '@/lib/format';
 
@@ -80,7 +79,6 @@ type ItemToDelete = {
 }
 
 export default function VendorsPage() {
-  const supabase = createClient();
   const { toast } = useToast();
 
   const [summary, setSummary] = useState<VendorBalance[]>([]);
@@ -109,91 +107,69 @@ export default function VendorsPage() {
 
   const fetchSummary = useCallback(async () => {
     setLoading(true);
-
-    const [vendorsRes, purchasesRes, paymentsRes] = await Promise.all([
-        supabase.from('vendors').select('id, vendor_name'),
-        supabase.from('vendor_purchases').select('vendor_id, quantity, cost_per_unit').eq('is_deleted', false),
-        supabase.from('vendor_payments').select('vendor_id, amount').eq('is_deleted', false),
-    ]);
-    
-    if (vendorsRes.error || purchasesRes.error || paymentsRes.error) {
-      toast({
-        variant: 'destructive',
-        title: 'Error',
-        description: 'Failed to fetch vendor data.',
-      });
-      setSummary([]);
-      setTotalInventoryValue(0);
-      setTotalDueAllVendors(0);
-    } else {
-      const vendors = vendorsRes.data || [];
-      const purchases = purchasesRes.data || [];
-      const payments = paymentsRes.data || [];
-
-      const summaryData = vendors.map(vendor => {
-        const vendorPurchases = purchases.filter(p => p.vendor_id === vendor.id);
-        const vendorPayments = payments.filter(p => p.vendor_id === vendor.id);
-
-        const total_purchase = vendorPurchases.reduce((sum, p) => sum + (Number(p.quantity || 0) * Number(p.cost_per_unit || 0)), 0);
-        const total_paid = vendorPayments.reduce((sum, p) => sum + Number(p.amount || 0), 0);
-        const balance_due = total_purchase - total_paid;
-
-        return { id: vendor.id, vendor_name: vendor.vendor_name, total_purchase, total_paid, balance_due };
-      });
-      setSummary(summaryData);
-
-      const totalDue = summaryData.reduce((acc, vendor) => acc + (vendor.balance_due > 0 ? vendor.balance_due : 0), 0);
-      setTotalDueAllVendors(totalDue);
-      
-      const totalValue = purchases.reduce((sum, purchase) => sum + (Number(purchase.quantity || 0) * Number(purchase.cost_per_unit || 0)), 0);
-      setTotalInventoryValue(totalValue);
+    try {
+        const res = await fetch('/api/vendors/summary');
+        if (!res.ok) throw new Error('Failed to fetch vendor summary');
+        const data = await res.json();
+        setSummary(data.summary);
+        setTotalDueAllVendors(data.totalDueAllVendors);
+        setTotalInventoryValue(data.totalInventoryValue);
+    } catch (error: any) {
+        toast({
+            variant: 'destructive',
+            title: 'Error',
+            description: error.message,
+        });
+        setSummary([]);
+        setTotalDueAllVendors(0);
+        setTotalInventoryValue(0);
+    } finally {
+        setLoading(false);
     }
-
-    setLoading(false);
-  }, [supabase, toast]);
+  }, [toast]);
 
   const fetchLedger = useCallback(async (vendor: VendorBalance) => {
     if (!vendor?.id) return;
     setLoadingLedger(true);
 
-    const { data: purchases, error: purchaseError } = await supabase.from("vendor_purchases").select("*").eq("vendor_id", vendor.id).eq('is_deleted', false);
-    const { data: payments, error: paymentError } = await supabase.from("vendor_payments").select("*").eq("vendor_id", vendor.id).eq('is_deleted', false);
+    try {
+      const res = await fetch(`/api/vendors/${vendor.id}/ledger`);
+      if (!res.ok) throw new Error('Failed to fetch ledger data');
+      const { purchases, payments } = await res.json();
 
-    if (purchaseError || paymentError) {
-      toast({ variant: "destructive", title: "Error fetching ledger", description: purchaseError?.message || paymentError?.message });
-      setLoadingLedger(false);
-      return;
+      const totalPurchase = (purchases || []).reduce((sum: number, p: VendorPurchase) => sum + (Number(p.quantity || 0) * Number(p.cost_per_unit || 0)), 0);
+      const totalPaid = (payments || []).reduce((sum: number, p: VendorPayment) => sum + Number(p.amount || 0), 0);
+
+      setLedgerTotalPurchase(totalPurchase);
+      setLedgerTotalPaid(totalPaid);
+      setLedgerFinalBalance(totalPurchase - totalPaid);
+
+      const purchaseEntries: LedgerItem[] = (purchases || []).map((p: VendorPurchase) => ({
+        id: `purchase-${p.id}`, date: p.purchase_date, description: p.product_name || `Purchase`,
+        debit: Number(p.quantity || 0) * Number(p.cost_per_unit || 0), credit: 0, balance: 0,
+        type: 'purchase', original: p,
+      }));
+      const paymentEntries: LedgerItem[] = (payments || []).map((p: VendorPayment) => ({
+        id: `payment-${p.id}`, date: p.payment_date, description: p.notes || `Payment via ${p.payment_mode}`,
+        debit: 0, credit: Number(p.amount), balance: 0,
+        type: 'payment', original: p,
+      }));
+
+      const combined = [...purchaseEntries, ...paymentEntries].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+
+      let runningBalance = 0;
+      const ledgerWithBalance = combined.map((entry) => {
+        runningBalance += entry.debit - entry.credit;
+        return { ...entry, balance: runningBalance };
+      });
+
+      setLedgerData(ledgerWithBalance);
+    } catch (error: any) {
+      toast({ variant: "destructive", title: "Error fetching ledger", description: error.message });
+    } finally {
+        setLoadingLedger(false);
     }
-
-    const totalPurchase = (purchases || []).reduce((sum, p) => sum + (Number(p.quantity || 0) * Number(p.cost_per_unit || 0)), 0);
-    const totalPaid = (payments || []).reduce((sum, p) => sum + Number(p.amount || 0), 0);
-
-    setLedgerTotalPurchase(totalPurchase);
-    setLedgerTotalPaid(totalPaid);
-    setLedgerFinalBalance(totalPurchase - totalPaid);
-
-    const purchaseEntries: LedgerItem[] = (purchases || []).map((p) => ({
-      id: `purchase-${p.id}`, date: p.purchase_date, description: p.product_name || `Purchase`,
-      debit: Number(p.quantity || 0) * Number(p.cost_per_unit || 0), credit: 0, balance: 0,
-      type: 'purchase', original: p,
-    }));
-    const paymentEntries: LedgerItem[] = (payments || []).map((p) => ({
-      id: `payment-${p.id}`, date: p.payment_date, description: p.notes || `Payment via ${p.payment_mode}`,
-      debit: 0, credit: Number(p.amount), balance: 0,
-      type: 'payment', original: p,
-    }));
-
-    const combined = [...purchaseEntries, ...paymentEntries].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-    let runningBalance = 0;
-    const ledgerWithBalance = combined.map((entry) => {
-      runningBalance += entry.debit - entry.credit;
-      return { ...entry, balance: runningBalance };
-    });
-
-    setLedgerData(ledgerWithBalance);
-    setLoadingLedger(false);
-  }, [supabase, toast]);
+  }, [toast]);
 
 
   useEffect(() => { fetchSummary(); }, [fetchSummary]);
@@ -201,12 +177,9 @@ export default function VendorsPage() {
   const handleSuccess = () => {
     fetchSummary();
     if(selectedVendor) {
-      const currentVendorInSummary = summary.find(s => s.id === selectedVendor.id);
-      if (currentVendorInSummary) {
-          fetchLedger(currentVendorInSummary);
-      } else { // Vendor might be new
-          handleCloseLedger();
-      }
+      // Create a temporary vendor object to re-fetch ledger, as summary state might not be updated yet
+      const refreshedVendor = { ...selectedVendor };
+      fetchLedger(refreshedVendor);
     }
   };
 
@@ -223,8 +196,10 @@ export default function VendorsPage() {
   const handleEditItem = (item: VendorPurchase | VendorPayment, type: 'purchase' | 'payment') => {
     if (type === 'purchase') {
         setPurchaseToEdit(item as VendorPurchase);
+        setIsAddPurchaseOpen(true);
     } else {
         setPaymentToEdit(item as VendorPayment);
+        setIsAddPaymentOpen(true);
     }
   };
 
@@ -235,14 +210,19 @@ export default function VendorsPage() {
 
   const handleConfirmDelete = async () => {
     if (!itemToDelete) return;
-    const table = itemToDelete.type === 'purchase' ? 'vendor_purchases' : 'vendor_payments';
-    const { error } = await supabase.from(table).update({ is_deleted: true }).eq('id', itemToDelete.id);
+    const { id, type } = itemToDelete;
+    const endpoint = type === 'purchase' ? '/api/vendor-purchases' : '/api/vendor-payments';
 
-    if (error) {
-      toast({ variant: 'destructive', title: 'Error deleting item', description: error.message });
-    } else {
-      toast({ title: 'Success', description: `The ${itemToDelete.type} has been deleted.` });
-      handleSuccess();
+    try {
+        const res = await fetch(`${endpoint}?id=${id}`, { method: 'DELETE' });
+        if (!res.ok) {
+            const errorData = await res.json();
+            throw new Error(errorData.message);
+        }
+        toast({ title: 'Success', description: `The ${type} has been deleted.` });
+        handleSuccess();
+    } catch(error: any) {
+        toast({ variant: 'destructive', title: 'Error deleting item', description: error.message });
     }
     setItemToDelete(null);
   };
@@ -276,8 +256,8 @@ export default function VendorsPage() {
   return (
     <div className="p-6 space-y-6 bg-gray-50/50 dark:bg-black/50 min-h-full">
       <AddVendorModal isOpen={isAddVendorOpen} onClose={() => setIsAddVendorOpen(false)} onVendorAdded={handleSuccess} />
-      <AddPurchaseModal isOpen={isAddPurchaseOpen || !!purchaseToEdit} onClose={() => { setIsAddPurchaseOpen(false); setPurchaseToEdit(null);}} onSuccess={handleSuccess} purchase={purchaseToEdit} />
-      <AddPaymentModal isOpen={isAddPaymentOpen || !!paymentToEdit} onClose={() => { setIsAddPaymentOpen(false); setPaymentToEdit(null);}} onSuccess={handleSuccess} payment={paymentToEdit} />
+      <AddPurchaseModal isOpen={isAddPurchaseOpen || !!purchaseToEdit} onClose={() => { setIsAddPurchaseOpen(false); setPurchaseToEdit(null);}} onSuccess={handleSuccess} purchase={purchaseToEdit} vendors={summary} />
+      <AddPaymentModal isOpen={isAddPaymentOpen || !!paymentToEdit} onClose={() => { setIsAddPaymentOpen(false); setPaymentToEdit(null);}} onSuccess={handleSuccess} payment={paymentToEdit} vendors={summary} />
       <AlertDialog open={!!itemToDelete} onOpenChange={() => setItemToDelete(null)}>
         <AlertDialogContent>
             <AlertDialogHeader>
