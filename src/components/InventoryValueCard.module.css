@@ -1,0 +1,85 @@
+
+.card {
+  position: relative;
+  overflow: hidden;
+  border-radius: 1.5rem;
+  transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  width: 100%;
+}
+
+.card:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 25px 50px -12px rgba(79, 70, 229, 0.4);
+}
+
+.background {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(-45deg, #4f46e5, #9333ea, #db2777, #2563eb);
+  background-size: 400% 400%;
+  animation: gradient 12s ease infinite;
+  opacity: 0.9;
+}
+
+@keyframes gradient {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+.content {
+  position: relative;
+  padding: 2.5rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: white;
+  z-index: 1;
+}
+
+.title {
+  font-size: 0.75rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.3em;
+  margin-bottom: 1rem;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.amount {
+  font-size: 3.5rem;
+  line-height: 1;
+  font-weight: 900;
+  letter-spacing: -0.05em;
+  filter: drop-shadow(0 10px 10px rgba(0,0,0,0.2));
+}
+
+@media (min-width: 768px) {
+  .amount {
+    font-size: 4.5rem;
+  }
+}
+
+.subtitle {
+  margin-top: 1.5rem;
+  font-size: 0.625rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.15em;
+  color: rgba(255, 255, 255, 0.6);
+}
+
+.divider {
+  height: 4px;
+  width: 4rem;
+  background-color: rgba(255, 255, 255, 0.3);
+  border-radius: 9999px;
+  margin-top: 1.5rem;
+  transition: width 0.7s ease;
+}
+
+.card:hover .divider {
+  width: 8rem;
+}

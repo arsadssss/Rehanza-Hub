@@ -25,6 +25,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Search, ShoppingCart, Undo2, MoveHorizontal } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { InventoryValueCard } from '@/components/InventoryValueCard';
 
 type InventoryItem = {
   id: string;
@@ -40,7 +41,9 @@ type InventoryItem = {
 export default function InventoryPage() {
   const router = useRouter();
   const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [totalValue, setTotalValue] = useState<number>(0);
   const [loading, setLoading] = useState(true);
+  const [loadingValue, setLoadingValue] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('All');
   const { toast } = useToast();
@@ -48,26 +51,39 @@ export default function InventoryPage() {
 
   useEffect(() => {
     setIsMounted(true);
-    async function fetchInventory() {
+    async function fetchData() {
       setLoading(true);
+      setLoadingValue(true);
       try {
-        const res = await fetch('/api/inventory');
-        if (!res.ok) throw new Error('Failed to fetch inventory');
-        const data = await res.json();
-        setInventory(data);
+        const [invRes, valRes] = await Promise.all([
+          fetch('/api/inventory'),
+          fetch('/api/inventory-value')
+        ]);
+
+        if (!invRes.ok) throw new Error('Failed to fetch inventory');
+        const invData = await invRes.json();
+        setInventory(invData);
+
+        if (valRes.ok) {
+          const valData = await valRes.json();
+          if (valData.success) {
+            setTotalValue(valData.total_value);
+          }
+        }
       } catch (error: any) {
-        console.error('Error fetching inventory summary:', error);
+        console.error('Error fetching inventory data:', error);
         toast({
           variant: 'destructive',
           title: 'Error',
-          description: 'Failed to fetch inventory summary.',
+          description: 'Failed to fetch inventory data.',
         });
         setInventory([]);
       } finally {
         setLoading(false);
+        setLoadingValue(false);
       }
     }
-    fetchInventory();
+    fetchData();
   }, [toast]);
 
   const filteredInventory = useMemo(() => {
@@ -108,8 +124,19 @@ export default function InventoryPage() {
   };
 
   return (
-    <div className="p-6 bg-gradient-to-br from-gray-100 to-blue-100 dark:from-gray-900 dark:to-slate-800 min-h-full">
-      <Card className="bg-background/80 backdrop-blur-sm mb-6">
+    <div className="p-6 bg-gradient-to-br from-gray-100 to-blue-100 dark:from-gray-900 dark:to-slate-800 min-h-full space-y-6">
+      
+      {loadingValue ? (
+        <Skeleton className="h-[280px] w-full rounded-3xl" />
+      ) : (
+        <InventoryValueCard 
+          title="Inventory Investment Value"
+          amount={totalValue}
+          subtitle="Based on Cost Price × Stock"
+        />
+      )}
+
+      <Card className="bg-background/80 backdrop-blur-sm">
         <CardHeader>
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
             <div>
