@@ -5,40 +5,75 @@ export const maxDuration = 60; // Allow 1 minute for large imports
 
 /**
  * POST /api/orders/bulk-upload
- * Processes a CSV file of orders with row-level validation.
- * 
- * Features:
- * - Multi-account isolation
- * - Safe Mode: Skips invalid rows instead of failing the whole batch
- * - Batch duplicate detection
- * - Automated stock deduction
- * - Structured error reporting
+ * Robust CSV import with defensive parsing and safe-mode validation.
  */
 export async function POST(request: Request) {
-  const accountId = request.headers.get("x-account-id");
-  if (!accountId) {
-    return NextResponse.json({ success: false, message: "Account context missing" }, { status: 400 });
-  }
-
   try {
-    const formData = await request.formData();
-    const file = formData.get('file') as File;
-
-    if (!file) {
-      return NextResponse.json({ success: false, message: "No file provided" }, { status: 400 });
+    // 1. Validate Account Context
+    const accountId = request.headers.get("x-account-id");
+    if (!accountId) {
+      return NextResponse.json({ 
+        success: false, 
+        message: "Account context missing (x-account-id header)" 
+      }, { status: 400 });
     }
 
+    // 2. Safely Extract Form Data
+    let formData: FormData;
+    try {
+      formData = await request.formData();
+    } catch (err) {
+      return NextResponse.json({ 
+        success: false, 
+        message: "Invalid request format. Expected multipart/form-data." 
+      }, { status: 400 });
+    }
+
+    // 3. Extract and Validate File
+    const file = formData.get('file') as File;
+    if (!file) {
+      return NextResponse.json({ success: false, message: "No file uploaded" }, { status: 400 });
+    }
+
+    if (file.size === 0) {
+      return NextResponse.json({ success: false, message: "Uploaded file is empty" }, { status: 400 });
+    }
+
+    if (!file.name.toLowerCase().endsWith(".csv")) {
+      return NextResponse.json({ success: false, message: "Only CSV files are allowed" }, { status: 400 });
+    }
+
+    // 4. Read and Validate Raw Text
     const text = await file.text();
+    if (!text || text.trim().length === 0) {
+      return NextResponse.json({ success: false, message: "CSV file contains no data" }, { status: 400 });
+    }
+
+    // 5. Parse Lines and Headers
     const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
-    
     if (lines.length < 2) {
-      return NextResponse.json({ success: false, message: "CSV is empty or missing headers" }, { status: 400 });
+      return NextResponse.json({ success: false, message: "CSV must contain a header row and at least one data row" }, { status: 400 });
     }
 
     const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-    const dataRows = lines.slice(1);
+    const requiredHeaders = [
+      "external_order_id",
+      "order_date",
+      "platform",
+      "variant_sku",
+      "quantity",
+      "selling_price"
+    ];
 
-    // Map headers to indices
+    const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
+    if (missingHeaders.length > 0) {
+      return NextResponse.json({ 
+        success: false, 
+        message: `Missing required columns: ${missingHeaders.join(", ")}` 
+      }, { status: 400 });
+    }
+
+    // Map header indices
     const hIdx = {
       external_id: headers.indexOf('external_order_id'),
       date: headers.indexOf('order_date'),
@@ -48,23 +83,22 @@ export async function POST(request: Request) {
       price: headers.indexOf('selling_price')
     };
 
-    // Basic Structure Validation
-    if (Object.values(hIdx).some(idx => idx === -1)) {
-      return NextResponse.json({ 
-        success: false, 
-        message: "CSV missing required columns. Required: external_order_id, order_date, platform, variant_sku, quantity, selling_price" 
-      }, { status: 400 });
-    }
-
+    const dataRows = lines.slice(1);
     const errors: any[] = [];
     const parsedRows: any[] = [];
     const skusToResolve = new Set<string>();
     const externalIdsToCheck = new Set<string>();
 
-    // Phase 1: Basic validation and data collection (NO THROW)
+    // 6. Safe Validation Loop (Phase 1: Basic structural check)
     for (let i = 0; i < dataRows.length; i++) {
       const columns = dataRows[i].split(',').map(c => c.trim());
       const rowNum = i + 2;
+
+      // Handle rows with mismatched column counts
+      if (columns.length < requiredHeaders.length) {
+        errors.push({ row: rowNum, reason: "Incomplete data row" });
+        continue;
+      }
 
       const extId = columns[hIdx.external_id];
       const date = columns[hIdx.date];
@@ -83,8 +117,9 @@ export async function POST(request: Request) {
         continue;
       }
 
-      if (!['Amazon', 'Flipkart', 'Meesho'].includes(platform)) {
-        errors.push({ row: rowNum, reason: `Invalid platform: ${platform}. Must be Amazon, Flipkart, or Meesho` });
+      const validPlatforms = ['Amazon', 'Flipkart', 'Meesho'];
+      if (!validPlatforms.includes(platform)) {
+        errors.push({ row: rowNum, reason: `Invalid platform: ${platform}. Must be one of: ${validPlatforms.join(', ')}` });
         continue;
       }
 
@@ -102,18 +137,16 @@ export async function POST(request: Request) {
       externalIdsToCheck.add(extId);
     }
 
-    if (parsedRows.length === 0 && errors.length > 0) {
+    if (parsedRows.length === 0) {
       return NextResponse.json({ 
         totalRows: dataRows.length,
         inserted: 0,
         failed: errors.length,
-        duplicates: 0,
-        stockErrors: 0,
         errors 
       });
     }
 
-    // Phase 2: Batch fetch data for validation (NO THROW)
+    // 7. Batch Fetch Validation Data
     const [variantsRes, existingOrdersRes] = await Promise.all([
       sql`SELECT id, variant_sku, stock FROM product_variants WHERE variant_sku = ANY(${Array.from(skusToResolve)}) AND account_id = ${accountId}`,
       sql`SELECT external_order_id FROM orders WHERE external_order_id = ANY(${Array.from(externalIdsToCheck)}) AND account_id = ${accountId} AND is_deleted = false`
@@ -126,98 +159,75 @@ export async function POST(request: Request) {
     let duplicateCount = 0;
     let stockErrorCount = 0;
 
-    // Phase 3: Business logic validation loop (SAFE MODE - NO THROW)
+    // 8. Safe Validation Loop (Phase 2: Business logic)
     for (const row of parsedRows) {
-      try {
-        if (existingIds.has(row.external_order_id)) {
-          errors.push({ row: row.rowNumber, reason: `Duplicate external_order_id: ${row.external_order_id}` });
-          duplicateCount++;
-          continue;
-        }
-
-        const variant = variantMap.get(row.variant_sku);
-        if (!variant) {
-          errors.push({ row: row.rowNumber, reason: `SKU not found: ${row.variant_sku}` });
-          continue;
-        }
-
-        if (variant.stock < row.quantity) {
-          errors.push({ row: row.rowNumber, reason: `Insufficient stock for ${row.variant_sku}. Available: ${variant.stock}, Requested: ${row.quantity}` });
-          stockErrorCount++;
-          continue;
-        }
-
-        validatedRows.push({
-          ...row,
-          variant_id: variant.id,
-          total_amount: row.quantity * row.selling_price
-        });
-        
-        // Optimistically update stock in memory map for sequential rows in same CSV
-        variant.stock -= row.quantity;
-      } catch (rowErr: any) {
-        errors.push({ row: row.rowNumber, reason: `Unexpected row error: ${rowErr.message}` });
+      if (existingIds.has(row.external_order_id)) {
+        errors.push({ row: row.rowNumber, reason: `Duplicate external_order_id: ${row.external_order_id}` });
+        duplicateCount++;
+        continue;
       }
+
+      const variant = variantMap.get(row.variant_sku);
+      if (!variant) {
+        errors.push({ row: row.rowNumber, reason: `SKU not found: ${row.variant_sku}` });
+        continue;
+      }
+
+      if (variant.stock < row.quantity) {
+        errors.push({ row: row.rowNumber, reason: `Insufficient stock for ${row.variant_sku}. Available: ${variant.stock}, Requested: ${row.quantity}` });
+        stockErrorCount++;
+        continue;
+      }
+
+      validatedRows.push({
+        ...row,
+        variant_id: variant.id,
+        total_amount: row.quantity * row.selling_price
+      });
+      
+      // Update in-memory stock for same-CSV sequential rows
+      variant.stock -= row.quantity;
     }
 
-    console.log("Valid Rows to Insert:", validatedRows.length);
-    console.log("Total Errors Found:", errors.length);
-
-    // Phase 4: Database Update Phase
+    // 9. Database Transaction Phase
     if (validatedRows.length > 0) {
-      try {
-        // Atomic work block
-        const work = async (tx: any) => {
-          // 1. Insert Orders
-          for (const row of validatedRows) {
-            await tx`
-              INSERT INTO orders (
-                external_order_id, order_date, platform, variant_id, 
-                quantity, selling_price, total_amount, account_id
-              ) VALUES (
-                ${row.external_order_id}, ${row.order_date}, ${row.platform}, ${row.variant_id},
-                ${row.quantity}, ${row.selling_price}, ${row.total_amount}, ${accountId}
-              )
-            `;
-          }
-
-          // 2. Batch Update Stock
-          const stockDeductions = validatedRows.reduce((acc: any, row) => {
-            acc[row.variant_id] = (acc[row.variant_id] || 0) + row.quantity;
-            return acc;
-          }, {});
-
-          for (const [vId, qty] of Object.entries(stockDeductions)) {
-            await tx`
-              UPDATE product_variants 
-              SET stock = stock - ${qty as number}
-              WHERE id = ${vId} AND account_id = ${accountId}
-            `;
-          }
-        };
-
-        // Execute via transaction if supported by driver
-        if (typeof sql.begin === 'function') {
-          await sql.begin(work);
-        } else {
-          await work(sql);
+      const work = async (tx: any) => {
+        // Bulk Insert Orders
+        for (const row of validatedRows) {
+          await tx`
+            INSERT INTO orders (
+              external_order_id, order_date, platform, variant_id, 
+              quantity, selling_price, total_amount, account_id
+            ) VALUES (
+              ${row.external_order_id}, ${row.order_date}, ${row.platform}, ${row.variant_id},
+              ${row.quantity}, ${row.selling_price}, ${row.total_amount}, ${accountId}
+            )
+          `;
         }
 
-      } catch (dbErr: any) {
-        console.error("Database Transaction Fatal Error:", dbErr);
-        return NextResponse.json({ 
-          success: false, 
-          message: "Database operation failed", 
-          error: dbErr.message,
-          totalRows: dataRows.length,
-          inserted: 0,
-          failed: parsedRows.length,
-          errors: [{ row: 0, reason: `Database Fatal Error: ${dbErr.message}` }, ...errors]
-        }, { status: 500 });
+        // Batch Update Stock
+        const stockDeductions = validatedRows.reduce((acc: any, row) => {
+          acc[row.variant_id] = (acc[row.variant_id] || 0) + row.quantity;
+          return acc;
+        }, {});
+
+        for (const [vId, qty] of Object.entries(stockDeductions)) {
+          await tx`
+            UPDATE product_variants 
+            SET stock = stock - ${qty as number}
+            WHERE id = ${vId} AND account_id = ${accountId}
+          `;
+        }
+      };
+
+      if (typeof sql.begin === 'function') {
+        await sql.begin(work);
+      } else {
+        await work(sql);
       }
     }
 
-    // Phase 5: Structured Success Response
+    // 10. Success Response
     return NextResponse.json({
       totalRows: dataRows.length,
       inserted: validatedRows.length,
@@ -228,10 +238,10 @@ export async function POST(request: Request) {
     });
 
   } catch (error: any) {
-    console.error("Bulk Upload Critical Catch:", error);
+    console.error("Bulk Upload Critical Failure:", error);
     return NextResponse.json({ 
       success: false, 
-      message: "Critical error during upload", 
+      message: "An unexpected error occurred while processing the upload.", 
       error: error.message 
     }, { status: 500 });
   }
