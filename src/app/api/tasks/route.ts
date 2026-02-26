@@ -52,11 +52,11 @@ export async function GET(request: Request) {
     const dataQuery = `
         SELECT 
             t.*, 
-            u1.name as created_by_name, 
-            u2.name as updated_by_name 
+            cu.name AS created_by_name, 
+            uu.name AS updated_by_name 
         FROM tasks t 
-        LEFT JOIN users u1 ON t.created_by = u1.id 
-        LEFT JOIN users u2 ON t.updated_by = u2.id 
+        LEFT JOIN users cu ON t.created_by = cu.id 
+        LEFT JOIN users uu ON t.updated_by = uu.id 
         ${whereString} 
         ORDER BY t.task_date DESC, t.created_at DESC 
         LIMIT ${pageSize} OFFSET ${offset}
@@ -91,7 +91,6 @@ export async function POST(request: Request) {
             return NextResponse.json({ message: 'Missing required fields' }, { status: 400 });
         }
         
-        // We set created_at = NOW() and created_by = session.user.id
         const result = await sql`
             INSERT INTO tasks (task_name, task_date, task_group, status, notes, created_by, created_at)
             VALUES (${task_name}, ${task_date}, ${task_group}, ${status}, ${notes}, ${session.user.id}, NOW())

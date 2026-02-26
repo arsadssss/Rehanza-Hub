@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
@@ -384,7 +383,7 @@ export default function ExpensesPage() {
                                         <TableCell>
                                             <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                                                 <User className="h-3 w-3" />
-                                                <span>{e.created_by_name || 'System'}</span>
+                                                <span>{e.created_by_name ?? '-'}</span>
                                             </div>
                                         </TableCell>
                                         <TableCell className="text-right">

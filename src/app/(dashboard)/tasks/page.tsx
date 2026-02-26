@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
@@ -261,13 +260,13 @@ export default function TasksPage() {
                                             <TableCell>
                                                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                                                     <User className="h-3 w-3" />
-                                                    <span>{task.created_by_name || 'System'}</span>
+                                                    <span>{task.created_by_name ?? '-'}</span>
                                                 </div>
                                             </TableCell>
                                             <TableCell>
                                                 <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
                                                     <User className="h-3 w-3" />
-                                                    <span>{task.updated_by_name || '-'}</span>
+                                                    <span>{task.updated_by_name ?? '-'}</span>
                                                 </div>
                                             </TableCell>
                                             <TableCell className="text-right">

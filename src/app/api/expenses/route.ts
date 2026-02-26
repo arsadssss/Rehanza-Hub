@@ -37,11 +37,11 @@ export async function GET(request: Request) {
     const dataQuery = `
         SELECT 
             e.*, 
-            u1.name as created_by_name, 
-            u2.name as updated_by_name 
+            cu.name AS created_by_name, 
+            uu.name AS updated_by_name 
         FROM business_expenses e 
-        LEFT JOIN users u1 ON e.created_by = u1.id 
-        LEFT JOIN users u2 ON e.updated_by = u2.id 
+        LEFT JOIN users cu ON e.created_by = cu.id 
+        LEFT JOIN users uu ON e.updated_by = uu.id 
         ${whereString} 
         ORDER BY e.expense_date DESC 
         LIMIT ${pageSize} OFFSET ${offset}
@@ -78,7 +78,6 @@ export async function POST(request: Request) {
             return NextResponse.json({ message: 'Missing required fields' }, { status: 400 });
         }
         
-        // We set created_by = session.user.id and created_at = NOW()
         const result = await sql`
             INSERT INTO business_expenses (description, amount, expense_date, created_by, created_at)
             VALUES (${description}, ${amount}, ${expense_date}, ${session.user.id}, NOW())
