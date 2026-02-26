@@ -22,7 +22,6 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { PlusCircle, FileText, Wallet, Archive } from 'lucide-react';
 
@@ -60,6 +59,7 @@ export type VendorBalance = {
   total_purchase: number;
   total_paid: number;
   balance_due: number;
+  status?: string;
 };
 
 export type LedgerItem = {
@@ -109,12 +109,14 @@ export default function VendorsPage() {
   const fetchSummary = useCallback(async () => {
     setLoading(true);
     try {
-        const res = await apiFetch('/api/vendors/summary');
+        // Calling consolidated dynamic Vendor API
+        const res = await apiFetch('/api/vendors');
         if (!res.ok) throw new Error('Failed to fetch vendor summary');
         const data = await res.json();
-        setSummary(data.summary);
-        setTotalDueAllVendors(data.totalDueAllVendors);
-        setTotalInventoryValue(data.totalInventoryValue);
+        
+        setSummary(data.vendors || []);
+        setTotalDueAllVendors(data.totalDue || 0);
+        setTotalInventoryValue(data.totalInventoryPurchase || 0);
     } catch (error: any) {
         toast({
             variant: 'destructive',

@@ -3,6 +3,10 @@ import { NextResponse } from 'next/server';
 
 export const revalidate = 0;
 
+/**
+ * POST /api/vendor-purchases
+ * Records a new purchase and injects account context.
+ */
 export async function POST(request: Request) {
     try {
         const body = await request.json();
@@ -21,10 +25,15 @@ export async function POST(request: Request) {
         
         return NextResponse.json(result[0], { status: 201 });
     } catch (error: any) {
+        console.error("API Vendor Purchase POST error:", error);
         return NextResponse.json({ message: 'Failed to create purchase', error: error.message }, { status: 500 });
     }
 }
 
+/**
+ * PUT /api/vendor-purchases
+ * Updates an existing purchase, restricted by account isolation.
+ */
 export async function PUT(request: Request) {
     try {
         const body = await request.json();
@@ -38,7 +47,7 @@ export async function PUT(request: Request) {
         const result = await sql`
             UPDATE vendor_purchases
             SET vendor_id = ${vendor_id}, product_name = ${product_name}, quantity = ${quantity}, cost_per_unit = ${cost_per_unit}, purchase_date = ${purchase_date}, description = ${description}
-            WHERE id = ${id} AND account_id = ${accountId}
+            WHERE id = ${id} AND account_id = ${accountId} AND is_deleted = false
             RETURNING *;
         `;
 
@@ -48,23 +57,39 @@ export async function PUT(request: Request) {
         
         return NextResponse.json(result[0]);
     } catch (error: any) {
+        console.error("API Vendor Purchase PUT error:", error);
         return NextResponse.json({ message: 'Failed to update purchase', error: error.message }, { status: 500 });
     }
 }
 
+/**
+ * DELETE /api/vendor-purchases
+ * Soft-deletes a purchase, strictly scoped by account.
+ */
 export async function DELETE(request: Request) {
-    const { searchParams = new URL(request.url).searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-    const accountId = request.headers.get("x-account-id");
-    if (!id || !accountId) {
-        return NextResponse.json({ message: 'ID and Account are required' }, { status: 400 });
-    }
-
     try {
-        const result = await sql`UPDATE vendor_purchases SET is_deleted = true WHERE id = ${id} AND account_id = ${accountId} RETURNING id`;
-        if (result.length === 0) return NextResponse.json({ message: 'Purchase not found or access denied' }, { status: 404 });
+        const { searchParams } = new URL(request.url);
+        const id = searchParams.get('id');
+        const accountId = request.headers.get("x-account-id");
+        
+        if (!id || !accountId) {
+            return NextResponse.json({ message: 'ID and Account are required' }, { status: 400 });
+        }
+
+        const result = await sql`
+            UPDATE vendor_purchases 
+            SET is_deleted = true 
+            WHERE id = ${id} AND account_id = ${accountId} 
+            RETURNING id;
+        `;
+        
+        if (result.length === 0) {
+            return NextResponse.json({ message: 'Purchase not found or access denied' }, { status: 404 });
+        }
+        
         return NextResponse.json({ message: 'Purchase deleted' });
     } catch (error: any) {
+        console.error("API Vendor Purchase DELETE error:", error);
         return NextResponse.json({ message: 'Failed to delete purchase', error: error.message }, { status: 500 });
     }
 }

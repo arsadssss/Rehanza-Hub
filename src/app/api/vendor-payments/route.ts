@@ -3,6 +3,10 @@ import { NextResponse } from 'next/server';
 
 export const revalidate = 0;
 
+/**
+ * POST /api/vendor-payments
+ * Records a new vendor payment and injects account context.
+ */
 export async function POST(request: Request) {
     try {
         const body = await request.json();
@@ -21,10 +25,15 @@ export async function POST(request: Request) {
 
         return NextResponse.json(result[0], { status: 201 });
     } catch (error: any) {
+        console.error("API Vendor Payment POST error:", error);
         return NextResponse.json({ message: 'Failed to create payment', error: error.message }, { status: 500 });
     }
 }
 
+/**
+ * PUT /api/vendor-payments
+ * Updates an existing payment, restricted by account isolation.
+ */
 export async function PUT(request: Request) {
     try {
         const body = await request.json();
@@ -38,7 +47,7 @@ export async function PUT(request: Request) {
         const result = await sql`
             UPDATE vendor_payments
             SET vendor_id = ${vendor_id}, amount = ${amount}, payment_date = ${payment_date}, payment_mode = ${payment_mode}, notes = ${notes}
-            WHERE id = ${id} AND account_id = ${accountId}
+            WHERE id = ${id} AND account_id = ${accountId} AND is_deleted = false
             RETURNING *;
         `;
 
@@ -48,21 +57,39 @@ export async function PUT(request: Request) {
 
         return NextResponse.json(result[0]);
     } catch (error: any) {
+        console.error("API Vendor Payment PUT error:", error);
         return NextResponse.json({ message: 'Failed to update payment', error: error.message }, { status: 500 });
     }
 }
 
+/**
+ * DELETE /api/vendor-payments
+ * Soft-deletes a payment, strictly scoped by account.
+ */
 export async function DELETE(request: Request) {
-    const { searchParams } = new URL(request.url);
-    const id = searchParams.get('id');
-    const accountId = request.headers.get("x-account-id");
-    if (!id || !accountId) return NextResponse.json({ message: 'ID and Account are required' }, { status: 400 });
-
     try {
-        const result = await sql`UPDATE vendor_payments SET is_deleted = true WHERE id = ${id} AND account_id = ${accountId} RETURNING id`;
-        if (result.length === 0) return NextResponse.json({ message: 'Payment not found or access denied' }, { status: 404 });
+        const { searchParams } = new URL(request.url);
+        const id = searchParams.get('id');
+        const accountId = request.headers.get("x-account-id");
+        
+        if (!id || !accountId) {
+            return NextResponse.json({ message: 'ID and Account are required' }, { status: 400 });
+        }
+
+        const result = await sql`
+            UPDATE vendor_payments 
+            SET is_deleted = true 
+            WHERE id = ${id} AND account_id = ${accountId} 
+            RETURNING id;
+        `;
+        
+        if (result.length === 0) {
+            return NextResponse.json({ message: 'Payment not found or access denied' }, { status: 404 });
+        }
+        
         return NextResponse.json({ message: 'Payment deleted' });
     } catch (error: any) {
+        console.error("API Vendor Payment DELETE error:", error);
         return NextResponse.json({ message: 'Failed to delete payment', error: error.message }, { status: 500 });
     }
 }
