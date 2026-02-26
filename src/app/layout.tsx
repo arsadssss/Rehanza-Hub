@@ -1,6 +1,7 @@
 import type {Metadata} from 'next';
 import './globals.css';
 import { Toaster } from "@/components/ui/toaster"
+import { NextAuthProvider } from "@/components/auth-provider"
 
 export const metadata: Metadata = {
   title: 'Rehanza Hub',
@@ -20,8 +21,10 @@ export default function RootLayout({
         <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;700&family=PT+Sans:wght@400;700&display=swap" rel="stylesheet" />
       </head>
       <body className="font-body antialiased">
-        {children}
-        <Toaster />
+        <NextAuthProvider>
+          {children}
+          <Toaster />
+        </NextAuthProvider>
       </body>
     </html>
   );

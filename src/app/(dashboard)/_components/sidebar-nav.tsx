@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import React from 'react';
+import { useSession } from 'next-auth/react';
 import {
   Sidebar,
   SidebarHeader,
@@ -41,9 +42,10 @@ const navItems = [
 
 export function SidebarNav() {
   const pathname = usePathname();
+  const { data: session } = useSession();
 
-  const email = 'Admin';
-  const firstLetter = email.charAt(0).toUpperCase();
+  const userName = session?.user?.name ?? 'User';
+  const firstLetter = userName.charAt(0).toUpperCase();
 
   return (
     <Sidebar className="border-r">
@@ -88,7 +90,7 @@ export function SidebarNav() {
           </Avatar>
           <div className="flex flex-col overflow-hidden">
             <span className="text-sm font-medium text-sidebar-foreground truncate">
-              {email}
+              {userName}
             </span>
           </div>
         </div>
