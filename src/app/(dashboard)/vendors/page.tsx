@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -31,6 +30,7 @@ import { AddVendorModal } from './components/add-vendor-modal';
 import { AddPurchaseModal } from './components/add-purchase-modal';
 import { AddPaymentModal } from './components/add-payment-modal';
 import { VendorLedger } from './components/vendor-ledger';
+import { VendorFinancialCard } from '@/components/VendorFinancialCard';
 
 export type VendorPurchase = {
   id: string;
@@ -177,7 +177,6 @@ export default function VendorsPage() {
   const handleSuccess = () => {
     fetchSummary();
     if(selectedVendor) {
-      // Create a temporary vendor object to re-fetch ledger, as summary state might not be updated yet
       const refreshedVendor = { ...selectedVendor };
       fetchLedger(refreshedVendor);
     }
@@ -226,32 +225,6 @@ export default function VendorsPage() {
     }
     setItemToDelete(null);
   };
-
-
-  const VendorCard = ({ item }: { item: VendorBalance }) => (
-    <Card className="shadow-md hover:shadow-xl transition-shadow cursor-pointer" onClick={() => handleVendorClick(item)}>
-      <CardHeader>
-        <CardTitle className="flex justify-between items-center">
-          <span>{item.vendor_name}</span>
-          {item.balance_due > 0 && <Badge variant="destructive">Due</Badge>}
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-3 text-sm">
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Total Purchase</span>
-          <span className="font-medium">{formatINR(item.total_purchase)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span className="text-muted-foreground">Total Paid</span>
-          <span className="font-medium">{formatINR(item.total_paid)}</span>
-        </div>
-        <div className="flex justify-between font-bold text-base border-t pt-2 mt-2">
-          <span>Balance Due</span>
-          <span>{formatINR(item.balance_due)}</span>
-        </div>
-      </CardContent>
-    </Card>
-  );
 
   return (
     <div className="p-6 space-y-6 bg-gray-50/50 dark:bg-black/50 min-h-full">
@@ -333,7 +306,17 @@ export default function VendorsPage() {
         </div>
       ) : summary.length > 0 ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-          {summary.map(item => <VendorCard key={item.id} item={item} />)}
+          {summary.map((item, index) => (
+            <VendorFinancialCard 
+              key={item.id} 
+              name={item.vendor_name}
+              totalPurchase={item.total_purchase}
+              totalPaid={item.total_paid}
+              balanceDue={item.balance_due}
+              index={index}
+              onClick={() => handleVendorClick(item)}
+            />
+          ))}
         </div>
       ) : (
          <Card>
