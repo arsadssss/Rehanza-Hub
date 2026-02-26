@@ -17,6 +17,7 @@ import { useToast } from "@/hooks/use-toast";
 import { AddOrderModal } from "./components/add-order-modal";
 import { AddReturnModal } from "../returns/components/add-return-modal";
 import { BulkUploadModal } from "./components/bulk-upload-modal";
+import { BulkUploadReturnsModal } from "../returns/components/bulk-upload-returns-modal";
 import { apiFetch } from "@/lib/apiFetch";
 import { cn } from "@/lib/utils";
 
@@ -68,6 +69,7 @@ export default function OrdersPage() {
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
   const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
+  const [isBulkReturnModalOpen, setIsBulkReturnModalOpen] = useState(false);
   const [itemToEdit, setItemToEdit] = useState<any>(null);
   const [itemToDelete, setItemToDelete] = useState<{ id: string; description: string } | null>(null);
 
@@ -162,6 +164,11 @@ export default function OrdersPage() {
         onClose={() => setIsBulkModalOpen(false)}
         onSuccess={fetchData}
       />
+      <BulkUploadReturnsModal 
+        isOpen={isBulkReturnModalOpen}
+        onClose={() => setIsBulkReturnModalOpen(false)}
+        onSuccess={fetchData}
+      />
 
       <AlertDialog open={!!itemToDelete} onOpenChange={() => setItemToDelete(null)}>
         <AlertDialogContent>
@@ -186,19 +193,24 @@ export default function OrdersPage() {
           <p className="text-muted-foreground text-sm">Monitor and manage your business orders and returns.</p>
         </div>
         <div className="flex items-center gap-2">
-          {activeTab === "orders" && (
-            <Button variant="outline" onClick={() => setIsBulkModalOpen(true)}>
-              <FileUp className="mr-2 h-4 w-4" /> Bulk Upload
-            </Button>
-          )}
           {activeTab === "orders" ? (
-            <Button onClick={() => { setItemToEdit(null); setIsOrderModalOpen(true); }}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Add Order
-            </Button>
+            <>
+              <Button variant="outline" onClick={() => setIsBulkModalOpen(true)}>
+                <FileUp className="mr-2 h-4 w-4" /> Bulk Upload
+              </Button>
+              <Button onClick={() => { setItemToEdit(null); setIsOrderModalOpen(true); }}>
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Order
+              </Button>
+            </>
           ) : (
-            <Button onClick={() => { setItemToEdit(null); setIsReturnModalOpen(true); }}>
-              <PlusCircle className="mr-2 h-4 w-4" /> Add Return
-            </Button>
+            <>
+              <Button variant="outline" onClick={() => setIsBulkReturnModalOpen(true)}>
+                <FileUp className="mr-2 h-4 w-4" /> Bulk Upload
+              </Button>
+              <Button onClick={() => { setItemToEdit(null); setIsReturnModalOpen(true); }}>
+                <PlusCircle className="mr-2 h-4 w-4" /> Add Return
+              </Button>
+            </>
           )}
         </div>
       </div>
