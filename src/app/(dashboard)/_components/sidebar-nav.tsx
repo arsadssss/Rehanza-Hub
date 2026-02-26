@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { LogoutButton } from '@/components/logout-button';
 
 const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -80,7 +81,7 @@ export function SidebarNav() {
 
       <Separator className="my-2" />
 
-      <SidebarFooter className="p-4">
+      <SidebarFooter className="p-4 space-y-4">
         <div className="flex items-center gap-3">
           <Avatar className="h-9 w-9">
             <AvatarFallback>{firstLetter}</AvatarFallback>
@@ -91,6 +92,7 @@ export function SidebarNav() {
             </span>
           </div>
         </div>
+        <LogoutButton />
       </SidebarFooter>
     </Sidebar>
   );
