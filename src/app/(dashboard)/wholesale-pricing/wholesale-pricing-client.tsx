@@ -55,7 +55,7 @@ type WholesaleTier = {
   product_name: string;
   min_quantity: number;
   wholesale_price: number;
-  created_by_name: string;
+  added_by: string;
 };
 
 export function WholesalePricingClient() {
@@ -77,19 +77,12 @@ export function WholesalePricingClient() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [prodRes, tiersRes] = await Promise.all([
-        apiFetch('/api/products?type=list'),
-        apiFetch('/api/wholesale-prices')
-      ]);
-
-      if (!prodRes.ok) throw new Error('Failed to fetch products');
-      if (!tiersRes.ok) throw new Error('Failed to fetch pricing tiers');
-
-      const prodData = await prodRes.json();
-      const tiersData = await tiersRes.json();
-
-      setProducts(prodData);
-      setTiers(tiersData.data || []);
+      const res = await apiFetch('/api/wholesale');
+      if (!res.ok) throw new Error('Failed to fetch wholesale data');
+      
+      const json = await res.json();
+      setProducts(json.products || []);
+      setTiers(json.tiers || []);
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -108,14 +101,15 @@ export function WholesalePricingClient() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
     try {
-      const res = await apiFetch('/api/wholesale-prices', {
+      const res = await apiFetch('/api/wholesale', {
         method: 'POST',
         body: JSON.stringify(values),
       });
 
+      const json = await res.json();
+
       if (!res.ok) {
-        const error = await res.json();
-        throw new Error(error.message || 'Failed to create tier');
+        throw new Error(json.message || 'Failed to create tier');
       }
 
       toast({
@@ -137,7 +131,7 @@ export function WholesalePricingClient() {
 
   async function onDelete(id: string) {
     try {
-      const res = await apiFetch(`/api/wholesale-prices?id=${id}`, {
+      const res = await apiFetch(`/api/wholesale?id=${id}`, {
         method: 'DELETE',
       });
       if (!res.ok) throw new Error('Failed to delete tier');
@@ -276,7 +270,7 @@ export function WholesalePricingClient() {
                           {formatINR(tier.wholesale_price)}
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
-                          {tier.created_by_name || "System"}
+                          {tier.added_by || "System"}
                         </TableCell>
                         <TableCell className="text-right">
                           <Button 
