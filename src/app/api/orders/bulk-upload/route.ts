@@ -1,6 +1,7 @@
 import { sql } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
+export const dynamic = "force-dynamic";
 export const maxDuration = 60; // Allow 1 minute for large imports
 
 /**
@@ -18,29 +19,27 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
-    // 2. Safely Extract Form Data
+    // 2. Extract Form Data safely
     let formData: FormData;
     try {
       formData = await request.formData();
-    } catch (err) {
+    } catch (err: any) {
+      console.error("FormData parsing failed:", err);
       return NextResponse.json({ 
         success: false, 
-        error: "Invalid request format. Expected multipart/form-data." 
+        error: "Invalid request format. Expected multipart/form-data.",
+        details: err.message
       }, { status: 400 });
     }
 
     // 3. Extract and Validate File
-    const file = formData.get('file') as File;
+    const file = formData.get("file") as File;
     if (!file) {
       return NextResponse.json({ success: false, error: "No file uploaded" }, { status: 400 });
     }
 
     if (file.size === 0) {
       return NextResponse.json({ success: false, error: "Uploaded file is empty" }, { status: 400 });
-    }
-
-    if (!file.name.toLowerCase().endsWith(".csv")) {
-      return NextResponse.json({ success: false, error: "Only CSV files are allowed" }, { status: 400 });
     }
 
     // 4. Read and Validate Raw Text
@@ -94,7 +93,6 @@ export async function POST(request: Request) {
       const columns = dataRows[i].split(',').map(c => c.trim());
       const rowNum = i + 2;
 
-      // Handle rows with mismatched column counts
       if (columns.length < requiredHeaders.length) {
         errors.push({ row: rowNum, reason: "Incomplete data row" });
         continue;
@@ -109,11 +107,6 @@ export async function POST(request: Request) {
 
       if (!extId || !sku || !date || !platform || isNaN(qty) || isNaN(price)) {
         errors.push({ row: rowNum, reason: "Missing or malformed required fields" });
-        continue;
-      }
-
-      if (qty <= 0 || price <= 0) {
-        errors.push({ row: rowNum, reason: "Quantity and price must be positive numbers" });
         continue;
       }
 
@@ -185,14 +178,12 @@ export async function POST(request: Request) {
         total_amount: row.quantity * row.selling_price
       });
       
-      // Update in-memory stock for same-CSV sequential rows
       variant.stock -= row.quantity;
     }
 
     // 9. Database Transaction Phase
     if (validatedRows.length > 0) {
       const work = async (tx: any) => {
-        // Bulk Insert Orders
         for (const row of validatedRows) {
           await tx`
             INSERT INTO orders (
@@ -205,7 +196,6 @@ export async function POST(request: Request) {
           `;
         }
 
-        // Batch Update Stock
         const stockDeductions = validatedRows.reduce((acc: any, row) => {
           acc[row.variant_id] = (acc[row.variant_id] || 0) + row.quantity;
           return acc;
@@ -227,7 +217,6 @@ export async function POST(request: Request) {
       }
     }
 
-    // 10. Success Response
     return NextResponse.json({
       totalRows: dataRows.length,
       inserted: validatedRows.length,
@@ -238,11 +227,12 @@ export async function POST(request: Request) {
     });
 
   } catch (error: any) {
-    console.error("Bulk Upload Critical Failure:", error);
+    console.error("FULL ERROR LOG IN BULK UPLOAD:", error);
     return NextResponse.json({ 
       success: false, 
-      error: "An unexpected error occurred while processing the upload.", 
-      details: error.message 
+      error: "Detailed server error during upload processing.", 
+      details: error.message,
+      stack: error.stack
     }, { status: 500 });
   }
 }
