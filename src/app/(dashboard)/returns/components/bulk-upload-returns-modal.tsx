@@ -38,7 +38,7 @@ export function BulkUploadReturnsModal({ isOpen, onClose, onSuccess }: BulkUploa
   }
 
   const downloadSample = () => {
-    const csvContent = "external_return_id,return_date,platform,variant_sku,quantity,refund_amount\nRET-WH-101,2024-08-01,Amazon,SKU-SAMPLE-RED,1,499\nRET-WH-102,2024-08-01,Meesho,SKU-SAMPLE-BLUE,1,299";
+    const csvContent = "external_return_id,return_date,platform,variant_sku,quantity,refund_amount,return_type,return_reason\nRET-WH-101,2024-08-01,Amazon,SKU-SAMPLE-RED,1,499,CUSTOMER_RETURN,Defective product\nRET-WH-102,2024-08-01,Meesho,SKU-SAMPLE-BLUE,1,299,RTO,Customer not available";
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -112,7 +112,7 @@ export function BulkUploadReturnsModal({ isOpen, onClose, onSuccess }: BulkUploa
             <div className="flex justify-between items-center p-4 bg-muted/50 rounded-xl border">
               <div className="space-y-1">
                 <p className="text-sm font-bold">Standard Template</p>
-                <p className="text-xs text-muted-foreground">Headers: external_return_id, return_date, etc.</p>
+                <p className="text-xs text-muted-foreground">Required: external_return_id, return_type (RTO, CUSTOMER_RETURN, etc.)</p>
               </div>
               <Button variant="outline" size="sm" onClick={downloadSample}>
                 <Download className="mr-2 h-4 w-4" /> Template

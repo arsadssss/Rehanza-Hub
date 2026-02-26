@@ -3,9 +3,12 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = "force-dynamic";
 
+const VALID_RETURN_TYPES = ["RTO", "DTO", "CUSTOMER_RETURN", "EXCHANGE", "OTHER"];
+
 /**
  * POST /api/returns/bulk-upload
  * Processes a CSV file to bulk import returns and restock inventory.
+ * Supports return_type and return_reason fields.
  * Strictly scoped by x-account-id.
  */
 export async function POST(request: Request) {
@@ -33,20 +36,32 @@ export async function POST(request: Request) {
     }
 
     const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
-    const requiredHeaders = ["external_return_id", "return_date", "platform", "variant_sku", "quantity", "refund_amount"];
+    const requiredHeaders = [
+      "external_return_id", 
+      "return_date", 
+      "platform", 
+      "variant_sku", 
+      "quantity", 
+      "refund_amount",
+      "return_type",
+      "return_reason"
+    ];
     
     const missingHeaders = requiredHeaders.filter(rh => !headers.includes(rh));
     if (missingHeaders.length > 0) {
       return NextResponse.json({ error: `Missing required columns: ${missingHeaders.join(", ")}` }, { status: 400 });
     }
 
+    // Map header indices
     const hIdx = {
       ext_id: headers.indexOf('external_return_id'),
       date: headers.indexOf('return_date'),
       platform: headers.indexOf('platform'),
       sku: headers.indexOf('variant_sku'),
       qty: headers.indexOf('quantity'),
-      refund: headers.indexOf('refund_amount')
+      refund: headers.indexOf('refund_amount'),
+      type: headers.indexOf('return_type'),
+      reason: headers.indexOf('return_reason')
     };
 
     const dataRows = lines.slice(1);
@@ -67,7 +82,7 @@ export async function POST(request: Request) {
 
       if (cols.length < requiredHeaders.length) {
         result.skipped++;
-        result.errors.push(`Row ${rowNum}: Incomplete data`);
+        result.errors.push(`Row ${rowNum}: Incomplete data columns`);
         continue;
       }
 
@@ -78,12 +93,21 @@ export async function POST(request: Request) {
         sku: cols[hIdx.sku],
         qty: parseInt(cols[hIdx.qty]),
         refund: parseFloat(cols[hIdx.refund]),
+        type: cols[hIdx.type],
+        reason: cols[hIdx.reason] || "",
         rowNum
       };
 
-      if (!row.ext_id || !row.sku || isNaN(row.qty) || isNaN(row.refund) || !row.date) {
+      // Field validation
+      if (!row.ext_id || !row.sku || isNaN(row.qty) || isNaN(row.refund) || !row.date || !row.type) {
         result.skipped++;
-        result.errors.push(`Row ${rowNum}: Missing or malformed fields`);
+        result.errors.push(`Row ${rowNum}: Missing or malformed required fields`);
+        continue;
+      }
+
+      if (!VALID_RETURN_TYPES.includes(row.type)) {
+        result.skipped++;
+        result.errors.push(`Row ${rowNum}: Invalid return_type "${row.type}". Must be one of: ${VALID_RETURN_TYPES.join(", ")}`);
         continue;
       }
 
@@ -128,12 +152,33 @@ export async function POST(request: Request) {
     if (finalQueue.length > 0) {
       try {
         for (const item of finalQueue) {
-          // Note: total_loss is calculated from refund or set to 0 if schema requires. 
-          // Assuming schema uses total_loss for dashboard reporting.
+          // atomicity per row insert + stock update
           await sql`
             WITH inserted_return AS (
-              INSERT INTO returns (external_return_id, return_date, platform, variant_id, quantity, refund_amount, account_id, restockable)
-              VALUES (${item.ext_id}, ${item.date}, ${item.platform}, ${item.variant_id}, ${item.qty}, ${item.refund}, ${accountId}, true)
+              INSERT INTO returns (
+                external_return_id, 
+                return_date, 
+                platform, 
+                variant_id, 
+                quantity, 
+                refund_amount, 
+                return_type,
+                return_reason,
+                account_id, 
+                restockable
+              )
+              VALUES (
+                ${item.ext_id}, 
+                ${item.date}, 
+                ${item.platform}, 
+                ${item.variant_id}, 
+                ${item.qty}, 
+                ${item.refund}, 
+                ${item.type},
+                ${item.reason},
+                ${accountId}, 
+                true
+              )
               RETURNING variant_id, quantity
             )
             UPDATE product_variants 
@@ -143,7 +188,7 @@ export async function POST(request: Request) {
           result.inserted++;
         }
       } catch (dbErr: any) {
-        console.error("Database Transaction Error:", dbErr);
+        console.error("Database Transaction Error during Returns Bulk Import:", dbErr);
         throw new Error(`Transaction failed during row processing: ${dbErr.message}`);
       }
     }
