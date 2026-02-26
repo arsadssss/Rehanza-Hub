@@ -10,24 +10,51 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, message: "Account not selected" }, { status: 400 });
     }
 
+    // 1. Fetch all raw data in parallel using Promise.all for speed
     const [
-      platformRes,
-      ordersReturnsRes,
+      orderSummary,
+      returnSummary,
+      productCosts,
+      platformStats,
+      weeklyTrend,
       recentOrdersRes,
       topSellingRes,
-      summaryStatsRes,
     ] = await Promise.all([
-      // Platform Performance
+      // Total Units and Gross Revenue
+      sql`
+        SELECT 
+          COALESCE(SUM(quantity), 0)::int as total_units,
+          COALESCE(SUM(total_amount), 0)::numeric as gross_revenue
+        FROM orders 
+        WHERE account_id = ${accountId} AND is_deleted = false
+      `,
+      // Total Return Units and Total Return Loss
+      sql`
+        SELECT 
+          COALESCE(SUM(quantity), 0)::int as return_units,
+          COALESCE(SUM(total_loss), 0)::numeric as return_loss
+        FROM returns 
+        WHERE account_id = ${accountId} AND is_deleted = false
+      `,
+      // Total Cost of Goods Sold (for Net Profit)
+      sql`
+        SELECT SUM(o.quantity * p.cost_price)::numeric as total_cost
+        FROM orders o
+        JOIN product_variants pv ON o.variant_id = pv.id
+        JOIN allproducts p ON pv.product_id = p.id
+        WHERE o.account_id = ${accountId} AND o.is_deleted = false
+      `,
+      // Platform Performance Breakdown
       sql`
         SELECT 
           platform,
           COALESCE(SUM(quantity), 0)::int as total_units,
           COALESCE(SUM(total_amount), 0)::numeric as total_revenue
         FROM orders
-        WHERE is_deleted = false AND account_id = ${accountId}
+        WHERE account_id = ${accountId} AND is_deleted = false
         GROUP BY platform
       `,
-      // Weekly Orders vs Returns
+      // Weekly Trend (Last 7 Days)
       sql`
         SELECT 
           TO_CHAR(d.date, 'Dy') as day_label,
@@ -37,19 +64,19 @@ export async function GET(request: Request) {
           SELECT CURRENT_DATE - i as date 
           FROM generate_series(0, 6) i
         ) d
-        LEFT JOIN orders o ON DATE(o.order_date) = d.date AND o.is_deleted = false AND o.account_id = ${accountId}
-        LEFT JOIN returns r ON DATE(r.return_date) = d.date AND r.is_deleted = false AND r.account_id = ${accountId}
+        LEFT JOIN orders o ON DATE(o.order_date) = d.date AND o.account_id = ${accountId} AND o.is_deleted = false
+        LEFT JOIN returns r ON DATE(r.return_date) = d.date AND r.account_id = ${accountId} AND r.is_deleted = false
         GROUP BY d.date
         ORDER BY d.date ASC
       `,
-      // Recent Orders
+      // Recent Orders (Latest 5)
       sql`
-        SELECT o.id, o.created_at, o.platform, o.quantity, o.total_amount, pv.variant_sku, p.product_name
+        SELECT o.id, o.created_at, o.platform, o.quantity, o.total_amount, pv.variant_sku, p.product_name, o.order_date
         FROM orders o
         LEFT JOIN product_variants pv ON o.variant_id = pv.id
         LEFT JOIN allproducts p ON pv.product_id = p.id
-        WHERE o.is_deleted = false AND o.account_id = ${accountId}
-        ORDER BY o.created_at DESC 
+        WHERE o.account_id = ${accountId} AND o.is_deleted = false
+        ORDER BY o.order_date DESC, o.created_at DESC 
         LIMIT 5
       `,
       // Top Selling Products
@@ -62,49 +89,48 @@ export async function GET(request: Request) {
         FROM orders o
         JOIN product_variants pv ON o.variant_id = pv.id
         JOIN allproducts p ON pv.product_id = p.id
-        WHERE o.is_deleted = false AND o.account_id = ${accountId}
+        WHERE o.account_id = ${accountId} AND o.is_deleted = false
         GROUP BY p.product_name, pv.variant_sku
         ORDER BY total_units_sold DESC
         LIMIT 5
-      `,
-      // Aggregated Summary
-      sql`
-        SELECT 
-          COALESCE(SUM(quantity), 0)::int as total_units,
-          COALESCE(SUM(total_amount), 0)::numeric as gross_revenue
-        FROM orders 
-        WHERE is_deleted = false AND account_id = ${accountId}
       `
     ]);
 
-    const totalUnitsSold = Number(summaryStatsRes[0]?.total_units || 0);
-    const totalReturnsCount = ordersReturnsRes.reduce((acc: number, d: any) => acc + Number(d.total_returns), 0);
-    const returnRate = totalUnitsSold > 0 ? (totalReturnsCount / totalUnitsSold) * 100 : 0;
+    // 2. Perform Secondary Calculations
+    const unitsSold = Number(orderSummary[0]?.total_units || 0);
+    const revenue = Number(orderSummary[0]?.gross_revenue || 0);
+    const returnUnits = Number(returnSummary[0]?.return_units || 0);
+    const returnLoss = Number(returnSummary[0]?.return_loss || 0);
+    const cogs = Number(productCosts[0]?.total_cost || 0);
+
+    const netProfit = revenue - cogs - returnLoss;
+    const returnRate = unitsSold > 0 ? (returnUnits / unitsSold) * 100 : 0;
 
     const summary = {
-      total_units: totalUnitsSold,
-      gross_revenue: Number(summaryStatsRes[0]?.gross_revenue || 0),
-      net_profit: Number(summaryStatsRes[0]?.gross_revenue || 0) * 0.2, // Default 20% margin if not calculated precisely
+      total_units: unitsSold,
+      gross_revenue: revenue,
+      net_profit: netProfit,
       return_rate: returnRate,
     };
 
     return NextResponse.json({
       success: true,
       summary,
-      platformPerformance: platformRes.map((p: any) => ({
+      platformPerformance: platformStats.map((p: any) => ({
         platform: p.platform,
         total_units: Number(p.total_units),
         total_revenue: Number(p.total_revenue)
       })),
-      ordersReturnsData: ordersReturnsRes.map((d: any) => ({
-        ...d,
+      ordersReturnsData: weeklyTrend.map((d: any) => ({
+        day_label: d.day_label,
         total_orders: Number(d.total_orders),
         total_returns: Number(d.total_returns)
       })),
       recentOrders: recentOrdersRes.map((o: any) => ({
         ...o,
         quantity: Number(o.quantity),
-        total_amount: Number(o.total_amount)
+        total_amount: Number(o.total_amount),
+        created_at: o.order_date // Consistent with list display
       })),
       topSellingProducts: topSellingRes.map((p: any) => ({
         ...p,
