@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from "react";
 import { formatINR } from "@/lib/format";
-import { format, parseISO } from 'date-fns';
+import { format, parseISO, isValid } from 'date-fns';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
@@ -72,10 +72,12 @@ export default function OrdersPage() {
     fetchData();
   }, [fetchData]);
 
-  // Reset page when tab or filters change
-  useEffect(() => {
+  // Reset data and page when tab changes to prevent type mismatch rendering
+  const handleTabChange = (val: string) => {
+    setData([]);
     setPage(1);
-  }, [activeTab, platformFilter, searchTerm, fromDate, toDate]);
+    setActiveTab(val);
+  };
 
   const handleConfirmDelete = async () => {
     if (!itemToDelete) return;
@@ -97,6 +99,16 @@ export default function OrdersPage() {
     setPlatformFilter("all");
     setFromDate("");
     setToDate("");
+  };
+
+  const safeFormatDate = (dateStr: string) => {
+    if (!dateStr) return "N/A";
+    try {
+      const date = parseISO(dateStr);
+      return isValid(date) ? format(date, "dd MMM yyyy") : "Invalid Date";
+    } catch (e) {
+      return "Invalid Date";
+    }
   };
 
   return (
@@ -150,7 +162,7 @@ export default function OrdersPage() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
         <TabsList className="grid w-full grid-cols-2 max-w-md">
           <TabsTrigger value="orders">Orders Log</TabsTrigger>
           <TabsTrigger value="returns">Returns Log</TabsTrigger>
@@ -217,10 +229,10 @@ export default function OrdersPage() {
                     Array.from({ length: 5 }).map((_, i) => (
                       <TableRow key={i}><TableCell colSpan={7}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
                     ))
-                  ) : data.length > 0 ? (
+                  ) : (activeTab === "orders" && data.length > 0) ? (
                     data.map((o) => (
                       <TableRow key={o.id}>
-                        <TableCell className="font-medium">{format(parseISO(o.order_date), "dd MMM yyyy")}</TableCell>
+                        <TableCell className="font-medium">{safeFormatDate(o.order_date)}</TableCell>
                         <TableCell><Badge variant="outline">{o.platform}</Badge></TableCell>
                         <TableCell>
                           <div className="flex flex-col">
@@ -272,10 +284,10 @@ export default function OrdersPage() {
                     Array.from({ length: 5 }).map((_, i) => (
                       <TableRow key={i}><TableCell colSpan={7}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
                     ))
-                  ) : data.length > 0 ? (
+                  ) : (activeTab === "returns" && data.length > 0) ? (
                     data.map((r) => (
                       <TableRow key={r.id}>
-                        <TableCell className="font-medium">{format(parseISO(r.return_date), "dd MMM yyyy")}</TableCell>
+                        <TableCell className="font-medium">{safeFormatDate(r.return_date)}</TableCell>
                         <TableCell><Badge variant="secondary">{r.platform}</Badge></TableCell>
                         <TableCell>
                           <div className="flex flex-col">
