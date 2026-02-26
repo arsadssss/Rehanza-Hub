@@ -228,7 +228,7 @@ function ProductsContent() {
 
 
   return (
-    <div className="p-6">
+    <div className="p-6 w-full space-y-6">
       <AddProductModal
         isOpen={isAddProductModalOpen || !!editingProduct}
         onClose={handleCloseModal}
@@ -247,263 +247,270 @@ function ProductsContent() {
         variant={editingVariant}
       />
       
-      {/* Animated Toggle Switcher */}
-      <ProductViewToggle value={view} onChange={setView} />
-
-      {view === "products" && (
-        <div className="space-y-8 animate-in fade-in zoom-in-95 duration-300">
-           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8 mt-2">
-              <SummaryStatCard 
-                title="Total Products" 
-                value={summaryStats?.totalProducts ?? 0} 
-                icon={<Package className="h-6 w-6 text-white" />} 
-                loading={loadingSummary} 
-              />
-              <SummaryStatCard 
-                title="Products In Stock" 
-                value={summaryStats?.inStockProducts ?? 0} 
-                icon={<Archive className="h-6 w-6 text-white" />} 
-                loading={loadingSummary} 
-              />
-              <SummaryStatCard 
-                title="Out of Stock" 
-                value={summaryStats?.outOfStockProducts ?? 0} 
-                icon={<ArchiveX className="h-6 w-6 text-white" />} 
-                loading={loadingSummary} 
-              />
-              <SummaryStatCard 
-                title="Total Inventory Units" 
-                value={summaryStats?.totalInventoryUnits ?? 0} 
-                icon={<Warehouse className="h-6 w-6 text-white" />} 
-                loading={loadingSummary} 
-              />
-            </div>
-          <Card>
-            <CardHeader>
-              <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                <div>
-                  <CardTitle className="font-headline">Products</CardTitle>
-                  <CardDescription>Manage your main products and their base pricing.</CardDescription>
-                </div>
-                <div className="flex items-center gap-2 w-full md:w-auto">
-                  <div className="relative w-full md:w-64">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search by SKU or name..."
-                      className="pl-10"
-                      value={searchTermProducts}
-                      onChange={e => setSearchTermProducts(e.target.value)}
-                    />
-                  </div>
-                  <Button onClick={() => setIsAddProductModalOpen(true)}>
-                    <PlusCircle className="mr-2 h-4 w-4" /> Add Product
-                  </Button>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent>
-              <div className="rounded-md border">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>SKU</TableHead>
-                      <TableHead>Product Name</TableHead>
-                      <TableHead>Cost</TableHead>
-                      <TableHead>Margin</TableHead>
-                      <TableHead>Meesho</TableHead>
-                      <TableHead>Flipkart</TableHead>
-                      <TableHead>Amazon</TableHead>
-                      <TableHead>Stock</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {loadingProducts ? (
-                      Array.from({ length: productsPageSize }).map((_, i) => (
-                        <TableRow key={i}>
-                          <TableCell colSpan={10}>
-                            <Skeleton className="h-8 w-full" />
-                          </TableCell>
-                        </TableRow>
-                      ))
-                    ) : products.length > 0 ? (
-                      products.map(product => {
-                        const stock = product.stock || 0;
-                        let statusText: string;
-                        let badgeVariant: 'destructive' | 'default' = 'default';
-                        let badgeClassName = '';
-
-                        if (stock === 0) {
-                            statusText = 'Out of Stock';
-                            badgeVariant = 'destructive';
-                        } else if (stock <= product.low_stock_threshold) {
-                            statusText = 'Low Stock';
-                            badgeVariant = 'destructive';
-                            badgeClassName = 'bg-orange-500';
-                        } else {
-                            statusText = 'In Stock';
-                            badgeClassName = 'bg-green-500';
-                        }
-
-                        return (
-                          <TableRow key={product.id}>
-                            <TableCell className="font-medium">{product.sku}</TableCell>
-                            <TableCell>{product.product_name}</TableCell>
-                            <TableCell>{formatINR(product.cost_price)}</TableCell>
-                            <TableCell>{formatINR(product.margin)}</TableCell>
-                            <TableCell>{formatINR(product.meesho_price)}</TableCell>
-                            <TableCell>{formatINR(product.flipkart_price)}</TableCell>
-                            <TableCell>{formatINR(product.amazon_price)}</TableCell>
-                            <TableCell>{stock}</TableCell>
-                            <TableCell>
-                              <Badge
-                                 variant={badgeVariant}
-                                 className={badgeClassName}
-                              >
-                                {statusText}
-                              </Badge>
-                            </TableCell>
-                             <TableCell className="text-right">
-                                <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenEditModal(product)}>
-                                    <Pencil className="h-4 w-4" />
-                                </Button>
-                             </TableCell>
-                          </TableRow>
-                        );
-                      })
-                    ) : (
-                      <TableRow>
-                        <TableCell colSpan={10} className="h-24 text-center">
-                          No products found.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-               <div className="flex items-center justify-end space-x-2 py-4">
-                  <span className="text-sm text-muted-foreground">
-                    {productsTotalRows > 0 ? `Page ${productsPage} of ${Math.ceil(productsTotalRows / productsPageSize)}` : 'Page 0 of 0'}
-                  </span>
-                  <Button variant="outline" size="sm" onClick={() => setProductsPage(p => p - 1)} disabled={productsPage === 1}>
-                    Previous
-                  </Button>
-                  <Button variant="outline" size="sm" onClick={() => setProductsPage(p => p + 1)} disabled={(productsPage * productsPageSize) >= productsTotalRows}>
-                    Next
-                  </Button>
-              </div>
-            </CardContent>
-          </Card>
+      {/* Animated Toggle Switcher - Centered and Locked */}
+      <div className="flex justify-center w-full">
+        <div className="inline-flex">
+          <ProductViewToggle value={view} onChange={setView} />
         </div>
-      )}
+      </div>
 
-      {view === "variants" && (
-        <div className="animate-in fade-in zoom-in-95 duration-300">
-            <Card>
-                <CardHeader>
+      {/* Summary Stats - Visible in both views */}
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 w-full">
+        <SummaryStatCard 
+          title="Total Products" 
+          value={summaryStats?.totalProducts ?? 0} 
+          icon={<Package className="h-6 w-6 text-white" />} 
+          loading={loadingSummary} 
+        />
+        <SummaryStatCard 
+          title="Products In Stock" 
+          value={summaryStats?.inStockProducts ?? 0} 
+          icon={<Archive className="h-6 w-6 text-white" />} 
+          loading={loadingSummary} 
+        />
+        <SummaryStatCard 
+          title="Out of Stock" 
+          value={summaryStats?.outOfStockProducts ?? 0} 
+          icon={<ArchiveX className="h-6 w-6 text-white" />} 
+          loading={loadingSummary} 
+        />
+        <SummaryStatCard 
+          title="Total Inventory Units" 
+          value={summaryStats?.totalInventoryUnits ?? 0} 
+          icon={<Warehouse className="h-6 w-6 text-white" />} 
+          loading={loadingSummary} 
+        />
+      </div>
+
+      {/* Main Content Area */}
+      <div className="w-full">
+        {view === "products" ? (
+          <div className="animate-in fade-in zoom-in-95 duration-300 w-full">
+            <Card className="w-full">
+              <CardHeader>
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-                    <div>
-                    <CardTitle className="font-headline">Product Variants</CardTitle>
-                    <CardDescription>Manage your product variants and their individual stock.</CardDescription>
-                    </div>
-                    <div className="flex items-center gap-2 w-full md:w-auto">
+                  <div>
+                    <CardTitle className="font-headline">Products</CardTitle>
+                    <CardDescription>Manage your main products and their base pricing.</CardDescription>
+                  </div>
+                  <div className="flex items-center gap-2 w-full md:w-auto">
                     <div className="relative w-full md:w-64">
-                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                        <Input
-                        placeholder="Search variants..."
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search by SKU or name..."
                         className="pl-10"
-                        value={searchTermVariants}
-                        onChange={e => setSearchTermVariants(e.target.value)}
-                        />
+                        value={searchTermProducts}
+                        onChange={e => setSearchTermProducts(e.target.value)}
+                      />
                     </div>
-                    {selectedVariantRows.length > 0 && (
-                        <Button variant="destructive" size="icon" onClick={handleDeleteSelectedVariants}>
-                        <Trash2 className="h-4 w-4" />
-                        </Button>
-                    )}
-                    <Button onClick={() => setIsAddVariantModalOpen(true)}>
-                        <PlusCircle className="mr-2 h-4 w-4" /> Add Variant
+                    <Button onClick={() => setIsAddProductModalOpen(true)}>
+                      <PlusCircle className="mr-2 h-4 w-4" /> Add Product
                     </Button>
-                    </div>
+                  </div>
                 </div>
-                </CardHeader>
-                <CardContent>
-                <div className="rounded-md border">
-                    <Table>
+              </CardHeader>
+              <CardContent>
+                <div className="rounded-md border overflow-x-auto w-full">
+                  <Table className="min-w-full">
                     <TableHeader>
-                        <TableRow>
-                        <TableHead className="w-[50px]">
-                            <Checkbox
-                            checked={
-                                selectedVariantRows.length > 0 &&
-                                selectedVariantRows.length === filteredVariants.length
-                            }
-                            onCheckedChange={handleSelectAllVariants}
-                            />
-                        </TableHead>
-                        <TableHead>Variant SKU</TableHead>
+                      <TableRow>
+                        <TableHead>SKU</TableHead>
                         <TableHead>Product Name</TableHead>
-                        <TableHead>Color</TableHead>
-                        <TableHead>Size</TableHead>
+                        <TableHead>Cost</TableHead>
+                        <TableHead>Margin</TableHead>
+                        <TableHead>Meesho</TableHead>
+                        <TableHead>Flipkart</TableHead>
+                        <TableHead>Amazon</TableHead>
                         <TableHead>Stock</TableHead>
-                        <TableHead>Actions</TableHead>
-                        </TableRow>
+                        <TableHead>Status</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
                     </TableHeader>
                     <TableBody>
-                        {loadingVariants ? (
-                        Array.from({ length: 5 }).map((_, i) => (
-                            <TableRow key={i}>
-                            <TableCell colSpan={7}>
-                                <Skeleton className="h-8 w-full" />
+                      {loadingProducts ? (
+                        Array.from({ length: productsPageSize }).map((_, i) => (
+                          <TableRow key={i}>
+                            <TableCell colSpan={10}>
+                              <Skeleton className="h-8 w-full" />
                             </TableCell>
-                            </TableRow>
+                          </TableRow>
                         ))
-                        ) : filteredVariants.length > 0 ? (
-                        filteredVariants.map(variant => (
-                            <TableRow
-                                key={variant.id}
-                                data-state={selectedVariantRows.includes(variant.id) && "selected"}
-                            >
-                                <TableCell>
-                                <Checkbox
-                                    checked={selectedVariantRows.includes(variant.id)}
-                                    onCheckedChange={() => handleRowSelectVariant(variant.id)}
-                                />
-                                </TableCell>
-                                <TableCell className="font-medium">{variant.variant_sku}</TableCell>
-                                <TableCell>{variant.allproducts?.product_name}</TableCell>
-                                <TableCell>{variant.color || 'N/A'}</TableCell>
-                                <TableCell>{variant.size || 'N/A'}</TableCell>
-                                <TableCell>{variant.stock}</TableCell>
-                                <TableCell>
-                                <Button variant="ghost" size="icon" onClick={() => setEditingVariant(variant)}>
-                                    <Pencil className="h-4 w-4" />
-                                </Button>
-                                </TableCell>
+                      ) : products.length > 0 ? (
+                        products.map(product => {
+                          const stock = product.stock || 0;
+                          let statusText: string;
+                          let badgeVariant: 'destructive' | 'default' = 'default';
+                          let badgeClassName = '';
+
+                          if (stock === 0) {
+                              statusText = 'Out of Stock';
+                              badgeVariant = 'destructive';
+                          } else if (stock <= product.low_stock_threshold) {
+                              statusText = 'Low Stock';
+                              badgeVariant = 'destructive';
+                              badgeClassName = 'bg-orange-500';
+                          } else {
+                              statusText = 'In Stock';
+                              badgeClassName = 'bg-green-500';
+                          }
+
+                          return (
+                            <TableRow key={product.id}>
+                              <TableCell className="font-medium">{product.sku}</TableCell>
+                              <TableCell>{product.product_name}</TableCell>
+                              <TableCell>{formatINR(product.cost_price)}</TableCell>
+                              <TableCell>{formatINR(product.margin)}</TableCell>
+                              <TableCell>{formatINR(product.meesho_price)}</TableCell>
+                              <TableCell>{formatINR(product.flipkart_price)}</TableCell>
+                              <TableCell>{formatINR(product.amazon_price)}</TableCell>
+                              <TableCell>{stock}</TableCell>
+                              <TableCell>
+                                <Badge
+                                   variant={badgeVariant}
+                                   className={badgeClassName}
+                                >
+                                  {statusText}
+                                </Badge>
+                              </TableCell>
+                               <TableCell className="text-right">
+                                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenEditModal(product)}>
+                                      <Pencil className="h-4 w-4" />
+                                  </Button>
+                               </TableCell>
                             </TableRow>
-                            ))
-                        ) : (
+                          );
+                        })
+                      ) : (
                         <TableRow>
-                            <TableCell colSpan={7} className="h-24 text-center">
-                            No variants found.
-                            </TableCell>
+                          <TableCell colSpan={10} className="h-24 text-center">
+                            No products found.
+                          </TableCell>
                         </TableRow>
-                        )}
+                      )}
                     </TableBody>
-                    </Table>
+                  </Table>
                 </div>
-                </CardContent>
+                 <div className="flex items-center justify-end space-x-2 py-4">
+                    <span className="text-sm text-muted-foreground">
+                      {productsTotalRows > 0 ? `Page ${productsPage} of ${Math.ceil(productsTotalRows / productsPageSize)}` : 'Page 0 of 0'}
+                    </span>
+                    <Button variant="outline" size="sm" onClick={() => setProductsPage(p => p - 1)} disabled={productsPage === 1}>
+                      Previous
+                    </Button>
+                    <Button variant="outline" size="sm" onClick={() => setProductsPage(p => p + 1)} disabled={(productsPage * productsPageSize) >= productsTotalRows}>
+                      Next
+                    </Button>
+                </div>
+              </CardContent>
             </Card>
-        </div>
-      )}
+          </div>
+        ) : (
+          <div className="animate-in fade-in zoom-in-95 duration-300 w-full">
+              <Card className="w-full">
+                  <CardHeader>
+                  <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                      <div>
+                      <CardTitle className="font-headline">Product Variants</CardTitle>
+                      <CardDescription>Manage your product variants and their individual stock.</CardDescription>
+                      </div>
+                      <div className="flex items-center gap-2 w-full md:w-auto">
+                      <div className="relative w-full md:w-64">
+                          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                          <Input
+                          placeholder="Search variants..."
+                          className="pl-10"
+                          value={searchTermVariants}
+                          onChange={e => setSearchTermVariants(e.target.value)}
+                          />
+                      </div>
+                      {selectedVariantRows.length > 0 && (
+                          <Button variant="destructive" size="icon" onClick={handleDeleteSelectedVariants}>
+                          <Trash2 className="h-4 w-4" />
+                          </Button>
+                      )}
+                      <Button onClick={() => setIsAddVariantModalOpen(true)}>
+                          <PlusCircle className="mr-2 h-4 w-4" /> Add Variant
+                      </Button>
+                      </div>
+                  </div>
+                  </CardHeader>
+                  <CardContent>
+                  <div className="rounded-md border overflow-x-auto w-full">
+                      <Table className="min-w-full">
+                      <TableHeader>
+                          <TableRow>
+                          <TableHead className="w-[50px]">
+                              <Checkbox
+                              checked={
+                                  selectedVariantRows.length > 0 &&
+                                  selectedVariantRows.length === filteredVariants.length
+                              }
+                              onCheckedChange={handleSelectAllVariants}
+                              />
+                          </TableHead>
+                          <TableHead>Variant SKU</TableHead>
+                          <TableHead>Product Name</TableHead>
+                          <TableHead>Color</TableHead>
+                          <TableHead>Size</TableHead>
+                          <TableHead>Stock</TableHead>
+                          <TableHead>Actions</TableHead>
+                          </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                          {loadingVariants ? (
+                          Array.from({ length: 5 }).map((_, i) => (
+                              <TableRow key={i}>
+                              <TableCell colSpan={7}>
+                                  <Skeleton className="h-8 w-full" />
+                              </TableCell>
+                              </TableRow>
+                          ))
+                          ) : filteredVariants.length > 0 ? (
+                          filteredVariants.map(variant => (
+                              <TableRow
+                                  key={variant.id}
+                                  data-state={selectedVariantRows.includes(variant.id) && "selected"}
+                              >
+                                  <TableCell>
+                                  <Checkbox
+                                      checked={selectedVariantRows.includes(variant.id)}
+                                      onCheckedChange={() => handleRowSelectVariant(variant.id)}
+                                  />
+                                  </TableCell>
+                                  <TableCell className="font-medium">{variant.variant_sku}</TableCell>
+                                  <TableCell>{variant.allproducts?.product_name}</TableCell>
+                                  <TableCell>{variant.color || 'N/A'}</TableCell>
+                                  <TableCell>{variant.size || 'N/A'}</TableCell>
+                                  <TableCell>{variant.stock}</TableCell>
+                                  <TableCell>
+                                  <Button variant="ghost" size="icon" onClick={() => setEditingVariant(variant)}>
+                                      <Pencil className="h-4 w-4" />
+                                  </Button>
+                                  </TableCell>
+                              </TableRow>
+                              ))
+                          ) : (
+                          <TableRow>
+                              <TableCell colSpan={7} className="h-24 text-center">
+                              No variants found.
+                              </TableCell>
+                          </TableRow>
+                          )}
+                      </TableBody>
+                      </Table>
+                  </div>
+                  </CardContent>
+              </Card>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
 export default function ProductsPage() {
   return (
-    <Suspense fallback={<div className="p-6"><Skeleton className="h-10 w-full mb-6" /><Skeleton className="h-64 w-full" /></div>}>
+    <Suspense fallback={<div className="p-6 w-full"><Skeleton className="h-10 w-full mb-6" /><Skeleton className="h-64 w-full" /></div>}>
       <ProductsContent />
     </Suspense>
   );
