@@ -14,9 +14,9 @@ export async function GET(request: Request) {
   const type = searchParams.get('type');
 
   try {
-    // For populating dropdowns in modals (sku only)
+    // For populating dropdowns in modals (sku and product_name)
     if (type === 'list') {
-        const data = await sql`SELECT id, sku FROM allproducts ORDER BY sku`;
+        const data = await sql`SELECT id, sku, product_name FROM allproducts ORDER BY sku`;
         return NextResponse.json(data);
     }
     
