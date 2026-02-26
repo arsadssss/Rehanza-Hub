@@ -12,10 +12,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PlusCircle, Pencil, Trash2, Search, FilterX, Package, CircleDollarSign, Undo2, TrendingDown } from "lucide-react";
+import { PlusCircle, Pencil, Trash2, Search, FilterX, Package, CircleDollarSign, Undo2, TrendingDown, FileUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AddOrderModal } from "./components/add-order-modal";
 import { AddReturnModal } from "../returns/components/add-return-modal";
+import { BulkUploadModal } from "./components/bulk-upload-modal";
 import { apiFetch } from "@/lib/apiFetch";
 import { cn } from "@/lib/utils";
 
@@ -66,6 +67,7 @@ export default function OrdersPage() {
   // Modals
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [isReturnModalOpen, setIsReturnModalOpen] = useState(false);
+  const [isBulkModalOpen, setIsBulkModalOpen] = useState(false);
   const [itemToEdit, setItemToEdit] = useState<any>(null);
   const [itemToDelete, setItemToDelete] = useState<{ id: string; description: string } | null>(null);
 
@@ -155,6 +157,11 @@ export default function OrdersPage() {
         onSuccess={fetchData} 
         returnItem={itemToEdit} 
       />
+      <BulkUploadModal 
+        isOpen={isBulkModalOpen}
+        onClose={() => setIsBulkModalOpen(false)}
+        onSuccess={fetchData}
+      />
 
       <AlertDialog open={!!itemToDelete} onOpenChange={() => setItemToDelete(null)}>
         <AlertDialogContent>
@@ -179,6 +186,11 @@ export default function OrdersPage() {
           <p className="text-muted-foreground text-sm">Monitor and manage your business orders and returns.</p>
         </div>
         <div className="flex items-center gap-2">
+          {activeTab === "orders" && (
+            <Button variant="outline" onClick={() => setIsBulkModalOpen(true)}>
+              <FileUp className="mr-2 h-4 w-4" /> Bulk Upload
+            </Button>
+          )}
           {activeTab === "orders" ? (
             <Button onClick={() => { setItemToEdit(null); setIsOrderModalOpen(true); }}>
               <PlusCircle className="mr-2 h-4 w-4" /> Add Order
