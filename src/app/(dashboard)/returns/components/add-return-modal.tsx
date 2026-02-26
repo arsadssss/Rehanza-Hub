@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
+import { Textarea } from "@/components/ui/textarea"
 import type { Return } from "../page"
 import { format } from "date-fns"
 import { apiFetch } from "@/lib/apiFetch"
@@ -45,6 +46,8 @@ const formSchema = z.object({
   shipping_loss: z.coerce.number().min(0).default(0),
   ads_loss: z.coerce.number().min(0).default(0),
   damage_loss: z.coerce.number().min(0).default(0),
+  return_type: z.enum(["RTO", "DTO", "CUSTOMER_RETURN", "EXCHANGE", "OTHER"], { required_error: "Return type is required" }),
+  return_reason: z.string().optional(),
 })
 
 type ReturnFormValues = z.infer<typeof formSchema>
@@ -71,6 +74,8 @@ export function AddReturnModal({ isOpen, onClose, onSuccess, returnItem }: AddRe
       ads_loss: 0,
       damage_loss: 0,
       return_date: format(new Date(), 'yyyy-MM-dd'),
+      return_type: "OTHER",
+      return_reason: "",
     },
   })
 
@@ -95,6 +100,8 @@ export function AddReturnModal({ isOpen, onClose, onSuccess, returnItem }: AddRe
             shipping_loss: 0,
             ads_loss: 0,
             damage_loss: 0,
+            return_type: (returnItem as any).return_type || "OTHER",
+            return_reason: (returnItem as any).return_reason || "",
           });
       } else {
         form.reset({
@@ -106,6 +113,8 @@ export function AddReturnModal({ isOpen, onClose, onSuccess, returnItem }: AddRe
           return_date: format(new Date(), 'yyyy-MM-dd'),
           platform: undefined,
           variant_id: undefined,
+          return_type: "OTHER",
+          return_reason: "",
         });
       }
     }
@@ -210,6 +219,32 @@ export function AddReturnModal({ isOpen, onClose, onSuccess, returnItem }: AddRe
                 )}
                 />
             </div>
+
+            <FormField
+              control={form.control}
+              name="return_type"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Return Type</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select return category" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="RTO">RTO</SelectItem>
+                      <SelectItem value="DTO">DTO</SelectItem>
+                      <SelectItem value="CUSTOMER_RETURN">Customer Return</SelectItem>
+                      <SelectItem value="EXCHANGE">Exchange</SelectItem>
+                      <SelectItem value="OTHER">Other</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
             <div className="grid grid-cols-2 gap-4 items-end">
                 <FormField
                 control={form.control}
@@ -240,6 +275,24 @@ export function AddReturnModal({ isOpen, onClose, onSuccess, returnItem }: AddRe
                   )}
                 />
             </div>
+
+            <FormField
+              control={form.control}
+              name="return_reason"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Return Reason (Optional)</FormLabel>
+                  <FormControl>
+                    <Textarea 
+                      placeholder="Add any specific details about this return..." 
+                      className="resize-none"
+                      {...field} 
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
 
             <p className="text-sm font-medium">Losses {isEditMode && '(re-enter to update)'}</p>
             <div className="grid grid-cols-3 gap-4">

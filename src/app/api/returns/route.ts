@@ -113,17 +113,17 @@ export async function POST(request: Request) {
     try {
         const body = await request.json();
         const accountId = request.headers.get("x-account-id");
-        const { return_date, platform, variant_id, quantity, restockable, shipping_loss, ads_loss, damage_loss } = body;
+        const { return_date, platform, variant_id, quantity, restockable, shipping_loss, ads_loss, damage_loss, return_type, return_reason } = body;
 
-        if (!return_date || !platform || !variant_id || !quantity || !accountId) {
+        if (!return_date || !platform || !variant_id || !quantity || !accountId || !return_type) {
             return NextResponse.json({ message: 'Missing required fields or account' }, { status: 400 });
         }
 
         const total_loss = Number(shipping_loss || 0) + Number(ads_loss || 0) + Number(damage_loss || 0);
 
         const result = await sql`
-            INSERT INTO returns (return_date, platform, variant_id, quantity, restockable, shipping_loss, ads_loss, damage_loss, total_loss, account_id)
-            VALUES (${return_date}, ${platform}, ${variant_id}, ${quantity}, ${restockable}, ${shipping_loss}, ${ads_loss}, ${damage_loss}, ${total_loss}, ${accountId})
+            INSERT INTO returns (return_date, platform, variant_id, quantity, restockable, shipping_loss, ads_loss, damage_loss, total_loss, account_id, return_type, return_reason)
+            VALUES (${return_date}, ${platform}, ${variant_id}, ${quantity}, ${restockable}, ${shipping_loss}, ${ads_loss}, ${damage_loss}, ${total_loss}, ${accountId}, ${return_type}, ${return_reason})
             RETURNING *;
         `;
         
@@ -138,7 +138,7 @@ export async function PUT(request: Request) {
     try {
         const body = await request.json();
         const accountId = request.headers.get("x-account-id");
-        const { id, return_date, platform, variant_id, quantity, restockable, shipping_loss, ads_loss, damage_loss } = body;
+        const { id, return_date, platform, variant_id, quantity, restockable, shipping_loss, ads_loss, damage_loss, return_type, return_reason } = body;
 
         if (!id || !accountId) {
             return NextResponse.json({ message: "Return ID and Account are required" }, { status: 400 });
@@ -157,7 +157,9 @@ export async function PUT(request: Request) {
                 shipping_loss = ${shipping_loss},
                 ads_loss = ${ads_loss},
                 damage_loss = ${damage_loss},
-                total_loss = ${total_loss}
+                total_loss = ${total_loss},
+                return_type = ${return_type},
+                return_reason = ${return_reason}
             WHERE id = ${id} AND account_id = ${accountId}
             RETURNING *;
         `;
