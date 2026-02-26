@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useSession } from 'next-auth/react';
 import {
   Sidebar,
@@ -26,6 +26,7 @@ import {
   User,
   Tag,
   Wallet,
+  ChevronDown,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -46,9 +47,42 @@ const navItems = [
   { href: '/settings', icon: Settings, label: 'Settings' },
 ];
 
+type Account = {
+  id: string;
+  name: string;
+};
+
 export function SidebarNav() {
   const pathname = usePathname();
   const { data: session } = useSession();
+  
+  const [accounts, setAccounts] = useState<Account[]>([]);
+  const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function fetchAccounts() {
+      try {
+        const res = await fetch("/api/accounts");
+        const json = await res.json();
+
+        if (json.success) {
+          setAccounts(json.data);
+
+          const saved = sessionStorage.getItem("active_account");
+          if (saved) {
+            setSelectedAccount(saved);
+          } else if (json.data.length > 0) {
+            setSelectedAccount(json.data[0].id);
+            sessionStorage.setItem("active_account", json.data[0].id);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to fetch accounts:", error);
+      }
+    }
+
+    fetchAccounts();
+  }, []);
 
   const userName = session?.user?.name ?? 'User';
   const firstLetter = userName.charAt(0).toUpperCase();
@@ -61,6 +95,29 @@ export function SidebarNav() {
           <h1 className="text-2xl font-bold text-sidebar-foreground font-headline">
             Rehanza Hub
           </h1>
+        </div>
+
+        {/* Account Switcher */}
+        <div className="mt-4 relative group">
+          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-sidebar-foreground/50">
+            <ChevronDown className="h-4 w-4" />
+          </div>
+          <select
+            value={selectedAccount || ""}
+            onChange={(e) => {
+              sessionStorage.setItem("active_account", e.target.value);
+              setSelectedAccount(e.target.value);
+              window.location.reload();
+            }}
+            className="w-full appearance-none rounded-md bg-sidebar-accent/50 border border-sidebar-border p-2 pr-10 text-sm text-sidebar-foreground focus:outline-none focus:ring-2 focus:ring-sidebar-ring transition-colors cursor-pointer hover:bg-sidebar-accent"
+          >
+            {accounts.length === 0 && <option value="">Loading accounts...</option>}
+            {accounts.map((acc) => (
+              <option key={acc.id} value={acc.id} className="bg-sidebar text-sidebar-foreground">
+                {acc.name}
+              </option>
+            ))}
+          </select>
         </div>
       </SidebarHeader>
 
