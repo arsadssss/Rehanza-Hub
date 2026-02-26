@@ -35,7 +35,10 @@ export async function GET(request: Request) {
     const whereString = `WHERE ${whereClauses.join(' AND ')}`;
     
     const dataQuery = `
-        SELECT e.*, u1.name as created_by_name, u2.name as updated_by_name 
+        SELECT 
+            e.*, 
+            u1.name as created_by_name, 
+            u2.name as updated_by_name 
         FROM business_expenses e 
         LEFT JOIN users u1 ON e.created_by = u1.id 
         LEFT JOIN users u2 ON e.updated_by = u2.id 
@@ -74,13 +77,16 @@ export async function POST(request: Request) {
         if (!description || !amount || !expense_date) {
             return NextResponse.json({ message: 'Missing required fields' }, { status: 400 });
         }
+        
+        // We set created_by = session.user.id and created_at = NOW()
         const result = await sql`
-            INSERT INTO business_expenses (description, amount, expense_date, created_by)
-            VALUES (${description}, ${amount}, ${expense_date}, ${session.user.id})
+            INSERT INTO business_expenses (description, amount, expense_date, created_by, created_at)
+            VALUES (${description}, ${amount}, ${expense_date}, ${session.user.id}, NOW())
             RETURNING *;
         `;
         return NextResponse.json(result[0], { status: 201 });
     } catch (error: any) {
+        console.error("API Expenses POST Error:", error);
         return NextResponse.json({ message: 'Failed to create expense', error: error.message }, { status: 500 });
     }
 }
@@ -108,6 +114,7 @@ export async function PUT(request: Request) {
         if (result.length === 0) return NextResponse.json({ message: 'Expense not found' }, { status: 404 });
         return NextResponse.json(result[0]);
     } catch (error: any) {
+        console.error("API Expenses PUT Error:", error);
         return NextResponse.json({ message: 'Failed to update expense', error: error.message }, { status: 500 });
     }
 }

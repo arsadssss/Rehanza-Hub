@@ -50,7 +50,10 @@ export async function GET(request: Request) {
     const whereString = `WHERE ${whereClauses.join(' AND ')}`;
     
     const dataQuery = `
-        SELECT t.*, u1.name as created_by_name, u2.name as updated_by_name 
+        SELECT 
+            t.*, 
+            u1.name as created_by_name, 
+            u2.name as updated_by_name 
         FROM tasks t 
         LEFT JOIN users u1 ON t.created_by = u1.id 
         LEFT JOIN users u2 ON t.updated_by = u2.id 
@@ -87,13 +90,16 @@ export async function POST(request: Request) {
         if (!task_name || !task_date || !task_group || !status) {
             return NextResponse.json({ message: 'Missing required fields' }, { status: 400 });
         }
+        
+        // We set created_at = NOW() and created_by = session.user.id
         const result = await sql`
-            INSERT INTO tasks (task_name, task_date, task_group, status, notes, created_by)
-            VALUES (${task_name}, ${task_date}, ${task_group}, ${status}, ${notes}, ${session.user.id})
+            INSERT INTO tasks (task_name, task_date, task_group, status, notes, created_by, created_at)
+            VALUES (${task_name}, ${task_date}, ${task_group}, ${status}, ${notes}, ${session.user.id}, NOW())
             RETURNING *;
         `;
         return NextResponse.json(result[0], { status: 201 });
     } catch (error: any) {
+        console.error("API Tasks POST Error:", error);
         return NextResponse.json({ message: 'Failed to create task', error: error.message }, { status: 500 });
     }
 }
@@ -123,6 +129,7 @@ export async function PUT(request: Request) {
         if (result.length === 0) return NextResponse.json({ message: 'Task not found' }, { status: 404 });
         return NextResponse.json(result[0]);
     } catch (error: any) {
+        console.error("API Tasks PUT Error:", error);
         return NextResponse.json({ message: 'Failed to update task', error: error.message }, { status: 500 });
     }
 }
