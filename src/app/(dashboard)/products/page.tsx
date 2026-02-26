@@ -21,12 +21,6 @@ import {
   TableBody,
   TableCell,
 } from '@/components/ui/table';
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from '@/components/ui/tabs';
 import { Checkbox } from "@/components/ui/checkbox";
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -35,6 +29,7 @@ import { AddProductModal } from './components/add-product-modal';
 import { AddVariantModal } from './components/add-variant-modal';
 import { EditVariantModal } from './components/edit-variant-modal';
 import { SummaryStatCard } from '@/components/SummaryStatCard';
+import { ProductViewToggle } from '@/components/ProductViewToggle';
 import { PlusCircle, Search, Trash2, Pencil, Package, Archive, ArchiveX, Warehouse } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -80,6 +75,9 @@ function ProductsContent() {
   const initialTab = searchParams.get('tab') === 'variants' ? 'variants' : 'products';
   const initialSearch = searchParams.get('search') || '';
 
+  // View state (replaces Tabs)
+  const [view, setView] = useState<"products" | "variants">(initialTab);
+
   // Products state
   const [products, setProducts] = useState<Product[]>([]);
   const [loadingProducts, setLoadingProducts] = useState(true);
@@ -115,7 +113,6 @@ function ProductsContent() {
             search: searchTermProducts,
         });
 
-        // Fetch paginated products and summary in parallel
         const [productsRes, summaryRes] = await Promise.all([
             fetch(`/api/products?${productParams.toString()}`),
             fetch('/api/products/summary')
@@ -140,7 +137,6 @@ function ProductsContent() {
   }, [toast, productsPage, productsPageSize, searchTermProducts]);
 
 
-  // Fetch Variants
   const fetchVariants = useCallback(async () => {
     setLoadingVariants(true);
     try {
@@ -156,7 +152,6 @@ function ProductsContent() {
     }
   }, [toast]);
   
-  // Initial and reactive fetches
   useEffect(() => {
     fetchProductsAndSummary();
   }, [fetchProductsAndSummary]);
@@ -185,7 +180,6 @@ function ProductsContent() {
     setEditingProduct(null);
   }
   
-  // Variant handlers
   const handleDeleteSelectedVariants = async () => {
     if (selectedVariantRows.length === 0) return;
 
@@ -253,12 +247,11 @@ function ProductsContent() {
         variant={editingVariant}
       />
       
-      <Tabs defaultValue={initialTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-2">
-          <TabsTrigger value="products">Products</TabsTrigger>
-          <TabsTrigger value="variants">Variants</TabsTrigger>
-        </TabsList>
-        <TabsContent value="products">
+      {/* Animated Toggle Switcher */}
+      <ProductViewToggle value={view} onChange={setView} />
+
+      {view === "products" && (
+        <div className="space-y-8 animate-in fade-in zoom-in-95 duration-300">
            <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8 mt-2">
               <SummaryStatCard 
                 title="Total Products" 
@@ -402,8 +395,11 @@ function ProductsContent() {
               </div>
             </CardContent>
           </Card>
-        </TabsContent>
-        <TabsContent value="variants">
+        </div>
+      )}
+
+      {view === "variants" && (
+        <div className="animate-in fade-in zoom-in-95 duration-300">
             <Card>
                 <CardHeader>
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -499,8 +495,8 @@ function ProductsContent() {
                 </div>
                 </CardContent>
             </Card>
-        </TabsContent>
-      </Tabs>
+        </div>
+      )}
     </div>
   );
 }
