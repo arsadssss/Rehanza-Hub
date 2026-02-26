@@ -1,4 +1,3 @@
-
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
@@ -8,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { User, Mail, ShieldCheck, ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { ChangePasswordForm } from "./change-password-form";
 
 /**
  * ProfilePage - A server component that displays the logged-in user's information.
@@ -26,8 +26,8 @@ export default async function ProfilePage() {
   const firstLetter = user?.name ? user.name.charAt(0).toUpperCase() : "U";
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50/50 dark:bg-black/50 p-4 font-body">
-      <div className="w-full max-w-md space-y-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50/50 dark:bg-black/50 p-4 font-body py-12">
+      <div className="w-full max-w-md space-y-6">
         {/* Navigation back to dashboard */}
         <Button variant="ghost" asChild className="mb-2 text-muted-foreground hover:text-primary transition-colors">
           <Link href="/dashboard" className="flex items-center gap-2">
@@ -97,6 +97,9 @@ export default async function ProfilePage() {
             </div>
           </CardContent>
         </Card>
+
+        {/* Change Password Component */}
+        <ChangePasswordForm />
       </div>
     </div>
   );
