@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useMemo } from 'react';
@@ -85,6 +84,14 @@ type RecentOrder = {
   quantity: number;
   total_amount: number;
   variant_sku: string | null;
+};
+
+type UserPerformance = {
+  id: string;
+  name: string;
+  total_tasks: number;
+  completed_tasks: number;
+  completion_rate: number;
 };
 
 // --- SUB-COMPONENTS ---
@@ -477,6 +484,7 @@ export default function DashboardPage() {
   const [ordersReturnsData, setOrdersReturnsData] = useState<WeeklyOrdersVsReturns[]>([]);
   const [recentOrders, setRecentOrders] = useState<RecentOrder[]>([]);
   const [topSellingProducts, setTopSellingProducts] = useState<TopSellingProduct[]>([]);
+  const [userPerformance, setUserPerformance] = useState<UserPerformance[]>([]);
   const [loading, setLoading] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
 
@@ -488,14 +496,24 @@ export default function DashboardPage() {
     async function fetchData() {
       setLoading(true);
       try {
-        const res = await fetch('/api/dashboard');
-        if (!res.ok) {
-            const errorData = await res.json();
+        const [dashRes, perfRes] = await Promise.all([
+          fetch('/api/dashboard'),
+          fetch('/api/analytics/user-performance')
+        ]);
+
+        if (!dashRes.ok) {
+            const errorData = await dashRes.json();
             throw new Error(errorData.message || 'Failed to fetch dashboard data');
         }
-        const data = await res.json();
         
-        console.log("Frontend Dashboard received data:", data);
+        const data = await dashRes.json();
+        
+        if (perfRes.ok) {
+          const perfJson = await perfRes.json();
+          if (perfJson.success) {
+            setUserPerformance(perfJson.data);
+          }
+        }
 
         setSummary(data.summary);
         setPlatformPerformance(data.platformPerformance || []);
@@ -682,6 +700,49 @@ export default function DashboardPage() {
               </TableBody>
             </Table>
           </div>
+        </CardContent>
+      </Card>
+
+      <Card className="rounded-2xl shadow-md bg-white/70 dark:bg-black/20 backdrop-blur-sm border-0">
+        <CardHeader>
+          <CardTitle>User Performance</CardTitle>
+          <CardDescription>Task completion rates per user.</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {loading || !isMounted ? (
+            <Skeleton className="h-24 w-full" />
+          ) : (
+            <div className="space-y-4">
+              {userPerformance.length > 0 ? userPerformance.map((u) => (
+                <div
+                  key={u.id}
+                  className="flex justify-between items-center border-b border-border/50 pb-3 last:border-0 last:pb-0"
+                >
+                  <div>
+                    <div className="font-semibold text-foreground">{u.name}</div>
+                    <div className="text-sm text-muted-foreground">
+                      {u.completed_tasks} / {u.total_tasks} tasks completed
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-end">
+                    <div className="text-xl font-bold font-headline text-primary">
+                      {u.completion_rate}%
+                    </div>
+                    <div className="w-32 h-1.5 bg-muted rounded-full overflow-hidden mt-1">
+                      <div 
+                        className="h-full bg-primary" 
+                        style={{ width: `${u.completion_rate}%` }}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )) : (
+                <div className="text-center py-6 text-muted-foreground">
+                  No performance data available.
+                </div>
+              )}
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>
