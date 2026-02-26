@@ -61,14 +61,14 @@ export function BulkUploadModal({ isOpen, onClose, onSuccess }: BulkUploadModalP
       const res = await apiFetch('/api/orders/bulk-upload', {
         method: 'POST',
         body: formData,
-        headers: {}, // Let browser set boundary for multipart
+        // headers is omitted to let browser set boundary for multipart
       });
 
       setUploadProgress(100)
       const data = await res.json()
 
       if (!res.ok) {
-        throw new Error(data.message || "Upload failed")
+        throw new Error(data.error || data.message || "Upload failed")
       }
 
       setResult(data)

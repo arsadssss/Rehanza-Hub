@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     if (!accountId) {
       return NextResponse.json({ 
         success: false, 
-        message: "Account context missing (x-account-id header)" 
+        error: "Account context missing (x-account-id header)" 
       }, { status: 400 });
     }
 
@@ -25,34 +25,34 @@ export async function POST(request: Request) {
     } catch (err) {
       return NextResponse.json({ 
         success: false, 
-        message: "Invalid request format. Expected multipart/form-data." 
+        error: "Invalid request format. Expected multipart/form-data." 
       }, { status: 400 });
     }
 
     // 3. Extract and Validate File
     const file = formData.get('file') as File;
     if (!file) {
-      return NextResponse.json({ success: false, message: "No file uploaded" }, { status: 400 });
+      return NextResponse.json({ success: false, error: "No file uploaded" }, { status: 400 });
     }
 
     if (file.size === 0) {
-      return NextResponse.json({ success: false, message: "Uploaded file is empty" }, { status: 400 });
+      return NextResponse.json({ success: false, error: "Uploaded file is empty" }, { status: 400 });
     }
 
     if (!file.name.toLowerCase().endsWith(".csv")) {
-      return NextResponse.json({ success: false, message: "Only CSV files are allowed" }, { status: 400 });
+      return NextResponse.json({ success: false, error: "Only CSV files are allowed" }, { status: 400 });
     }
 
     // 4. Read and Validate Raw Text
     const text = await file.text();
     if (!text || text.trim().length === 0) {
-      return NextResponse.json({ success: false, message: "CSV file contains no data" }, { status: 400 });
+      return NextResponse.json({ success: false, error: "CSV file contains no data" }, { status: 400 });
     }
 
     // 5. Parse Lines and Headers
     const lines = text.split(/\r?\n/).filter(line => line.trim() !== "");
     if (lines.length < 2) {
-      return NextResponse.json({ success: false, message: "CSV must contain a header row and at least one data row" }, { status: 400 });
+      return NextResponse.json({ success: false, error: "CSV must contain a header row and at least one data row" }, { status: 400 });
     }
 
     const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
@@ -69,7 +69,7 @@ export async function POST(request: Request) {
     if (missingHeaders.length > 0) {
       return NextResponse.json({ 
         success: false, 
-        message: `Missing required columns: ${missingHeaders.join(", ")}` 
+        error: `Missing required columns: ${missingHeaders.join(", ")}` 
       }, { status: 400 });
     }
 
@@ -241,8 +241,8 @@ export async function POST(request: Request) {
     console.error("Bulk Upload Critical Failure:", error);
     return NextResponse.json({ 
       success: false, 
-      message: "An unexpected error occurred while processing the upload.", 
-      error: error.message 
+      error: "An unexpected error occurred while processing the upload.", 
+      details: error.message 
     }, { status: 500 });
   }
 }
