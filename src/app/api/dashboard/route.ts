@@ -15,8 +15,6 @@ export async function GET(request: Request) {
       ordersReturnsRes,
       recentOrdersRes,
       topSellingRes,
-      vendorPurchasesRes,
-      vendorPaymentsRes,
       summaryStatsRes,
     ] = await Promise.all([
       // Platform Performance
@@ -69,9 +67,6 @@ export async function GET(request: Request) {
         ORDER BY total_units_sold DESC
         LIMIT 5
       `,
-      // Vendor Raw Data
-      sql`SELECT id FROM vendor_purchases WHERE is_deleted = false AND account_id = ${accountId}`,
-      sql`SELECT id FROM vendor_payments WHERE is_deleted = false AND account_id = ${accountId}`,
       // Aggregated Summary
       sql`
         SELECT 
@@ -89,7 +84,7 @@ export async function GET(request: Request) {
     const summary = {
       total_units: totalUnitsSold,
       gross_revenue: Number(summaryStatsRes[0]?.gross_revenue || 0),
-      net_profit: Number(summaryStatsRes[0]?.gross_revenue || 0) * 0.2,
+      net_profit: Number(summaryStatsRes[0]?.gross_revenue || 0) * 0.2, // Default 20% margin if not calculated precisely
       return_rate: returnRate,
     };
 

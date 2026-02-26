@@ -84,15 +84,16 @@ export async function GET(request: Request) {
 
     const totalPlatformOrders = meesho + flipkart + amazon;
 
+    // Net Profit Calculation: Margin from orders - Loss from returns
     const grossMargin = (ordersWithMarginRes || []).reduce((acc: number, order: any) => {
         return acc + (Number(order.quantity || 0) * Number(order.margin || 0));
     }, 0);
 
     const returnImpact = (returnsWithMarginRes || []).reduce((acc: number, ret: any) => {
         if (ret.restockable) {
-            return acc + (Number(ret.quantity || 0) * 45);
+            return acc + (Number(ret.quantity || 0) * 45); // Fixed restock loss
         }
-        return acc + (Number(ret.quantity || 0) * Number(ret.margin || 0));
+        return acc + (Number(ret.quantity || 0) * Number(ret.margin || 0)); // Loss of full margin
     }, 0);
 
     const netProfit = grossMargin - returnImpact;

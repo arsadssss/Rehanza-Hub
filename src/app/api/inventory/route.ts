@@ -10,8 +10,22 @@ export async function GET(request: Request) {
       return NextResponse.json({ message: "Account not selected" }, { status: 400 });
     }
 
-    // Assuming inventory_summary view includes account_id
-    const data = await sql`SELECT * FROM inventory_summary WHERE account_id = ${accountId}`;
+    // Dynamic aggregation from products and variants
+    const data = await sql`
+      SELECT 
+        p.id,
+        p.sku,
+        p.product_name,
+        p.low_stock_threshold,
+        COALESCE(SUM(v.stock), 0)::int as total_stock,
+        COALESCE(SUM(o.total_amount), 0)::numeric as total_revenue
+      FROM allproducts p
+      LEFT JOIN product_variants v ON p.id = v.product_id
+      LEFT JOIN orders o ON v.id = o.variant_id AND o.is_deleted = false
+      WHERE p.account_id = ${accountId}
+      GROUP BY p.id, p.sku, p.product_name, p.low_stock_threshold
+      ORDER BY p.sku ASC
+    `;
     
     const dataWithFormatting = data.map(item => ({
         ...item,

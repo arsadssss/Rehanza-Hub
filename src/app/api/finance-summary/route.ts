@@ -10,9 +10,10 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, message: "Account not selected" }, { status: 400 });
     }
 
+    // Payouts are SCOPED, Expenses are GLOBAL as per instructions
     const [payoutRes, expenseRes] = await Promise.all([
       sql`SELECT COALESCE(SUM(amount), 0) as total FROM platform_payouts WHERE is_deleted = false AND account_id = ${accountId}`,
-      sql`SELECT COALESCE(SUM(amount), 0) as total FROM business_expenses WHERE is_deleted = false AND account_id = ${accountId}`
+      sql`SELECT COALESCE(SUM(amount), 0) as total FROM business_expenses WHERE is_deleted = false`
     ]);
 
     const totalReceived = Number(payoutRes[0]?.total || 0);
