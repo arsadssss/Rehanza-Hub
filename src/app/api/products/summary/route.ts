@@ -14,6 +14,7 @@ export async function GET(request: Request) {
         SELECT
             COUNT(*) AS total_products,
             COUNT(CASE WHEN stock > 0 THEN 1 END) AS in_stock_products,
+            COUNT(CASE WHEN stock = 0 THEN 1 END) AS out_of_stock_products,
             SUM(stock) AS total_inventory_units
         FROM (
             SELECT p.id, COALESCE(SUM(v.stock), 0) as stock
@@ -25,16 +26,12 @@ export async function GET(request: Request) {
     `;
     
     const stats = result[0];
-    const totalProducts = Number(stats.total_products || 0);
-    const inStockProducts = Number(stats.in_stock_products || 0);
-    const outOfStockProducts = totalProducts - inStockProducts;
-    const totalInventoryUnits = Number(stats.total_inventory_units || 0);
-
+    
     return NextResponse.json({
-        totalProducts,
-        inStockProducts,
-        outOfStockProducts,
-        totalInventoryUnits
+        totalProducts: Number(stats.total_products || 0),
+        inStockProducts: Number(stats.in_stock_products || 0),
+        outOfStockProducts: Number(stats.out_of_stock_products || 0),
+        totalInventoryUnits: Number(stats.total_inventory_units || 0)
     });
 
   } catch (error: any) {

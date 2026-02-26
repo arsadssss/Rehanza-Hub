@@ -13,14 +13,16 @@ export async function GET(request: Request) {
   }
 
   try {
+    // List for dropdowns
     if (type === 'list') {
         const data = await sql`SELECT id, sku, product_name FROM allproducts WHERE account_id = ${accountId} ORDER BY sku`;
         return NextResponse.json(data);
     }
     
+    // Variants view
     if (type === 'variants') {
         const data = await sql`
-          SELECT v.id, v.variant_sku, v.stock, a.meesho_price, a.flipkart_price, a.amazon_price 
+          SELECT v.id, v.variant_sku, v.stock, v.color, v.size, a.sku as product_sku, a.product_name, a.meesho_price, a.flipkart_price, a.amazon_price 
           FROM product_variants v 
           JOIN allproducts a ON v.product_id = a.id 
           WHERE a.account_id = ${accountId}
@@ -29,6 +31,7 @@ export async function GET(request: Request) {
         return NextResponse.json(data);
     }
     
+    // Main Products View
     const page = parseInt(searchParams.get('page') || '1', 10);
     const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
     const searchTerm = searchParams.get('search') || '';
@@ -37,31 +40,38 @@ export async function GET(request: Request) {
     let data;
     let countResult;
 
-    if (searchTerm) {
-        const search = `%${searchTerm}%`;
-        data = await sql`
-            SELECT * FROM allproducts 
-            WHERE account_id = ${accountId} AND (sku ILIKE ${search} OR product_name ILIKE ${search})
-            ORDER BY id DESC 
-            LIMIT ${pageSize} OFFSET ${offset}
-        `;
-        countResult = await sql`
-            SELECT COUNT(*) FROM allproducts 
-            WHERE account_id = ${accountId} AND (sku ILIKE ${search} OR product_name ILIKE ${search})
-        `;
-    } else {
-        data = await sql`
-            SELECT * FROM allproducts 
-            WHERE account_id = ${accountId}
-            ORDER BY id DESC 
-            LIMIT ${pageSize} OFFSET ${offset}
-        `;
-        countResult = await sql`SELECT COUNT(*) FROM allproducts WHERE account_id = ${accountId}`;
-    }
+    const searchPattern = `%${searchTerm}%`;
+
+    data = await sql`
+        SELECT 
+            p.*, 
+            COALESCE(SUM(v.stock), 0)::int as total_stock
+        FROM allproducts p
+        LEFT JOIN product_variants v ON p.id = v.product_id
+        WHERE p.account_id = ${accountId} 
+        AND (p.sku ILIKE ${searchPattern} OR p.product_name ILIKE ${searchPattern})
+        GROUP BY p.id
+        ORDER BY p.id DESC 
+        LIMIT ${pageSize} OFFSET ${offset}
+    `;
+
+    countResult = await sql`
+        SELECT COUNT(*) FROM allproducts 
+        WHERE account_id = ${accountId} 
+        AND (sku ILIKE ${searchPattern} OR product_name ILIKE ${searchPattern})
+    `;
     
     return NextResponse.json({ 
         success: true,
-        data, 
+        data: data.map(p => ({
+            ...p,
+            cost_price: Number(p.cost_price || 0),
+            margin: Number(p.margin || 0),
+            meesho_price: Number(p.meesho_price || 0),
+            flipkart_price: Number(p.flipkart_price || 0),
+            amazon_price: Number(p.amazon_price || 0),
+            total_stock: Number(p.total_stock || 0)
+        })), 
         count: Number(countResult[0].count) 
     });
 
