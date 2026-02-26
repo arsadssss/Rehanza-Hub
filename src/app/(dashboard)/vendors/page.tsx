@@ -31,6 +31,7 @@ import { AddPurchaseModal } from './components/add-purchase-modal';
 import { AddPaymentModal } from './components/add-payment-modal';
 import { VendorLedger } from './components/vendor-ledger';
 import { VendorFinancialCard } from '@/components/VendorFinancialCard';
+import { apiFetch } from '@/lib/apiFetch';
 
 export type VendorPurchase = {
   id: string;
@@ -108,7 +109,7 @@ export default function VendorsPage() {
   const fetchSummary = useCallback(async () => {
     setLoading(true);
     try {
-        const res = await fetch('/api/vendors/summary');
+        const res = await apiFetch('/api/vendors/summary');
         if (!res.ok) throw new Error('Failed to fetch vendor summary');
         const data = await res.json();
         setSummary(data.summary);
@@ -133,7 +134,7 @@ export default function VendorsPage() {
     setLoadingLedger(true);
 
     try {
-      const res = await fetch(`/api/vendors/${vendor.id}/ledger`);
+      const res = await apiFetch(`/api/vendors/${vendor.id}/ledger`);
       if (!res.ok) throw new Error('Failed to fetch ledger data');
       const { purchases, payments } = await res.json();
 
@@ -213,7 +214,7 @@ export default function VendorsPage() {
     const endpoint = type === 'purchase' ? '/api/vendor-purchases' : '/api/vendor-payments';
 
     try {
-        const res = await fetch(`${endpoint}?id=${id}`, { method: 'DELETE' });
+        const res = await apiFetch(`${endpoint}?id=${id}`, { method: 'DELETE' });
         if (!res.ok) {
             const errorData = await res.json();
             throw new Error(errorData.message);

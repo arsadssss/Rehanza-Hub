@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -35,6 +34,7 @@ import {
 import { Switch } from "@/components/ui/switch"
 import type { Return } from "../page"
 import { format } from "date-fns"
+import { apiFetch } from "@/lib/apiFetch"
 
 const formSchema = z.object({
   return_date: z.string().min(1, "Return date is required"),
@@ -77,7 +77,7 @@ export function AddReturnModal({ isOpen, onClose, onSuccess, returnItem }: AddRe
   React.useEffect(() => {
     async function fetchVariants() {
         try {
-            const res = await fetch('/api/products?type=variants');
+            const res = await apiFetch('/api/products?type=variants');
             if (!res.ok) throw new Error('Failed to fetch variants');
             const data = await res.json();
             setVariants(data);
@@ -88,12 +88,10 @@ export function AddReturnModal({ isOpen, onClose, onSuccess, returnItem }: AddRe
     if (isOpen) {
       fetchVariants();
       if (returnItem?.id) {
-          const { created_at, total_loss, is_deleted, ...rest } = returnItem;
+          const { created_at, total_loss, is_deleted, ...rest } = returnItem as any;
           form.reset({
             ...rest,
             return_date: format(new Date(returnItem.return_date), 'yyyy-MM-dd'),
-            // Individual losses are not stored, so they cannot be pre-filled in edit mode.
-            // A DB trigger calculates total_loss from these.
             shipping_loss: 0,
             ads_loss: 0,
             damage_loss: 0,
@@ -121,9 +119,8 @@ export function AddReturnModal({ isOpen, onClose, onSuccess, returnItem }: AddRe
           id: returnItem?.id,
       };
 
-      const res = await fetch('/api/returns', {
+      const res = await apiFetch('/api/returns', {
           method: isEditMode ? 'PUT' : 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
       });
       

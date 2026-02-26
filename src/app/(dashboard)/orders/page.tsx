@@ -13,6 +13,7 @@ import { Input } from "@/components/ui/input";
 import { PlusCircle, Pencil, Trash2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AddOrderModal } from "./components/add-order-modal";
+import { apiFetch } from "@/lib/apiFetch";
 
 export default function OrdersPage() {
   const [orders, setOrders] = useState<any[]>([]);
@@ -27,8 +28,7 @@ export default function OrdersPage() {
   const fetchOrders = useCallback(async () => {
     setLoading(true);
     try {
-      const accountId = sessionStorage.getItem("active_account") || "";
-      const res = await fetch(`/api/orders?page=${page}`, { headers: { "x-account-id": accountId } });
+      const res = await apiFetch(`/api/orders?page=${page}`);
       if (!res.ok) throw new Error('Failed to fetch');
       const { data, totalRows } = await res.json();
       setOrders(data);

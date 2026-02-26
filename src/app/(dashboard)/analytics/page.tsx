@@ -22,6 +22,7 @@ import {
 } from '@/components/ui/chart';
 import { DollarSign, ShoppingCart, Undo2, TrendingUp, ArrowUpRight } from 'lucide-react';
 import { formatINR } from '@/lib/format';
+import { apiFetch } from '@/lib/apiFetch';
 
 const KpiCard = ({ title, value, icon: Icon, loading, gradient }: { title: string, value: string, icon: React.ElementType, loading: boolean, gradient: string }) => {
     return (
@@ -79,9 +80,7 @@ export default function AnalyticsPage() {
       setLoading(true);
       setLoadingSales(true);
       try {
-        const res = await fetch('/api/analytics', {
-          headers: { "x-account-id": sessionStorage.getItem("active_account") || "" }
-        });
+        const res = await apiFetch('/api/analytics');
         if (!res.ok) {
           const errorData = await res.json();
           throw new Error(errorData.message || 'Failed to fetch analytics data');

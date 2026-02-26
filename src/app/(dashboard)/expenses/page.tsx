@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { PlusCircle, Pencil, Trash2, User, ArrowDownCircle, TrendingUp, TrendingDown } from 'lucide-react';
 import { AddExpenseModal } from './components/add-expense-modal';
 import { cn } from '@/lib/utils';
+import { apiFetch } from '@/lib/apiFetch';
 
 export type BusinessExpense = {
   id: string;
@@ -53,8 +54,7 @@ export default function ExpensesPage() {
   const fetchFinanceSummary = useCallback(async () => {
     setLoading(true);
     try {
-        const accountId = sessionStorage.getItem("active_account") || "";
-        const res = await fetch('/api/finance-summary', { headers: { "x-account-id": accountId } });
+        const res = await apiFetch('/api/finance-summary');
         if (!res.ok) throw new Error('Failed to fetch finance summary');
         const data = await res.json();
         setTotalExpenses(data.total_expenses);
@@ -68,9 +68,8 @@ export default function ExpensesPage() {
 
   const fetchExpenses = useCallback(async () => {
     try {
-        const accountId = sessionStorage.getItem("active_account") || "";
         const params = new URLSearchParams({ page: page.toString(), search: searchTerm });
-        const res = await fetch(`/api/expenses?${params.toString()}`, { headers: { "x-account-id": accountId } });
+        const res = await apiFetch(`/api/expenses?${params.toString()}`);
         if (!res.ok) throw new Error('Failed to fetch expenses');
         const { data, count } = await res.json();
         setExpenses(data);
@@ -85,10 +84,8 @@ export default function ExpensesPage() {
   const handleConfirmDelete = async () => {
     if (!itemToDelete) return;
     try {
-        const accountId = sessionStorage.getItem("active_account") || "";
-        const res = await fetch(`/api/expenses?id=${itemToDelete.id}`, { 
+        const res = await apiFetch(`/api/expenses?id=${itemToDelete.id}`, { 
           method: 'DELETE',
-          headers: { "x-account-id": accountId }
         });
         if (!res.ok) throw new Error('Failed to delete');
         toast({ title: 'Success', description: `Deleted ${itemToDelete.description}` });

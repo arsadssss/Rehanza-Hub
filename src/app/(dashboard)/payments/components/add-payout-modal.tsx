@@ -31,7 +31,17 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import { format } from "date-fns"
-import type { PlatformPayout } from "../page"
+import { apiFetch } from "@/lib/apiFetch"
+
+export type PlatformPayout = {
+  id: string;
+  gst_account: 'Fashion' | 'Cosmetics';
+  platform: 'Meesho' | 'Flipkart' | 'Amazon';
+  amount: number;
+  payout_date: string;
+  reference: string | null;
+  is_deleted: boolean;
+};
 
 const formSchema = z.object({
   account_platform: z.enum([
@@ -102,9 +112,8 @@ export function AddPayoutModal({ isOpen, onClose, onSuccess, payout }: AddPayout
         id: payout?.id,
       }
 
-      const res = await fetch('/api/payouts', {
+      const res = await apiFetch('/api/payouts', {
         method: isEditMode ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payoutData),
       });
 

@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -35,6 +34,7 @@ import {
 import { Textarea } from "@/components/ui/textarea"
 import { format } from "date-fns"
 import type { VendorPurchase, VendorBalance } from "../page"
+import { apiFetch } from "@/lib/apiFetch"
 
 const formSchema = z.object({
   vendor_id: z.string().min(1, "Vendor is required"),
@@ -103,9 +103,8 @@ export function AddPurchaseModal({ isOpen, onClose, onSuccess, purchase, vendors
         id: purchase?.id,
       };
 
-      const res = await fetch('/api/vendor-purchases', {
+      const res = await apiFetch('/api/vendor-purchases', {
         method: isEditMode ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(purchaseData),
       });
 

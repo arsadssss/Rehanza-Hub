@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -26,6 +25,7 @@ import {
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import type { Variant } from "../page"
+import { apiFetch } from "@/lib/apiFetch"
 
 const formSchema = z.object({
   stock: z.coerce.number().min(0, "Stock cannot be negative"),
@@ -63,9 +63,8 @@ export function EditVariantModal({ isOpen, onClose, onVariantUpdated, variant }:
     if (!variant) return;
     setIsSubmitting(true)
     try {
-      const res = await fetch('/api/variants', {
+      const res = await apiFetch('/api/variants', {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ id: variant.id, stock: values.stock })
       });
 

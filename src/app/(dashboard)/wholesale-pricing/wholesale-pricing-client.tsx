@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -42,6 +41,7 @@ import {
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Trash2, PlusCircle, Tag, TrendingDown } from 'lucide-react';
+import { apiFetch } from '@/lib/apiFetch';
 
 const formSchema = z.object({
   product_id: z.string().min(1, "Product is required"),
@@ -78,8 +78,8 @@ export function WholesalePricingClient() {
     setLoading(true);
     try {
       const [prodRes, tiersRes] = await Promise.all([
-        fetch('/api/products?type=list'),
-        fetch('/api/wholesale-prices')
+        apiFetch('/api/products?type=list'),
+        apiFetch('/api/wholesale-prices')
       ]);
 
       if (!prodRes.ok) throw new Error('Failed to fetch products');
@@ -108,9 +108,8 @@ export function WholesalePricingClient() {
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
     try {
-      const res = await fetch('/api/wholesale-prices', {
+      const res = await apiFetch('/api/wholesale-prices', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(values),
       });
 
@@ -138,7 +137,7 @@ export function WholesalePricingClient() {
 
   async function onDelete(id: string) {
     try {
-      const res = await fetch(`/api/wholesale-prices?id=${id}`, {
+      const res = await apiFetch(`/api/wholesale-prices?id=${id}`, {
         method: 'DELETE',
       });
       if (!res.ok) throw new Error('Failed to delete tier');

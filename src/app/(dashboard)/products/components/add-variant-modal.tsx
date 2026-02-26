@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -33,6 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select"
 import type { Product } from "../page"
+import { apiFetch } from "@/lib/apiFetch"
 
 const formSchema = z.object({
   product_id: z.string().min(1, "Product is required"),
@@ -57,7 +57,7 @@ export function AddVariantModal({ isOpen, onClose, onVariantAdded }: AddVariantM
   React.useEffect(() => {
     async function fetchProducts() {
       try {
-          const res = await fetch('/api/products?type=list');
+          const res = await apiFetch('/api/products?type=list');
           if (!res.ok) throw new Error('Failed to fetch products');
           const data = await res.json();
           setProducts(data);
@@ -103,9 +103,8 @@ export function AddVariantModal({ isOpen, onClose, onVariantAdded }: AddVariantM
         variant_sku: variantSku,
       };
 
-      const res = await fetch('/api/variants', {
+      const res = await apiFetch('/api/variants', {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(newVariantData)
       });
       

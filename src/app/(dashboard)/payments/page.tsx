@@ -10,6 +10,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { PlusCircle, Wallet } from 'lucide-react';
 import { AddPayoutModal } from './components/add-payout-modal';
+import { apiFetch } from '@/lib/apiFetch';
 
 export default function PaymentsPage() {
   const { toast } = useToast();
@@ -21,10 +22,9 @@ export default function PaymentsPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const accountId = sessionStorage.getItem("active_account") || "";
       const [pRes, sRes] = await Promise.all([
-        fetch('/api/payouts', { headers: { "x-account-id": accountId } }),
-        fetch('/api/payments-summary', { headers: { "x-account-id": accountId } })
+        apiFetch('/api/payouts'),
+        apiFetch('/api/payments-summary')
       ]);
       if (pRes.ok) setPayouts((await pRes.json()).data);
       if (sRes.ok) setTotalReceived((await sRes.json()).total_received);

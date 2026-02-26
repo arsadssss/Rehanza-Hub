@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { KeyRound, ShieldAlert, CheckCircle2 } from "lucide-react";
+import { apiFetch } from "@/lib/apiFetch";
 
 export function ChangePasswordForm() {
   const [currentPassword, setCurrentPassword] = useState("");
@@ -37,9 +38,8 @@ export function ChangePasswordForm() {
 
     setLoading(true);
     try {
-      const res = await fetch("/api/profile/change-password", {
+      const res = await apiFetch("/api/profile/change-password", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ currentPassword, newPassword }),
       });
 

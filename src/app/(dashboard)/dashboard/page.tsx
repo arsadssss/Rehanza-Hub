@@ -12,6 +12,7 @@ import { Package, CircleDollarSign, TrendingUp, Undo2, Download, ChevronDown, Me
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
+import { apiFetch } from '@/lib/apiFetch';
 
 const KpiCard = ({ title, value, icon: Icon, gradient, loading }: { title: string; value: string; icon: React.ElementType; gradient: string; loading: boolean }) => (
     <Card className={cn('text-white shadow-lg rounded-2xl border-0 overflow-hidden bg-gradient-to-br', gradient)}>
@@ -106,10 +107,9 @@ export default function DashboardPage() {
     async function fetchData() {
       setLoading(true);
       try {
-        const accountId = sessionStorage.getItem("active_account") || "";
         const [dashRes, vendorRes] = await Promise.all([
-          fetch('/api/dashboard', { headers: { "x-account-id": accountId } }),
-          fetch('/api/vendors/summary', { headers: { "x-account-id": accountId } })
+          apiFetch('/api/dashboard'),
+          apiFetch('/api/vendors/summary')
         ]);
 
         if (!dashRes.ok) throw new Error('Failed to fetch dashboard');

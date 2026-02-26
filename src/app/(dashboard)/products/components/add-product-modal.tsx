@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -35,6 +34,7 @@ import {
 import type { Product } from "../page"
 import { formatINR } from "@/lib/format"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+import { apiFetch } from "@/lib/apiFetch"
 
 const formSchema = z.object({
   sku: z.string().min(1, "SKU is required"),
@@ -47,7 +47,6 @@ const formSchema = z.object({
 
 type ProductFormValues = z.infer<typeof formSchema>
 
-// Constants from the requirements
 const PROMO_ADS = 20
 const TAX_OTHER = 10
 const PACKING = 15
@@ -131,7 +130,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: Product
     try {
       const productData = {
         ...values,
-        id: product?.id, // for updates
+        id: product?.id,
         promo_ads: PROMO_ADS,
         tax_other: TAX_OTHER,
         packing: PACKING,
@@ -141,9 +140,8 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: Product
         amazon_price: previewPrices.amazon,
       }
       
-      const res = await fetch('/api/products', {
+      const res = await apiFetch('/api/products', {
           method: isEditMode ? 'PUT' : 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(productData)
       });
 

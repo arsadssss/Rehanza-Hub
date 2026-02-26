@@ -12,6 +12,7 @@ import { Button } from '@/components/ui/button';
 import { Search, ShoppingCart, Undo2, MoveHorizontal } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { InventoryValueCard } from '@/components/InventoryValueCard';
+import { apiFetch } from '@/lib/apiFetch';
 
 export default function InventoryPage() {
   const [inventory, setInventory] = useState<any[]>([]);
@@ -24,10 +25,9 @@ export default function InventoryPage() {
     async function fetchData() {
       setLoading(true);
       try {
-        const accountId = sessionStorage.getItem("active_account") || "";
         const [invRes, valRes] = await Promise.all([
-          fetch('/api/inventory', { headers: { "x-account-id": accountId } }),
-          fetch('/api/inventory-value', { headers: { "x-account-id": accountId } })
+          apiFetch('/api/inventory'),
+          apiFetch('/api/inventory-value')
         ]);
 
         if (invRes.ok) setInventory(await invRes.json());

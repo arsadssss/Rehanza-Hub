@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -27,6 +26,7 @@ import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { format } from "date-fns"
 import type { BusinessExpense } from "../page"
+import { apiFetch } from "@/lib/apiFetch"
 
 const formSchema = z.object({
   description: z.string().min(1, "Description is required"),
@@ -82,9 +82,8 @@ export function AddExpenseModal({ isOpen, onClose, onSuccess, expense }: AddExpe
         id: expense?.id,
       }
 
-      const res = await fetch('/api/expenses', {
+      const res = await apiFetch('/api/expenses', {
         method: isEditMode ? 'PUT' : 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(expenseData),
       });
 

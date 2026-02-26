@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState } from 'react';
@@ -40,8 +39,7 @@ import {
   FormLabel,
   FormMessage,
 } from '@/components/ui/form';
-
-// --- Zod Schemas for Validation ---
+import { apiFetch } from '@/lib/apiFetch';
 
 const businessConfigSchema = z.object({
   businessName: z.string().min(1, 'Business name is required.'),
@@ -103,9 +101,6 @@ const DEFAULT_SETTINGS: Settings = {
     preferences: { theme: 'system', notifications: true },
 };
 
-
-// --- Main Settings Page ---
-
 export default function SettingsPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
@@ -115,7 +110,7 @@ export default function SettingsPage() {
     async function fetchSettings() {
       setLoading(true);
       try {
-        const res = await fetch('/api/settings');
+        const res = await apiFetch('/api/settings');
         if (!res.ok) throw new Error('Failed to fetch settings');
         const loadedSettings = await res.json();
         
@@ -139,9 +134,8 @@ export default function SettingsPage() {
 
   const handleSave = async (setting_key: keyof Settings, setting_value: any) => {
     try {
-        const res = await fetch('/api/settings', {
+        const res = await apiFetch('/api/settings', {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ key: setting_key, value: setting_value }),
         });
         if (!res.ok) {
@@ -490,9 +484,6 @@ export default function SettingsPage() {
   );
 }
 
-
-// --- Generic Form Component ---
-
 interface SettingsFormProps<T extends z.ZodType<any, any>> {
   title: string;
   description: string;
@@ -527,7 +518,7 @@ function SettingsForm<T extends z.ZodType<any, any>>({
     setIsSaving(true);
     const success = await onSave(settingKey, values);
     if (success) {
-      form.reset(values); // Re-sync form with successfully saved data
+      form.reset(values);
     }
     setIsSaving(false);
   };

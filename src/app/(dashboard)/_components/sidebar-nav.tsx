@@ -31,6 +31,7 @@ import {
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { LogoutButton } from '@/components/logout-button';
+import { apiFetch } from '@/lib/apiFetch';
 
 const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -62,7 +63,7 @@ export function SidebarNav() {
   useEffect(() => {
     async function fetchAccounts() {
       try {
-        const res = await fetch("/api/accounts");
+        const res = await apiFetch("/api/accounts");
         const json = await res.json();
 
         if (json.success) {

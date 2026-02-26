@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -25,6 +24,7 @@ import {
   FormMessage,
 } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
+import { apiFetch } from "@/lib/apiFetch"
 
 const formSchema = z.object({
   vendor_name: z.string().min(1, "Vendor name is required"),
@@ -63,9 +63,8 @@ export function AddVendorModal({ isOpen, onClose, onVendorAdded }: AddVendorModa
   async function onSubmit(values: VendorFormValues) {
     setIsSubmitting(true)
     try {
-      const res = await fetch('/api/vendors', {
+      const res = await apiFetch('/api/vendors', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(values),
       });
 

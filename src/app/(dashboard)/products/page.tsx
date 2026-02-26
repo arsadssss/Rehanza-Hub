@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { PlusCircle, Search, Package, Warehouse } from 'lucide-react';
 import { SummaryStatCard } from '@/components/SummaryStatCard';
 import { ProductViewToggle } from '@/components/ProductViewToggle';
+import { apiFetch } from '@/lib/apiFetch';
 
 export default function ProductsPage() {
   const { toast } = useToast();
@@ -20,10 +21,9 @@ export default function ProductsPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const accountId = sessionStorage.getItem("active_account") || "";
       const [pRes, sRes] = await Promise.all([
-        fetch('/api/products', { headers: { "x-account-id": accountId } }),
-        fetch('/api/products/summary', { headers: { "x-account-id": accountId } })
+        apiFetch('/api/products'),
+        apiFetch('/api/products/summary')
       ]);
       if (pRes.ok) setProducts((await pRes.json()).data);
       if (sRes.ok) setSummary(await sRes.json());

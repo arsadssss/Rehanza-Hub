@@ -16,6 +16,7 @@ import { Progress } from "@/components/ui/progress"
 import { PlusCircle, Pencil, Trash2, FileText, User } from 'lucide-react';
 import { AddTaskModal } from './components/add-task-modal';
 import { cn } from '@/lib/utils';
+import { apiFetch } from '@/lib/apiFetch';
 
 export type Task = {
   id: string;
@@ -95,7 +96,7 @@ export default function TasksPage() {
                 group: groupFilter,
                 status: statusFilter,
             });
-            const res = await fetch(`/api/tasks?${params.toString()}`);
+            const res = await apiFetch(`/api/tasks?${params.toString()}`);
             if (!res.ok) throw new Error('Failed to fetch tasks');
 
             const { data, count, progress } = await res.json();
@@ -131,7 +132,7 @@ export default function TasksPage() {
     const handleConfirmDelete = async () => {
         if (!itemToDelete) return;
         try {
-            const res = await fetch(`/api/tasks?id=${itemToDelete.id}`, { method: 'DELETE' });
+            const res = await apiFetch(`/api/tasks?id=${itemToDelete.id}`, { method: 'DELETE' });
             if (!res.ok) {
                 const errorData = await res.json();
                 throw new Error(errorData.message || 'Failed to delete task');

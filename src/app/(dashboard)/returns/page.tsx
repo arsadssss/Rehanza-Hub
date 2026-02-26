@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -36,6 +35,7 @@ import { Badge } from '@/components/ui/badge';
 import { AddReturnModal } from './components/add-return-modal';
 import { PlusCircle, Pencil, Trash2 } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { apiFetch } from '@/lib/apiFetch';
 
 export type Return = {
   id: string;
@@ -71,7 +71,7 @@ export default function ReturnsPage() {
   const fetchReturns = useCallback(async () => {
     setLoading(true);
     try {
-        const res = await fetch('/api/returns');
+        const res = await apiFetch('/api/returns');
         if (!res.ok) throw new Error('Failed to fetch returns.');
         const data = await res.json();
         setReturns(data);
@@ -114,7 +114,7 @@ export default function ReturnsPage() {
   const handleConfirmDelete = async () => {
     if (!itemToDelete) return;
     try {
-        const res = await fetch(`/api/returns?id=${itemToDelete.id}`, { method: 'DELETE' });
+        const res = await apiFetch(`/api/returns?id=${itemToDelete.id}`, { method: 'DELETE' });
         if (!res.ok) {
             const errorData = await res.json();
             throw new Error(errorData.message || 'Failed to delete return');

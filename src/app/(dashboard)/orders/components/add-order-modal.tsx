@@ -12,6 +12,7 @@ import { Input } from "@/components/ui/input"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { formatINR } from "@/lib/format"
 import { format } from "date-fns"
+import { apiFetch } from "@/lib/apiFetch"
 
 const formSchema = z.object({
   order_date: z.string().min(1, "Order date is required"),
@@ -34,8 +35,7 @@ export function AddOrderModal({ isOpen, onClose, onSuccess, order }: any) {
   React.useEffect(() => {
     async function fetchVariants() {
       try {
-        const accountId = sessionStorage.getItem("active_account") || "";
-        const res = await fetch('/api/products?type=variants', { headers: { "x-account-id": accountId } });
+        const res = await apiFetch('/api/products?type=variants');
         if (res.ok) setVariants(await res.json());
       } catch (error) { toast({ variant: 'destructive', title: 'Error', description: 'Could not load variants.' }); }
     }
@@ -44,11 +44,9 @@ export function AddOrderModal({ isOpen, onClose, onSuccess, order }: any) {
 
   const onSubmit = async (values: any) => {
     try {
-      const accountId = sessionStorage.getItem("active_account") || "";
       const method = isEditMode ? 'PUT' : 'POST';
-      const res = await fetch('/api/orders', {
+      const res = await apiFetch('/api/orders', {
         method,
-        headers: { 'Content-Type': 'application/json', "x-account-id": accountId },
         body: JSON.stringify({ ...values, selling_price: sellingPrice, id: order?.id })
       });
       if (!res.ok) throw new Error('Failed to save');

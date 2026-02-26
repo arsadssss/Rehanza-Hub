@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -14,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { format } from "date-fns"
 import type { Task } from "../page"
+import { apiFetch } from "@/lib/apiFetch"
 
 const formSchema = z.object({
   task_name: z.string().min(1, "Task name is required"),
@@ -72,9 +72,8 @@ export function AddTaskModal({ isOpen, onClose, onSuccess, task }: AddTaskModalP
     try {
       const payload = { ...values, id: task?.id };
       
-      const res = await fetch('/api/tasks', {
+      const res = await apiFetch('/api/tasks', {
           method: isEditMode ? 'PUT' : 'POST',
-          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload)
       });
 
