@@ -128,7 +128,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: "Missing required order fields" }, { status: 400 });
     }
 
-    // Server-side calculation of total amount for integrity
     const total_amount = Number(quantity) * Number(selling_price);
 
     const result = await sql`
@@ -166,7 +165,6 @@ export async function POST(request: Request) {
 
 /**
  * PUT /api/orders
- * Updates an existing order, restricted by account isolation.
  */
 export async function PUT(request: Request) {
   try {
@@ -219,7 +217,6 @@ export async function PUT(request: Request) {
 
 /**
  * DELETE /api/orders
- * Soft-deletes an order, strictly scoped by account.
  */
 export async function DELETE(request: Request) {
   try {
