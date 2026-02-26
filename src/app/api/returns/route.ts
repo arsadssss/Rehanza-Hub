@@ -47,7 +47,23 @@ export async function GET(request: Request) {
 
     const whereString = `WHERE ${whereClauses.join(' AND ')}`;
 
-    // 1. Count
+    // 1. Fetch Dynamic Summary (Total Returns and Total Loss based on filters)
+    const summaryQuery = `
+      SELECT 
+        COUNT(*)::int as total_returns,
+        COALESCE(SUM(total_loss), 0)::numeric as total_loss
+      FROM returns r
+      JOIN product_variants pv ON r.variant_id = pv.id
+      JOIN allproducts ap ON pv.product_id = ap.id
+      ${whereString}
+    `;
+    const summaryRes = await sql(summaryQuery, params);
+    const summary = {
+      totalReturns: Number(summaryRes[0]?.total_returns || 0),
+      totalLoss: Number(summaryRes[0]?.total_loss || 0)
+    };
+
+    // 2. Count for pagination
     const countQuery = `
       SELECT COUNT(*) 
       FROM returns r
@@ -58,7 +74,7 @@ export async function GET(request: Request) {
     const countResult = await sql(countQuery, params);
     const totalRows = Number(countResult[0]?.count || 0);
 
-    // 2. Data
+    // 3. Data rows
     const dataQuery = `
       SELECT 
         r.*, 
@@ -75,6 +91,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       success: true,
+      summary,
       data: returns.map((r: any) => ({
         ...r,
         quantity: Number(r.quantity),

@@ -12,11 +12,38 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PlusCircle, Pencil, Trash2, Search, FilterX } from "lucide-react";
+import { PlusCircle, Pencil, Trash2, Search, FilterX, Package, CircleDollarSign, Undo2, TrendingDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AddOrderModal } from "./components/add-order-modal";
 import { AddReturnModal } from "../returns/components/add-return-modal";
 import { apiFetch } from "@/lib/apiFetch";
+import { cn } from "@/lib/utils";
+
+const SummaryCard = ({ title, value, icon: Icon, gradient, loading }: { title: string; value: string; icon: React.ElementType; gradient: string; loading: boolean }) => (
+    <Card className={cn('text-white shadow-lg rounded-2xl border-0 overflow-hidden bg-gradient-to-br', gradient)}>
+        {loading ? (
+            <div className="p-6 flex items-center justify-between">
+                <div>
+                    <Skeleton className="h-5 w-32 bg-white/20" />
+                    <Skeleton className="h-10 w-40 mt-2 bg-white/20" />
+                </div>
+                <div className="p-3 bg-white/20 rounded-full opacity-20">
+                   <Icon className="h-6 w-6 text-white" />
+                </div>
+            </div>
+        ) : (
+            <div className="p-6 flex items-center justify-between">
+                <div>
+                    <h3 className="text-sm font-medium uppercase tracking-wider">{title}</h3>
+                    <p className="text-4xl font-bold font-headline mt-2">{value}</p>
+                </div>
+                <div className="p-3 bg-white/20 rounded-full">
+                    <Icon className="h-6 w-6 text-white" />
+                </div>
+            </div>
+        )}
+    </Card>
+);
 
 export default function OrdersPage() {
   const { toast } = useToast();
@@ -25,6 +52,7 @@ export default function OrdersPage() {
   
   // Data State
   const [data, setData] = useState<any[]>([]);
+  const [summary, setSummary] = useState<any>(null);
   const [totalRows, setTotalRows] = useState(0);
   const [page, setPage] = useState(1);
   const pageSize = 10;
@@ -60,6 +88,7 @@ export default function OrdersPage() {
       const json = await res.json();
       
       setData(json.data || []);
+      setSummary(json.summary || null);
       setTotalRows(json.totalRows || 0);
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error", description: error.message });
@@ -72,9 +101,9 @@ export default function OrdersPage() {
     fetchData();
   }, [fetchData]);
 
-  // Reset data and page when tab changes to prevent type mismatch rendering
   const handleTabChange = (val: string) => {
     setData([]);
+    setSummary(null);
     setPage(1);
     setActiveTab(val);
   };
@@ -167,6 +196,44 @@ export default function OrdersPage() {
           <TabsTrigger value="orders">Orders Log</TabsTrigger>
           <TabsTrigger value="returns">Returns Log</TabsTrigger>
         </TabsList>
+
+        <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+            {activeTab === "orders" ? (
+                <>
+                    <SummaryCard 
+                        title="Total Orders" 
+                        value={summary?.totalOrders?.toLocaleString('en-IN') || "0"} 
+                        icon={Package} 
+                        gradient="from-purple-500 to-indigo-600" 
+                        loading={loading} 
+                    />
+                    <SummaryCard 
+                        title="Total Revenue" 
+                        value={formatINR(summary?.totalRevenue || 0)} 
+                        icon={CircleDollarSign} 
+                        gradient="from-cyan-500 to-blue-600" 
+                        loading={loading} 
+                    />
+                </>
+            ) : (
+                <>
+                    <SummaryCard 
+                        title="Total Returns" 
+                        value={summary?.totalReturns?.toLocaleString('en-IN') || "0"} 
+                        icon={Undo2} 
+                        gradient="from-amber-500 to-orange-600" 
+                        loading={loading} 
+                    />
+                    <SummaryCard 
+                        title="Total Loss" 
+                        value={formatINR(summary?.totalLoss || 0)} 
+                        icon={TrendingDown} 
+                        gradient="from-red-500 to-rose-600" 
+                        loading={loading} 
+                    />
+                </>
+            )}
+        </div>
 
         {/* Global Filters */}
         <Card className="mt-6 border-0 shadow-sm bg-muted/30">

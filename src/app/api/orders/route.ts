@@ -5,7 +5,7 @@ export const revalidate = 0;
 
 /**
  * GET /api/orders
- * Returns a filtered, paginated list of orders for the active account.
+ * Returns a filtered, paginated list of orders for the active account + dynamic summary.
  */
 export async function GET(request: Request) {
   try {
@@ -57,7 +57,23 @@ export async function GET(request: Request) {
 
     const whereString = `WHERE ${whereClauses.join(' AND ')}`;
 
-    // 1. Fetch total count for pagination
+    // 1. Fetch Dynamic Summary (Total Orders and Revenue based on filters)
+    const summaryQuery = `
+      SELECT 
+        COUNT(*)::int as total_orders,
+        COALESCE(SUM(total_amount), 0)::numeric as total_revenue
+      FROM orders o
+      JOIN product_variants pv ON o.variant_id = pv.id
+      JOIN allproducts ap ON pv.product_id = ap.id
+      ${whereString}
+    `;
+    const summaryRes = await sql(summaryQuery, params);
+    const summary = {
+      totalOrders: Number(summaryRes[0]?.total_orders || 0),
+      totalRevenue: Number(summaryRes[0]?.total_revenue || 0)
+    };
+
+    // 2. Fetch total count for pagination
     const countQuery = `
       SELECT COUNT(*) 
       FROM orders o
@@ -68,7 +84,7 @@ export async function GET(request: Request) {
     const totalResult = await sql(countQuery, params);
     const totalRows = Number(totalResult[0]?.count || 0);
 
-    // 2. Fetch order rows
+    // 3. Fetch order rows
     const dataQuery = `
       SELECT 
         o.id,
@@ -90,6 +106,7 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       success: true,
+      summary,
       data: (orders || []).map((o: any) => ({
         ...o,
         quantity: Number(o.quantity || 0),
@@ -112,7 +129,6 @@ export async function GET(request: Request) {
 
 /**
  * POST /api/orders
- * Creates a new order and injects account context.
  */
 export async function POST(request: Request) {
   try {
