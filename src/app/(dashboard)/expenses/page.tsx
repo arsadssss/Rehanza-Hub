@@ -33,8 +33,9 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
-import { PlusCircle, Pencil, Trash2, User, ArrowDownCircle } from 'lucide-react';
+import { PlusCircle, Pencil, Trash2, User, ArrowDownCircle, TrendingUp, TrendingDown } from 'lucide-react';
 import { AddExpenseModal } from './components/add-expense-modal';
+import { cn } from '@/lib/utils';
 
 export type BusinessExpense = {
   id: string;
@@ -47,7 +48,7 @@ export type BusinessExpense = {
 };
 
 const StatCard = ({ title, value, icon: Icon, gradient, loading }: { title: string; value: string; icon: React.ElementType; gradient: string; loading: boolean }) => (
-    <Card className={`text-white shadow-lg rounded-2xl border-0 overflow-hidden bg-gradient-to-br ${gradient}`}>
+    <Card className={cn("text-white shadow-lg rounded-2xl border-0 overflow-hidden bg-gradient-to-br", gradient)}>
         {loading ? (
             <div className="p-6 flex items-center justify-between">
                 <div>
@@ -76,6 +77,7 @@ export default function ExpensesPage() {
   const [expenses, setExpenses] = useState<BusinessExpense[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalExpenses, setTotalExpenses] = useState(0);
+  const [netCashFlow, setNetCashFlow] = useState(0);
 
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
   const [expenseToEdit, setExpenseToEdit] = useState<BusinessExpense | null>(null);
@@ -90,13 +92,14 @@ export default function ExpensesPage() {
   const [expenseDateTo, setExpenseDateTo] = useState('');
   const [expenseSearch, setExpenseSearch] = useState('');
 
-  const fetchTotals = useCallback(async () => {
+  const fetchFinanceSummary = useCallback(async () => {
     setLoading(true);
     try {
-        const res = await fetch('/api/financials/summary');
-        if (!res.ok) throw new Error('Failed to fetch summary');
+        const res = await fetch('/api/finance-summary');
+        if (!res.ok) throw new Error('Failed to fetch finance summary');
         const data = await res.json();
-        setTotalExpenses(data.totalExpenses);
+        setTotalExpenses(data.total_expenses);
+        setNetCashFlow(data.net_cash_flow);
     } catch (error: any) {
         toast({ variant: 'destructive', title: 'Error', description: error.message });
     } finally {
@@ -128,8 +131,8 @@ export default function ExpensesPage() {
   }, [toast, expensesPage, expensesPageSize, expenseDateFrom, expenseDateTo, expenseSearch]);
 
   useEffect(() => {
-    fetchTotals();
-  }, [fetchTotals]);
+    fetchFinanceSummary();
+  }, [fetchFinanceSummary]);
   
   useEffect(() => {
     fetchExpenses();
@@ -140,7 +143,7 @@ export default function ExpensesPage() {
   }, [expenseDateFrom, expenseDateTo, expenseSearch]);
 
   const handleSuccess = () => {
-    fetchTotals();
+    fetchFinanceSummary();
     fetchExpenses();
   };
 
@@ -200,7 +203,7 @@ export default function ExpensesPage() {
             </AlertDialogContent>
         </AlertDialog>
 
-        <div className="max-w-md">
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <StatCard 
                 title="Total Expenses"
                 value={formatINR(totalExpenses)}
@@ -208,6 +211,30 @@ export default function ExpensesPage() {
                 gradient="from-red-500 to-orange-500"
                 loading={loading}
             />
+            <div className={cn(
+                "relative flex flex-col justify-center rounded-2xl p-6 shadow-lg text-white transition-all duration-500",
+                loading ? "bg-muted" : (netCashFlow >= 0 ? "bg-gradient-to-r from-indigo-500 to-blue-600" : "bg-gradient-to-r from-red-500 to-orange-500")
+            )}>
+                {loading ? (
+                    <div className="space-y-2">
+                        <Skeleton className="h-4 w-24 bg-white/20" />
+                        <Skeleton className="h-10 w-48 bg-white/20" />
+                    </div>
+                ) : (
+                    <>
+                        <div className="flex justify-between items-start">
+                            <div>
+                                <p className="text-xs tracking-widest uppercase opacity-80 font-bold">Net Cash Flow</p>
+                                <h2 className="text-4xl font-bold mt-2 font-headline">{formatINR(netCashFlow)}</h2>
+                                <p className="text-sm opacity-80 mt-1">Total Payouts - Total Expenses</p>
+                            </div>
+                            <div className="p-3 bg-white/20 rounded-full">
+                                {netCashFlow >= 0 ? <TrendingUp className="h-6 w-6" /> : <TrendingDown className="h-6 w-6" />}
+                            </div>
+                        </div>
+                    </>
+                )}
+            </div>
         </div>
 
         <Card>

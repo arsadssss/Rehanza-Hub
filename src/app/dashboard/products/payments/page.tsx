@@ -42,6 +42,7 @@ import {
 } from '@/components/ui/select';
 import { PlusCircle, Pencil, Trash2, Wallet } from 'lucide-react';
 import { AddPayoutModal } from './components/add-payout-modal';
+import { SummaryStatCard } from '@/components/SummaryStatCard';
 
 export type PlatformPayout = {
   id: string;
@@ -145,8 +146,8 @@ export default function PaymentsPage() {
       handleSuccess();
     } catch (error: any) {
       toast({
-        variant: "destructive",
-        title: "Error",
+        variant: 'destructive',
+        title: 'Error deleting payout',
         description: error.message,
       });
     } finally {
@@ -162,7 +163,7 @@ export default function PaymentsPage() {
   }
 
   return (
-    <div className="w-full px-6 py-6 space-y-8">
+    <div className="w-full px-6 py-6 space-y-6">
       <AddPayoutModal
         isOpen={isAddPayoutOpen || !!payoutToEdit}
         onClose={() => { setIsAddPayoutOpen(false); setPayoutToEdit(null); }}
@@ -187,118 +188,87 @@ export default function PaymentsPage() {
         </AlertDialogContent>
       </AlertDialog>
 
-      {/* Hero Header Card */}
-      <div className="w-full">
-        {loadingSummary ? (
-            <Skeleton className="h-[280px] w-full rounded-3xl" />
-        ) : (
-            <div className="rounded-3xl p-12 bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-xl text-center relative overflow-hidden">
-                {/* Decorative background element */}
-                <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 w-64 h-64 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
-                <div className="absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/4 w-64 h-64 bg-black/10 rounded-full blur-3xl pointer-events-none"></div>
-                
-                <div className="relative z-10">
-                    <p className="tracking-widest uppercase text-xs opacity-80 font-bold">Total Payment Received</p>
-                    <h1 className="text-6xl md:text-7xl font-bold mt-4 font-headline tracking-tighter">
-                        {formatINR(totalReceived)}
-                    </h1>
-                    <div className="w-16 h-1 bg-white/40 mx-auto my-6 rounded-full"></div>
-                    <p className="text-sm md:text-base opacity-80 font-medium">Total Platform Collections Across All Accounts</p>
-                </div>
-            </div>
-        )}
+      <div className="max-w-md">
+        <SummaryStatCard
+          title="Total Payment Received"
+          value={totalReceived}
+          icon={<Wallet className="h-6 w-6 text-white" />}
+          loading={loadingSummary}
+        />
       </div>
 
       <Card>
-        <CardHeader className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <CardTitle className="text-2xl font-headline">Platform Payouts</CardTitle>
-            <p className="text-sm text-muted-foreground">Manage incoming settlement transfers from Meesho, Flipkart, and Amazon.</p>
-          </div>
-          <Button onClick={() => setIsAddPayoutOpen(true)} className="w-full md:w-auto">
-            <PlusCircle className="mr-2 h-4 w-4" /> Add Payout
-          </Button>
+        <CardHeader className="flex flex-row justify-between items-center">
+          <CardTitle>Platform Payouts</CardTitle>
+          <Button onClick={() => setIsAddPayoutOpen(true)}><PlusCircle className="mr-2 h-4 w-4" /> Add Payout</Button>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col md:flex-row gap-4 mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
-                <Select value={accountFilter} onValueChange={setAccountFilter}>
-                <SelectTrigger><SelectValue placeholder="Filter by Account..." /></SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all">All Accounts</SelectItem>
-                    <SelectItem value="Fashion">Fashion</SelectItem>
-                    <SelectItem value="Cosmetics">Cosmetics</SelectItem>
-                </SelectContent>
-                </Select>
-                <Select value={platformFilter} onValueChange={setPlatformFilter}>
-                <SelectTrigger><SelectValue placeholder="Filter by Platform..." /></SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all">All Platforms</SelectItem>
-                    <SelectItem value="Meesho">Meesho</SelectItem>
-                    <SelectItem value="Flipkart">Flipkart</SelectItem>
-                    <SelectItem value="Amazon">Amazon</SelectItem>
-                </SelectContent>
-                </Select>
-                <Input type="date" value={dateFromFilter} onChange={e => setDateFromFilter(e.target.value)} />
-                <Input type="date" value={dateToFilter} onChange={e => setDateToFilter(e.target.value)} />
-            </div>
-            <Button variant="outline" onClick={resetPayoutFilters} className="shrink-0">Clear</Button>
+          <div className="flex flex-col md:flex-row gap-4 mb-4">
+            <Select value={accountFilter} onValueChange={setAccountFilter}>
+              <SelectTrigger><SelectValue placeholder="Filter by Account..." /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Accounts</SelectItem>
+                <SelectItem value="Fashion">Fashion</SelectItem>
+                <SelectItem value="Cosmetics">Cosmetics</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={platformFilter} onValueChange={setPlatformFilter}>
+              <SelectTrigger><SelectValue placeholder="Filter by Platform..." /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Platforms</SelectItem>
+                <SelectItem value="Meesho">Meesho</SelectItem>
+                <SelectItem value="Flipkart">Flipkart</SelectItem>
+                <SelectItem value="Amazon">Amazon</SelectItem>
+              </SelectContent>
+            </Select>
+            <Input type="date" value={dateFromFilter} onChange={e => setDateFromFilter(e.target.value)} placeholder="From Date" />
+            <Input type="date" value={dateToFilter} onChange={e => setDateToFilter(e.target.value)} placeholder="To Date" />
+            <Button variant="outline" onClick={resetPayoutFilters}>Clear</Button>
           </div>
-          <div className="rounded-xl border bg-card overflow-hidden shadow-sm">
+          <div className="rounded-md border max-h-[600px] overflow-y-auto">
             <Table>
-              <TableHeader className="bg-muted/50">
-                <TableRow>
-                    <TableHead className="font-bold">Date</TableHead>
-                    <TableHead className="font-bold">Accounts</TableHead>
-                    <TableHead className="font-bold">Platform</TableHead>
-                    <TableHead className="font-bold">Reference</TableHead>
-                    <TableHead className="text-right font-bold">Amount</TableHead>
-                    <TableHead className="text-right w-[100px] font-bold">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
+              <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Accounts</TableHead><TableHead>Platform</TableHead><TableHead>Reference</TableHead><TableHead className="text-right">Amount</TableHead><TableHead className="text-right w-[100px]">Actions</TableHead></TableRow></TableHeader>
               <TableBody>
                 {loadingPayouts ? Array.from({ length: payoutsPageSize }).map((_, i) => <TableRow key={i}><TableCell colSpan={6}><Skeleton className="h-8 w-full" /></TableCell></TableRow>)
                   : payouts.length > 0 ? payouts.map(p => (
-                    <TableRow key={p.id} className="hover:bg-muted/30">
-                      <TableCell className="font-medium">{format(new Date(p.payout_date), 'dd MMM yyyy')}</TableCell>
-                      <TableCell><Badge variant="secondary" className="font-bold">{p.gst_account}</Badge></TableCell>
-                      <TableCell><Badge variant="outline" className="font-bold">{p.platform}</Badge></TableCell>
-                      <TableCell className="text-xs text-muted-foreground font-mono">{p.reference || 'N/A'}</TableCell>
-                      <TableCell className="text-right font-bold text-emerald-600 dark:text-emerald-400">{formatINR(p.amount)}</TableCell>
+                    <TableRow key={p.id}>
+                      <TableCell>{format(new Date(p.payout_date), 'dd MMM yyyy')}</TableCell>
+                      <TableCell><Badge variant="secondary">{p.gst_account}</Badge></TableCell>
+                      <TableCell><Badge variant="outline">{p.platform}</Badge></TableCell>
+                      <TableCell>{p.reference || 'N/A'}</TableCell>
+                      <TableCell className="text-right font-medium">{formatINR(p.amount)}</TableCell>
                       <TableCell className="text-right">
                         <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => setPayoutToEdit(p)}><Pencil className="h-4 w-4" /></Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-destructive/10 hover:text-destructive" onClick={() => setItemToDelete({ id: p.id, description: `Payout from ${p.platform} (${formatINR(p.amount)})` })}><Trash2 className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setPayoutToEdit(p)}><Pencil className="h-4 w-4" /></Button>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive" onClick={() => setItemToDelete({ id: p.id, description: `Payout from ${p.platform} (${formatINR(p.amount)})` })}><Trash2 className="h-4 w-4" /></Button>
                         </div>
                       </TableCell>
                     </TableRow>
                   ))
-                    : <TableRow><TableCell colSpan={6} className="h-32 text-center text-muted-foreground">No payouts found matching your filters.</TableCell></TableRow>}
+                    : <TableRow><TableCell colSpan={6} className="h-24 text-center">No payouts match your criteria.</TableCell></TableRow>}
               </TableBody>
             </Table>
           </div>
           <div className="flex items-center justify-end space-x-2 py-4">
-            <span className="text-sm text-muted-foreground font-medium">
+            <span className="text-sm text-muted-foreground">
               {payoutsTotalRows > 0 ? `Page ${payoutsPage} of ${Math.ceil(payoutsTotalRows / payoutsPageSize)}` : 'Page 0 of 0'}
             </span>
-            <div className="flex gap-2">
-                <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPayoutsPage(p => p - 1)}
-                disabled={payoutsPage === 1}
-                >
-                Previous
-                </Button>
-                <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPayoutsPage(p => p + 1)}
-                disabled={(payoutsPage * payoutsPageSize) >= payoutsTotalRows}
-                >
-                Next
-                </Button>
-            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPayoutsPage(p => p - 1)}
+              disabled={payoutsPage === 1}
+            >
+              Previous
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setPayoutsPage(p => p + 1)}
+              disabled={(payoutsPage * payoutsPageSize) >= payoutsTotalRows}
+            >
+              Next
+            </Button>
           </div>
         </CardContent>
       </Card>
