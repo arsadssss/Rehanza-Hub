@@ -1,22 +1,31 @@
 "use client"
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { formatINR } from '@/lib/format';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
-import { Search, ShoppingCart, Undo2, MoveHorizontal } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { InventoryValueCard } from '@/components/InventoryValueCard';
 import { apiFetch } from '@/lib/apiFetch';
+import { ShoppingCart, Undo2, ArrowUpRight, PackageSearch } from 'lucide-react';
+import { cn } from '@/lib/utils';
+
+type InventoryItem = {
+  id: string;
+  sku: string;
+  productName: string;
+  stock: number;
+  lowStockThreshold: number;
+  totalOrders: number;
+  totalReturns: number;
+  revenue: number;
+};
 
 export default function InventoryPage() {
-  const [inventory, setInventory] = useState<any[]>([]);
-  const [totalValue, setTotalValue] = useState<number>(0);
+  const [data, setData] = useState<{ inventoryInvestment: number; items: InventoryItem[] } | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   const router = useRouter();
@@ -25,18 +34,21 @@ export default function InventoryPage() {
     async function fetchData() {
       setLoading(true);
       try {
-        const [invRes, valRes] = await Promise.all([
-          apiFetch('/api/inventory'),
-          apiFetch('/api/inventory-value')
-        ]);
-
-        if (invRes.ok) setInventory(await invRes.json());
-        if (valRes.ok) {
-          const vData = await valRes.json();
-          setTotalValue(vData.total_value);
+        const res = await apiFetch('/api/inventory');
+        if (!res.ok) throw new Error('Failed to fetch inventory');
+        const json = await res.json();
+        if (json.success) {
+          setData({
+            inventoryInvestment: json.inventoryInvestment,
+            items: json.items
+          });
         }
       } catch (error: any) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch inventory' });
+        toast({ 
+          variant: 'destructive', 
+          title: 'Error', 
+          description: error.message || 'Failed to load inventory data' 
+        });
       } finally {
         setLoading(false);
       }
@@ -44,27 +56,109 @@ export default function InventoryPage() {
     fetchData();
   }, [toast]);
 
+  const getStockColorClass = (stock: number, threshold: number) => {
+    if (stock === 0) return "border-red-500 text-red-600 bg-red-50 dark:bg-red-950/20";
+    if (stock <= threshold) return "border-amber-500 text-amber-600 bg-amber-50 dark:bg-amber-950/20";
+    return "border-indigo-500 text-indigo-600 bg-indigo-50 dark:bg-indigo-950/20";
+  };
+
   return (
-    <div className="p-6 bg-gradient-to-br from-gray-100 to-blue-100 dark:from-gray-900 dark:to-slate-800 min-h-full space-y-6">
-      <InventoryValueCard title="Inventory Investment Value" amount={totalValue} subtitle="Based on Cost Price × Stock" />
-      <Card>
-        <CardHeader><CardTitle>Inventory Summary</CardTitle></CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-            {inventory.map(item => (
-              <div key={item.id} className="bg-white/40 dark:bg-black/20 backdrop-blur-lg rounded-3xl p-6 shadow-xl border border-white/30">
-                <p className="font-bold">SKU: {item.sku}</p>
-                <p className="text-4xl font-bold mt-2">{formatINR(item.total_revenue)}</p>
-                <p className="text-sm opacity-70">{item.product_name}</p>
-                <div className="mt-4 flex justify-between items-center">
-                  <Badge>{item.total_stock} in stock</Badge>
-                  <Button variant="ghost" onClick={() => router.push(`/products?tab=variants&search=${item.sku}`)}>Details</Button>
-                </div>
-              </div>
-            ))}
+    <div className="p-6 md:p-8 space-y-8 bg-gray-50/50 dark:bg-black/50 min-h-full">
+      {/* Hero Section */}
+      <div className="w-full">
+        {loading ? (
+          <Skeleton className="h-[200px] w-full rounded-3xl" />
+        ) : (
+          <InventoryValueCard 
+            title="Inventory Investment Value" 
+            amount={data?.inventoryInvestment || 0} 
+            subtitle="Calculated as (Variant Stock × Product Cost Price)" 
+          />
+        )}
+      </div>
+
+      <div className="space-y-4">
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-2xl font-bold font-headline tracking-tight">Stock Summary</h2>
+            <p className="text-sm text-muted-foreground">Track inventory health and SKU performance.</p>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {loading ? (
+            Array.from({ length: 6 }).map((_, i) => (
+              <Skeleton key={i} className="h-48 w-full rounded-2xl" />
+            ))
+          ) : data?.items && data.items.length > 0 ? (
+            data.items.map((item) => (
+              <Card key={item.id} className="group overflow-hidden rounded-2xl shadow-sm hover:shadow-md transition-all border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
+                <CardContent className="p-6">
+                  {/* Header: SKU & Stock Circle */}
+                  <div className="flex justify-between items-start">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-lg font-code">{item.sku}</span>
+                        {item.stock <= item.lowStockThreshold && item.stock > 0 && (
+                          <Badge variant="outline" className="bg-amber-100 text-amber-700 border-amber-200 text-[10px] py-0">Low Stock</Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground font-medium uppercase tracking-tight line-clamp-1">
+                        {item.productName}
+                      </p>
+                    </div>
+                    <div className={cn(
+                      "w-12 h-12 rounded-full border-4 flex items-center justify-center font-black text-sm transition-transform group-hover:scale-110",
+                      getStockColorClass(item.stock, item.lowStockThreshold)
+                    )}>
+                      {item.stock}
+                    </div>
+                  </div>
+
+                  {/* Body: Mini Stats Grid */}
+                  <div className="grid grid-cols-3 gap-4 mt-6 pt-4 border-t border-border/50">
+                    <div className="flex flex-col">
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                        <ShoppingCart className="h-2.5 w-2.5" /> Orders
+                      </span>
+                      <span className="font-bold text-foreground mt-0.5">{item.totalOrders}</span>
+                    </div>
+                    <div className="flex flex-col border-x px-4 border-border/50">
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+                        <Undo2 className="h-2.5 w-2.5" /> Returns
+                      </span>
+                      <span className={cn("font-bold mt-0.5", item.totalReturns > 0 ? "text-red-500" : "text-foreground")}>
+                        {item.totalReturns}
+                      </span>
+                    </div>
+                    <div className="flex flex-col text-right">
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Revenue</span>
+                      <span className="font-bold text-emerald-600 mt-0.5">{formatINR(item.revenue)}</span>
+                    </div>
+                  </div>
+
+                  {/* Footer Action */}
+                  <div className="mt-6">
+                    <Button 
+                      variant="secondary" 
+                      className="w-full text-xs font-bold rounded-xl h-9 hover:bg-primary hover:text-primary-foreground group/btn"
+                      onClick={() => router.push(`/products?tab=variants&search=${item.sku}`)}
+                    >
+                      Explore SKU <ArrowUpRight className="ml-2 h-3.5 w-3.5 transition-transform group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          ) : (
+            <div className="col-span-full py-20 flex flex-col items-center justify-center text-muted-foreground opacity-50">
+              <PackageSearch className="h-16 w-16 mb-4" />
+              <p className="text-xl font-headline">No inventory data found</p>
+              <p className="text-sm">Start by adding products and stock variants.</p>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

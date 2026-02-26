@@ -7,34 +7,59 @@ export async function GET(request: Request) {
   try {
     const accountId = request.headers.get("x-account-id");
     if (!accountId) {
-      return NextResponse.json({ message: "Account not selected" }, { status: 400 });
+      return NextResponse.json({ success: false, message: "Account not selected" }, { status: 400 });
     }
 
-    // Dynamic aggregation from products and variants
-    const data = await sql`
-      SELECT 
-        p.id,
-        p.sku,
-        p.product_name,
-        p.low_stock_threshold,
-        COALESCE(SUM(v.stock), 0)::int as total_stock,
-        COALESCE(SUM(o.total_amount), 0)::numeric as total_revenue
-      FROM allproducts p
-      LEFT JOIN product_variants v ON p.id = v.product_id
-      LEFT JOIN orders o ON v.id = o.variant_id AND o.is_deleted = false
-      WHERE p.account_id = ${accountId}
-      GROUP BY p.id, p.sku, p.product_name, p.low_stock_threshold
-      ORDER BY p.sku ASC
+    // 1. Calculate Inventory Investment Value Dynamically
+    // Sum of (Variant Stock * Product Cost Price)
+    const investmentRes = await sql`
+      SELECT COALESCE(SUM(pv.stock * ap.cost_price), 0)::numeric as investment
+      FROM product_variants pv
+      JOIN allproducts ap ON pv.product_id = ap.id
+      WHERE pv.account_id = ${accountId}
     `;
-    
-    const dataWithFormatting = data.map(item => ({
+    const inventoryInvestment = Number(investmentRes[0]?.investment || 0);
+
+    // 2. SKU List with Dynamic Performance Stats
+    // Aggregates orders and returns on-the-fly per variant
+    const items = await sql`
+      SELECT 
+        pv.id,
+        pv.variant_sku as sku,
+        ap.product_name as "productName",
+        pv.stock,
+        COALESCE(pv.low_stock_threshold, 5)::int as "lowStockThreshold",
+        COALESCE(ord.total_orders, 0)::int as "totalOrders",
+        COALESCE(ret.total_returns, 0)::int as "totalReturns",
+        COALESCE(ord.total_revenue, 0)::numeric as "revenue"
+      FROM product_variants pv
+      JOIN allproducts ap ON pv.product_id = ap.id
+      LEFT JOIN (
+        SELECT variant_id, SUM(quantity) as total_orders, SUM(total_amount) as total_revenue
+        FROM orders
+        WHERE is_deleted = false AND account_id = ${accountId}
+        GROUP BY variant_id
+      ) ord ON pv.id = ord.variant_id
+      LEFT JOIN (
+        SELECT variant_id, SUM(quantity) as total_returns
+        FROM returns
+        WHERE is_deleted = false AND account_id = ${accountId}
+        GROUP BY variant_id
+      ) ret ON pv.id = ret.variant_id
+      WHERE pv.account_id = ${accountId}
+      ORDER BY ap.product_name ASC, pv.variant_sku ASC
+    `;
+
+    return NextResponse.json({
+      success: true,
+      inventoryInvestment,
+      items: (items || []).map((item: any) => ({
         ...item,
-        low_stock_threshold: item.low_stock_threshold || 5,
-    }));
-    
-    return NextResponse.json(dataWithFormatting);
+        revenue: Number(item.revenue || 0)
+      }))
+    });
   } catch (error: any) {
     console.error("API Inventory Error:", error);
-    return NextResponse.json({ message: "Failed to fetch inventory summary", error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, message: "Failed to fetch inventory data", error: error.message }, { status: 500 });
   }
 }
