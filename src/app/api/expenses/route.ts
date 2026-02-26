@@ -1,5 +1,7 @@
 import { sql } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth";
 
 export const revalidate = 0;
 
@@ -13,29 +15,36 @@ export async function GET(request: Request) {
   const offset = (page - 1) * pageSize;
 
   try {
-    let whereClauses = ['is_deleted = false'];
+    let whereClauses = ['e.is_deleted = false'];
     let params: any[] = [];
     let paramIndex = 1;
 
     if (fromDate) {
-        whereClauses.push(`expense_date >= $${paramIndex++}`);
+        whereClauses.push(`e.expense_date >= $${paramIndex++}`);
         params.push(fromDate);
     }
     if (toDate) {
-        whereClauses.push(`expense_date <= $${paramIndex++}`);
+        whereClauses.push(`e.expense_date <= $${paramIndex++}`);
         params.push(toDate);
     }
     if (searchTerm) {
-        whereClauses.push(`description ILIKE $${paramIndex++}`);
+        whereClauses.push(`e.description ILIKE $${paramIndex++}`);
         params.push(`%${searchTerm}%`);
     }
 
     const whereString = `WHERE ${whereClauses.join(' AND ')}`;
     
-    const dataQuery = `SELECT * FROM business_expenses ${whereString} ORDER BY expense_date DESC LIMIT ${pageSize} OFFSET ${offset}`;
-    const countQuery = `SELECT COUNT(*) FROM business_expenses ${whereString}`;
+    const dataQuery = `
+        SELECT e.*, u1.name as created_by_name, u2.name as updated_by_name 
+        FROM business_expenses e 
+        LEFT JOIN users u1 ON e.created_by = u1.id 
+        LEFT JOIN users u2 ON e.updated_by = u2.id 
+        ${whereString} 
+        ORDER BY e.expense_date DESC 
+        LIMIT ${pageSize} OFFSET ${offset}
+    `;
+    const countQuery = `SELECT COUNT(*) FROM business_expenses e ${whereString}`;
     
-    // sql helper now supports (query, params) pattern correctly
     const [data, countResult] = await Promise.all([
         sql(dataQuery, params),
         sql(countQuery, params),
@@ -57,14 +66,17 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
     try {
+        const session = await getServerSession(authOptions);
+        if (!session) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+
         const body = await request.json();
         const { description, amount, expense_date } = body;
         if (!description || !amount || !expense_date) {
             return NextResponse.json({ message: 'Missing required fields' }, { status: 400 });
         }
         const result = await sql`
-            INSERT INTO business_expenses (description, amount, expense_date)
-            VALUES (${description}, ${amount}, ${expense_date})
+            INSERT INTO business_expenses (description, amount, expense_date, created_by)
+            VALUES (${description}, ${amount}, ${expense_date}, ${session.user.id})
             RETURNING *;
         `;
         return NextResponse.json(result[0], { status: 201 });
@@ -75,13 +87,21 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
     try {
+        const session = await getServerSession(authOptions);
+        if (!session) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+
         const body = await request.json();
         const { id, description, amount, expense_date } = body;
         if (!id) return NextResponse.json({ message: 'ID is required' }, { status: 400 });
 
         const result = await sql`
             UPDATE business_expenses
-            SET description = ${description}, amount = ${amount}, expense_date = ${expense_date}
+            SET 
+                description = ${description}, 
+                amount = ${amount}, 
+                expense_date = ${expense_date},
+                updated_by = ${session.user.id},
+                updated_at = NOW()
             WHERE id = ${id}
             RETURNING *;
         `;

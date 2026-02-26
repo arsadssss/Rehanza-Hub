@@ -1,5 +1,7 @@
 import { sql } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { getServerSession } from "next-auth/next";
+import { authOptions } from "@/lib/auth";
 
 export const revalidate = 0;
 
@@ -32,26 +34,33 @@ export async function GET(request: Request) {
   const offset = (page - 1) * pageSize;
 
   try {
-    let whereClauses = ['is_deleted = false'];
+    let whereClauses = ['t.is_deleted = false'];
     let params: any[] = [];
     let paramIndex = 1;
 
     if (group && group !== 'all') {
-        whereClauses.push(`task_group = $${paramIndex++}`);
+        whereClauses.push(`t.task_group = $${paramIndex++}`);
         params.push(group);
     }
     if (status && status !== 'all') {
-        whereClauses.push(`status = $${paramIndex++}`);
+        whereClauses.push(`t.status = $${paramIndex++}`);
         params.push(status);
     }
 
     const whereString = `WHERE ${whereClauses.join(' AND ')}`;
     
-    const dataQuery = `SELECT * FROM tasks ${whereString} ORDER BY task_date DESC, created_at DESC LIMIT ${pageSize} OFFSET ${offset}`;
-    const countQuery = `SELECT COUNT(*) FROM tasks ${whereString}`;
+    const dataQuery = `
+        SELECT t.*, u1.name as created_by_name, u2.name as updated_by_name 
+        FROM tasks t 
+        LEFT JOIN users u1 ON t.created_by = u1.id 
+        LEFT JOIN users u2 ON t.updated_by = u2.id 
+        ${whereString} 
+        ORDER BY t.task_date DESC, t.created_at DESC 
+        LIMIT ${pageSize} OFFSET ${offset}
+    `;
+    const countQuery = `SELECT COUNT(*) FROM tasks t ${whereString}`;
     const progressQuery = `SELECT status, task_group FROM tasks WHERE is_deleted = false`;
 
-    // sql helper now supports (query, params) pattern correctly
     const [data, countResult, progressResult] = await Promise.all([
         sql(dataQuery, params),
         sql(countQuery, params),
@@ -70,14 +79,17 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
     try {
+        const session = await getServerSession(authOptions);
+        if (!session) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+
         const body = await request.json();
         const { task_name, task_date, task_group, status, notes } = body;
         if (!task_name || !task_date || !task_group || !status) {
             return NextResponse.json({ message: 'Missing required fields' }, { status: 400 });
         }
         const result = await sql`
-            INSERT INTO tasks (task_name, task_date, task_group, status, notes)
-            VALUES (${task_name}, ${task_date}, ${task_group}, ${status}, ${notes})
+            INSERT INTO tasks (task_name, task_date, task_group, status, notes, created_by)
+            VALUES (${task_name}, ${task_date}, ${task_group}, ${status}, ${notes}, ${session.user.id})
             RETURNING *;
         `;
         return NextResponse.json(result[0], { status: 201 });
@@ -88,13 +100,23 @@ export async function POST(request: Request) {
 
 export async function PUT(request: Request) {
     try {
+        const session = await getServerSession(authOptions);
+        if (!session) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+
         const body = await request.json();
         const { id, task_name, task_date, task_group, status, notes } = body;
         if (!id) return NextResponse.json({ message: 'ID is required' }, { status: 400 });
 
         const result = await sql`
             UPDATE tasks
-            SET task_name = ${task_name}, task_date = ${task_date}, task_group = ${task_group}, status = ${status}, notes = ${notes}
+            SET 
+                task_name = ${task_name}, 
+                task_date = ${task_date}, 
+                task_group = ${task_group}, 
+                status = ${status}, 
+                notes = ${notes},
+                updated_by = ${session.user.id},
+                updated_at = NOW()
             WHERE id = ${id}
             RETURNING *;
         `;

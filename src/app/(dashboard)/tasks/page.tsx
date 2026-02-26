@@ -14,7 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from "@/components/ui/progress"
-import { PlusCircle, Pencil, Trash2, FileText } from 'lucide-react';
+import { PlusCircle, Pencil, Trash2, FileText, User } from 'lucide-react';
 import { AddTaskModal } from './components/add-task-modal';
 import { cn } from '@/lib/utils';
 
@@ -27,11 +27,8 @@ export type Task = {
   is_deleted: boolean;
   created_at: string;
   notes: string | null;
-};
-
-type ItemToDelete = {
-  id: string;
-  description: string;
+  created_by_name?: string;
+  updated_by_name?: string;
 };
 
 type ProgressStats = {
@@ -74,22 +71,18 @@ export default function TasksPage() {
         cosmetics: { total: 0, completed: 0, percentage: 0 },
     });
 
-    // Loading states
     const [loadingTasks, setLoadingTasks] = useState(true);
     const [loadingProgress, setLoadingProgress] = useState(true);
 
-    // Modal states
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [taskToEdit, setTaskToEdit] = useState<Task | null>(null);
-    const [itemToDelete, setItemToDelete] = useState<ItemToDelete | null>(null);
+    const [itemToDelete, setItemToDelete] = useState<{id: string, description: string} | null>(null);
     const [viewingTaskNotes, setViewingTaskNotes] = useState<Task | null>(null);
 
-    // Pagination
     const [page, setPage] = useState(1);
     const [pageSize] = useState(10);
     const [totalRows, setTotalRows] = useState(0);
 
-    // Filtering
     const [groupFilter, setGroupFilter] = useState('all');
     const [statusFilter, setStatusFilter] = useState('all');
 
@@ -242,11 +235,13 @@ export default function TasksPage() {
                                 <TableHead>Task Name</TableHead>
                                 <TableHead className="w-[120px]">Group</TableHead>
                                 <TableHead className="w-[120px]">Status</TableHead>
+                                <TableHead>Created By</TableHead>
+                                <TableHead>Updated By</TableHead>
                                 <TableHead className="text-right w-[100px]">Actions</TableHead>
                             </TableRow></TableHeader>
                             <TableBody>
                                 {loadingTasks ? (
-                                    Array.from({ length: 5 }).map((_, i) => <TableRow key={i}><TableCell colSpan={5}><Skeleton className="h-8 w-full"/></TableCell></TableRow>)
+                                    Array.from({ length: 5 }).map((_, i) => <TableRow key={i}><TableCell colSpan={7}><Skeleton className="h-8 w-full"/></TableCell></TableRow>)
                                 ) : tasks.length > 0 ? (
                                     tasks.map(task => (
                                         <TableRow key={task.id}>
@@ -263,6 +258,18 @@ export default function TasksPage() {
                                             </TableCell>
                                             <TableCell><Badge className={cn("text-white", getGroupBadge(task.task_group))}>{task.task_group}</Badge></TableCell>
                                             <TableCell><Badge className={cn("text-white", getStatusBadge(task.status))}>{task.status}</Badge></TableCell>
+                                            <TableCell>
+                                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                                    <User className="h-3 w-3" />
+                                                    <span>{task.created_by_name || 'System'}</span>
+                                                </div>
+                                            </TableCell>
+                                            <TableCell>
+                                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                                    <User className="h-3 w-3" />
+                                                    <span>{task.updated_by_name || '-'}</span>
+                                                </div>
+                                            </TableCell>
                                             <TableCell className="text-right">
                                                 <div className="flex justify-end gap-1">
                                                     <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => handleOpenModal(task)}><Pencil className="h-4 w-4" /></Button>
@@ -272,7 +279,7 @@ export default function TasksPage() {
                                         </TableRow>
                                     ))
                                 ) : (
-                                    <TableRow><TableCell colSpan={5} className="h-24 text-center">No tasks match your criteria.</TableCell></TableRow>
+                                    <TableRow><TableCell colSpan={7} className="h-24 text-center">No tasks match your criteria.</TableCell></TableRow>
                                 )}
                             </TableBody>
                         </Table>

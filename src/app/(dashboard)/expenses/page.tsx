@@ -41,7 +41,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { PlusCircle, ArrowDownCircle, ArrowUpCircle, Scale, Pencil, Trash2, ShoppingBag, Sparkles } from 'lucide-react';
+import { PlusCircle, ArrowDownCircle, ArrowUpCircle, Scale, Pencil, Trash2, ShoppingBag, Sparkles, User } from 'lucide-react';
 import { AddExpenseModal } from './components/add-expense-modal';
 import { AddPayoutModal } from './components/add-payout-modal';
 
@@ -51,6 +51,8 @@ export type BusinessExpense = {
   amount: number;
   expense_date: string;
   is_deleted: boolean;
+  created_by_name?: string;
+  updated_by_name?: string;
 };
 
 export type PlatformPayout = {
@@ -365,14 +367,26 @@ export default function ExpensesPage() {
                     </div>
                     <div className="rounded-md border max-h-[500px] overflow-y-auto">
                         <Table>
-                            <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Amount</TableHead><TableHead className="text-right w-[100px]">Actions</TableHead></TableRow></TableHeader>
+                            <TableHeader><TableRow>
+                                <TableHead>Date</TableHead>
+                                <TableHead>Description</TableHead>
+                                <TableHead className="text-right">Amount</TableHead>
+                                <TableHead>Added By</TableHead>
+                                <TableHead className="text-right w-[100px]">Actions</TableHead>
+                            </TableRow></TableHeader>
                             <TableBody>
-                                {loadingExpenses ? Array.from({length: 3}).map((_, i) => <TableRow key={i}><TableCell colSpan={4}><Skeleton className="h-8 w-full"/></TableCell></TableRow>)
+                                {loadingExpenses ? Array.from({length: 3}).map((_, i) => <TableRow key={i}><TableCell colSpan={5}><Skeleton className="h-8 w-full"/></TableCell></TableRow>)
                                 : expenses.length > 0 ? expenses.map(e => (
                                     <TableRow key={e.id}>
                                         <TableCell>{format(new Date(e.expense_date), 'dd MMM yyyy')}</TableCell>
                                         <TableCell>{e.description}</TableCell>
                                         <TableCell className="text-right font-medium">{formatINR(e.amount)}</TableCell>
+                                        <TableCell>
+                                            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                                <User className="h-3 w-3" />
+                                                <span>{e.created_by_name || 'System'}</span>
+                                            </div>
+                                        </TableCell>
                                         <TableCell className="text-right">
                                             <div className="flex justify-end gap-1">
                                                 <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => setExpenseToEdit(e)}><Pencil className="h-4 w-4" /></Button>
@@ -381,7 +395,7 @@ export default function ExpensesPage() {
                                         </TableCell>
                                     </TableRow>
                                 ))
-                                : <TableRow><TableCell colSpan={4} className="h-24 text-center">No expenses match your criteria.</TableCell></TableRow>}
+                                : <TableRow><TableCell colSpan={5} className="h-24 text-center">No expenses match your criteria.</TableCell></TableRow>}
                             </TableBody>
                         </Table>
                     </div>
