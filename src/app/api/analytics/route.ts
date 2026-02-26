@@ -18,7 +18,10 @@ export async function GET(request: Request) {
       cogsRes,
       returnLossRes,
       salesTrendRes,
-      platformRes
+      platformRes,
+      returnTypeRes,
+      platformReturnsRes,
+      orderUnitsRes
     ] = await Promise.all([
       // Total Sales (Revenue)
       sql`SELECT COALESCE(SUM(total_amount), 0) as total FROM orders WHERE account_id = ${accountId} AND is_deleted = false`,
@@ -52,28 +55,52 @@ export async function GET(request: Request) {
         ORDER BY date ASC
       `,
       
-      // Platform Breakdown for Pie Chart
+      // Platform Breakdown for Orders
       sql`
         SELECT platform, COUNT(*)::int as orders
         FROM orders
         WHERE account_id = ${accountId} AND is_deleted = false
         GROUP BY platform
-      `
+      `,
+
+      // 1. Return count grouped by return_type
+      sql`
+        SELECT return_type, COUNT(*)::int as count, COALESCE(SUM(quantity), 0)::int as units
+        FROM returns
+        WHERE account_id = ${accountId} AND is_deleted = false
+        GROUP BY return_type
+      `,
+
+      // 3. Platform-wise return breakdown
+      sql`
+        SELECT platform, COUNT(*)::int as count, COALESCE(SUM(quantity), 0)::int as units
+        FROM returns
+        WHERE account_id = ${accountId} AND is_deleted = false
+        GROUP BY platform
+      `,
+
+      // Total Order Units (for return percentage calculation)
+      sql`SELECT COALESCE(SUM(quantity), 0)::int as total FROM orders WHERE account_id = ${accountId} AND is_deleted = false`
     ]);
 
     const totalSales = Number(salesRes[0]?.total || 0);
     const totalOrders = Number(ordersCountRes[0]?.count || 0);
-    const totalReturns = Number(returnsRes[0]?.total || 0);
+    const totalReturnsUnits = Number(returnsRes[0]?.total || 0);
+    const totalOrderUnits = Number(orderUnitsRes[0]?.total || 0);
     const cogs = Number(cogsRes[0]?.total || 0);
     const returnLoss = Number(returnLossRes[0]?.total || 0);
     const netProfit = totalSales - cogs - returnLoss;
+
+    // 2. Return percentage relative to total orders (Units ratio)
+    const returnRate = totalOrderUnits > 0 ? (totalReturnsUnits / totalOrderUnits) * 100 : 0;
 
     return NextResponse.json({
       success: true,
       totalSales,
       totalOrders,
-      totalReturns,
+      totalReturns: totalReturnsUnits,
       netProfit,
+      returnRate: Number(returnRate.toFixed(2)),
       salesTrend: (salesTrendRes || []).map((row: any) => ({
         date: row.date,
         revenue: Number(row.revenue)
@@ -84,7 +111,17 @@ export async function GET(request: Request) {
           platform: row.platform,
           orders: Number(row.orders)
         }))
-      }
+      },
+      returnTypeBreakdown: (returnTypeRes || []).map((row: any) => ({
+        type: row.return_type,
+        count: row.count,
+        units: row.units
+      })),
+      platformReturns: (platformReturnsRes || []).map((row: any) => ({
+        platform: row.platform,
+        count: row.count,
+        units: row.units
+      }))
     });
 
   } catch (error: any) {
