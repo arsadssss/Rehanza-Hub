@@ -3,28 +3,24 @@ import { NextResponse } from 'next/server';
 
 export const maxDuration = 60; // Allow 1 minute for large imports
 
-type ImportRow = {
-  external_order_id: string;
-  order_date: string;
-  platform: string;
-  variant_sku: string;
-  quantity: number;
-  selling_price: number;
-  rowNumber: number;
-};
-
-type ImportError = {
-  row: number;
-  reason: string;
-};
-
+/**
+ * POST /api/orders/bulk-upload
+ * Processes a CSV file of orders with row-level validation.
+ * 
+ * Features:
+ * - Multi-account isolation
+ * - Safe Mode: Skips invalid rows instead of failing the whole batch
+ * - Batch duplicate detection
+ * - Automated stock deduction
+ * - Structured error reporting
+ */
 export async function POST(request: Request) {
-  try {
-    const accountId = request.headers.get("x-account-id");
-    if (!accountId) {
-      return NextResponse.json({ success: false, message: "Account context missing" }, { status: 400 });
-    }
+  const accountId = request.headers.get("x-account-id");
+  if (!accountId) {
+    return NextResponse.json({ success: false, message: "Account context missing" }, { status: 400 });
+  }
 
+  try {
     const formData = await request.formData();
     const file = formData.get('file') as File;
 
@@ -41,9 +37,6 @@ export async function POST(request: Request) {
 
     const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
     const dataRows = lines.slice(1);
-
-    const parsedRows: ImportRow[] = [];
-    const errors: ImportError[] = [];
 
     // Map headers to indices
     const hIdx = {
@@ -63,9 +56,12 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
+    const errors: any[] = [];
+    const parsedRows: any[] = [];
     const skusToResolve = new Set<string>();
     const externalIdsToCheck = new Set<string>();
 
+    // Phase 1: Basic validation and data collection (NO THROW)
     for (let i = 0; i < dataRows.length; i++) {
       const columns = dataRows[i].split(',').map(c => c.trim());
       const rowNum = i + 2;
@@ -77,7 +73,7 @@ export async function POST(request: Request) {
       const qty = parseInt(columns[hIdx.qty]);
       const price = parseFloat(columns[hIdx.price]);
 
-      if (!extId || !date || !platform || !sku || isNaN(qty) || isNaN(price)) {
+      if (!extId || !sku || !date || !platform || isNaN(qty) || isNaN(price)) {
         errors.push({ row: rowNum, reason: "Missing or malformed required fields" });
         continue;
       }
@@ -106,18 +102,18 @@ export async function POST(request: Request) {
       externalIdsToCheck.add(extId);
     }
 
-    if (parsedRows.length === 0) {
+    if (parsedRows.length === 0 && errors.length > 0) {
       return NextResponse.json({ 
         totalRows: dataRows.length,
         inserted: 0,
+        failed: errors.length,
         duplicates: 0,
         stockErrors: 0,
-        failed: errors.length,
         errors 
       });
     }
 
-    // Batch Resolve SKUs and Check Duplicates
+    // Phase 2: Batch fetch data for validation (NO THROW)
     const [variantsRes, existingOrdersRes] = await Promise.all([
       sql`SELECT id, variant_sku, stock FROM product_variants WHERE variant_sku = ANY(${Array.from(skusToResolve)}) AND account_id = ${accountId}`,
       sql`SELECT external_order_id FROM orders WHERE external_order_id = ANY(${Array.from(externalIdsToCheck)}) AND account_id = ${accountId} AND is_deleted = false`
@@ -127,83 +123,116 @@ export async function POST(request: Request) {
     const existingIds = new Set(existingOrdersRes.map((o: any) => o.external_order_id));
 
     const validatedRows: any[] = [];
-    let duplicates = 0;
-    let stockErrors = 0;
+    let duplicateCount = 0;
+    let stockErrorCount = 0;
 
-    // Second pass validation (Business Logic)
+    // Phase 3: Business logic validation loop (SAFE MODE - NO THROW)
     for (const row of parsedRows) {
-      if (existingIds.has(row.external_order_id)) {
-        errors.push({ row: row.rowNumber, reason: `Duplicate external_order_id: ${row.external_order_id}` });
-        duplicates++;
-        continue;
-      }
+      try {
+        if (existingIds.has(row.external_order_id)) {
+          errors.push({ row: row.rowNumber, reason: `Duplicate external_order_id: ${row.external_order_id}` });
+          duplicateCount++;
+          continue;
+        }
 
-      const variant = variantMap.get(row.variant_sku);
-      if (!variant) {
-        errors.push({ row: row.rowNumber, reason: `SKU not found: ${row.variant_sku}` });
-        continue;
-      }
+        const variant = variantMap.get(row.variant_sku);
+        if (!variant) {
+          errors.push({ row: row.rowNumber, reason: `SKU not found: ${row.variant_sku}` });
+          continue;
+        }
 
-      if (variant.stock < row.quantity) {
-        errors.push({ row: row.rowNumber, reason: `Insufficient stock for ${row.variant_sku}. Available: ${variant.stock}, Requested: ${row.quantity}` });
-        stockErrors++;
-        continue;
-      }
+        if (variant.stock < row.quantity) {
+          errors.push({ row: row.rowNumber, reason: `Insufficient stock for ${row.variant_sku}. Available: ${variant.stock}, Requested: ${row.quantity}` });
+          stockErrorCount++;
+          continue;
+        }
 
-      validatedRows.push({
-        ...row,
-        variant_id: variant.id,
-        total_amount: row.quantity * row.selling_price
-      });
-      
-      // Optimistically update stock in map for sequential rows in same CSV
-      variant.stock -= row.quantity;
+        validatedRows.push({
+          ...row,
+          variant_id: variant.id,
+          total_amount: row.quantity * row.selling_price
+        });
+        
+        // Optimistically update stock in memory map for sequential rows in same CSV
+        variant.stock -= row.quantity;
+      } catch (rowErr: any) {
+        errors.push({ row: row.rowNumber, reason: `Unexpected row error: ${rowErr.message}` });
+      }
     }
 
+    console.log("Valid Rows to Insert:", validatedRows.length);
+    console.log("Total Errors Found:", errors.length);
+
+    // Phase 4: Database Update Phase
     if (validatedRows.length > 0) {
-      // Transactional Database Update
-      await sql.begin(async (tx: any) => {
-        // 1. Insert Orders
-        for (const row of validatedRows) {
-          await tx`
-            INSERT INTO orders (
-              external_order_id, order_date, platform, variant_id, 
-              quantity, selling_price, total_amount, account_id
-            ) VALUES (
-              ${row.external_order_id}, ${row.order_date}, ${row.platform}, ${row.variant_id},
-              ${row.quantity}, ${row.selling_price}, ${row.total_amount}, ${accountId}
-            )
-          `;
+      try {
+        // Atomic work block
+        const work = async (tx: any) => {
+          // 1. Insert Orders
+          for (const row of validatedRows) {
+            await tx`
+              INSERT INTO orders (
+                external_order_id, order_date, platform, variant_id, 
+                quantity, selling_price, total_amount, account_id
+              ) VALUES (
+                ${row.external_order_id}, ${row.order_date}, ${row.platform}, ${row.variant_id},
+                ${row.quantity}, ${row.selling_price}, ${row.total_amount}, ${accountId}
+              )
+            `;
+          }
+
+          // 2. Batch Update Stock
+          const stockDeductions = validatedRows.reduce((acc: any, row) => {
+            acc[row.variant_id] = (acc[row.variant_id] || 0) + row.quantity;
+            return acc;
+          }, {});
+
+          for (const [vId, qty] of Object.entries(stockDeductions)) {
+            await tx`
+              UPDATE product_variants 
+              SET stock = stock - ${qty as number}
+              WHERE id = ${vId} AND account_id = ${accountId}
+            `;
+          }
+        };
+
+        // Execute via transaction if supported by driver
+        if (typeof sql.begin === 'function') {
+          await sql.begin(work);
+        } else {
+          await work(sql);
         }
 
-        // 2. Batch Update Stock
-        // Aggregating quantities by variant_id to minimize queries
-        const stockDeductions = validatedRows.reduce((acc: any, row) => {
-          acc[row.variant_id] = (acc[row.variant_id] || 0) + row.quantity;
-          return acc;
-        }, {});
-
-        for (const [vId, qty] of Object.entries(stockDeductions)) {
-          await tx`
-            UPDATE product_variants 
-            SET stock = stock - ${qty as number}
-            WHERE id = ${vId} AND account_id = ${accountId}
-          `;
-        }
-      });
+      } catch (dbErr: any) {
+        console.error("Database Transaction Fatal Error:", dbErr);
+        return NextResponse.json({ 
+          success: false, 
+          message: "Database operation failed", 
+          error: dbErr.message,
+          totalRows: dataRows.length,
+          inserted: 0,
+          failed: parsedRows.length,
+          errors: [{ row: 0, reason: `Database Fatal Error: ${dbErr.message}` }, ...errors]
+        }, { status: 500 });
+      }
     }
 
+    // Phase 5: Structured Success Response
     return NextResponse.json({
       totalRows: dataRows.length,
       inserted: validatedRows.length,
-      duplicates,
-      stockErrors,
-      failed: errors.length - (duplicates + stockErrors),
+      failed: errors.length,
+      duplicates: duplicateCount,
+      stockErrors: stockErrorCount,
       errors
     });
 
   } catch (error: any) {
-    console.error("Bulk Upload Error:", error);
-    return NextResponse.json({ success: false, message: "Critical error during import", error: error.message }, { status: 500 });
+    console.error("Bulk Upload Critical Catch:", error);
+    return NextResponse.json({ 
+      success: false, 
+      message: "Critical error during upload", 
+      error: error.message 
+    }, { status: 500 });
   }
 }
