@@ -14,7 +14,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { apiFetch } from "@/lib/apiFetch"
-import { Download, FileUp, AlertCircle, CheckCircle2 } from "lucide-react"
+import { Download, FileUp, AlertCircle, Info } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
 interface BulkUploadReturnsModalProps {
@@ -103,7 +103,7 @@ export function BulkUploadReturnsModal({ isOpen, onClose, onSuccess }: BulkUploa
         <DialogHeader>
           <DialogTitle>Bulk Import Returns</DialogTitle>
           <DialogDescription>
-            Upload a CSV to import returns. Inventory stock will be auto-incremented for each item.
+            Upload a CSV to import multiple customer returns. Inventory levels will be adjusted automatically.
           </DialogDescription>
         </DialogHeader>
 
@@ -111,12 +111,24 @@ export function BulkUploadReturnsModal({ isOpen, onClose, onSuccess }: BulkUploa
           <div className="space-y-6 py-4">
             <div className="flex justify-between items-center p-4 bg-muted/50 rounded-xl border">
               <div className="space-y-1">
-                <p className="text-sm font-bold">Standard Template</p>
-                <p className="text-xs text-muted-foreground">Required: external_return_id, return_type (RTO, CUSTOMER_RETURN, etc.)</p>
+                <p className="text-sm font-bold">CSV Template</p>
+                <p className="text-[10px] text-muted-foreground uppercase font-bold tracking-tighter">Required: 8 Columns</p>
               </div>
               <Button variant="outline" size="sm" onClick={downloadSample}>
-                <Download className="mr-2 h-4 w-4" /> Template
+                <Download className="mr-2 h-4 w-4" /> Download
               </Button>
+            </div>
+
+            <div className="p-4 rounded-xl border bg-blue-50/50 dark:bg-blue-950/10 text-blue-700 dark:text-blue-400 space-y-2">
+              <div className="flex items-center gap-2 font-bold text-xs">
+                <Info className="h-4 w-4" />
+                <span>Return Type Requirements</span>
+              </div>
+              <p className="text-[11px] leading-relaxed">
+                The <code className="font-mono bg-blue-100 dark:bg-blue-900/30 px-1 rounded text-blue-800 dark:text-blue-200">return_type</code> column must be one of:
+                <br />
+                <span className="font-bold">RTO, DTO, CUSTOMER_RETURN, EXCHANGE, OTHER</span>
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -133,7 +145,7 @@ export function BulkUploadReturnsModal({ isOpen, onClose, onSuccess }: BulkUploa
             {isUploading && (
               <div className="space-y-2">
                 <Progress value={uploadProgress} className="h-2" />
-                <p className="text-[10px] text-center text-muted-foreground animate-pulse">Processing database transactions & restocking stock...</p>
+                <p className="text-[10px] text-center text-muted-foreground animate-pulse">Processing database transactions & restocking inventory...</p>
               </div>
             )}
           </div>
