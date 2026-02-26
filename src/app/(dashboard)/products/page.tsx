@@ -34,6 +34,7 @@ import { Badge } from '@/components/ui/badge';
 import { AddProductModal } from './components/add-product-modal';
 import { AddVariantModal } from './components/add-variant-modal';
 import { EditVariantModal } from './components/edit-variant-modal';
+import { SummaryStatCard } from '@/components/SummaryStatCard';
 import { PlusCircle, Search, Trash2, Pencil, Package, Archive, ArchiveX, Warehouse } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -71,20 +72,6 @@ type SummaryStats = {
   outOfStockProducts: number;
   totalInventoryUnits: number;
 }
-
-const SummaryCard = ({ title, value, icon: Icon, loading }: { title: string; value: string | number; icon: React.ElementType, loading: boolean }) => (
-  <Card>
-    <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-      <CardTitle className="text-sm font-medium">{title}</CardTitle>
-      <Icon className="h-4 w-4 text-muted-foreground" />
-    </CardHeader>
-    <CardContent>
-      {loading ? <Skeleton className="h-8 w-24" /> : (
-        <div className="text-2xl font-bold">{value}</div>
-      )}
-    </CardContent>
-  </Card>
-);
 
 function ProductsContent() {
   const { toast } = useToast();
@@ -272,11 +259,31 @@ function ProductsContent() {
           <TabsTrigger value="variants">Variants</TabsTrigger>
         </TabsList>
         <TabsContent value="products">
-           <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4 mb-6">
-              <SummaryCard title="Total Products" value={summaryStats?.totalProducts ?? 0} icon={Package} loading={loadingSummary} />
-              <SummaryCard title="Products In Stock" value={summaryStats?.inStockProducts ?? 0} icon={Archive} loading={loadingSummary} />
-              <SummaryCard title="Out of Stock" value={summaryStats?.outOfStockProducts ?? 0} icon={ArchiveX} loading={loadingSummary} />
-              <SummaryCard title="Total Inventory Units" value={summaryStats?.totalInventoryUnits ?? 0} icon={Warehouse} loading={loadingSummary} />
+           <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4 mb-8 mt-2">
+              <SummaryStatCard 
+                title="Total Products" 
+                value={summaryStats?.totalProducts ?? 0} 
+                icon={<Package className="h-6 w-6 text-white" />} 
+                loading={loadingSummary} 
+              />
+              <SummaryStatCard 
+                title="Products In Stock" 
+                value={summaryStats?.inStockProducts ?? 0} 
+                icon={<Archive className="h-6 w-6 text-white" />} 
+                loading={loadingSummary} 
+              />
+              <SummaryStatCard 
+                title="Out of Stock" 
+                value={summaryStats?.outOfStockProducts ?? 0} 
+                icon={<ArchiveX className="h-6 w-6 text-white" />} 
+                loading={loadingSummary} 
+              />
+              <SummaryStatCard 
+                title="Total Inventory Units" 
+                value={summaryStats?.totalInventoryUnits ?? 0} 
+                icon={<Warehouse className="h-6 w-6 text-white" />} 
+                loading={loadingSummary} 
+              />
             </div>
           <Card>
             <CardHeader>
