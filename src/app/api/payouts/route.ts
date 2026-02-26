@@ -5,6 +5,9 @@ export const revalidate = 0;
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
+  const accountId = request.headers.get("x-account-id");
+  if (!accountId) return NextResponse.json({ message: "Account not selected" }, { status: 400 });
+
   const page = parseInt(searchParams.get('page') || '1', 10);
   const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
   const account = searchParams.get('account');
@@ -14,9 +17,9 @@ export async function GET(request: Request) {
   const offset = (page - 1) * pageSize;
 
   try {
-    let whereClauses = ['is_deleted = false'];
-    let params: any[] = [];
-    let paramIndex = 1;
+    let whereClauses = ['is_deleted = false', `account_id = $1` as any];
+    let params: any[] = [accountId];
+    let paramIndex = 2;
 
     if (account && account !== 'all') {
         whereClauses.push(`gst_account = $${paramIndex++}`);
@@ -40,7 +43,6 @@ export async function GET(request: Request) {
     const dataQuery = `SELECT * FROM platform_payouts ${whereString} ORDER BY payout_date DESC LIMIT ${pageSize} OFFSET ${offset}`;
     const countQuery = `SELECT COUNT(*) FROM platform_payouts ${whereString}`;
     
-    // sql helper now supports (query, params) pattern correctly
     const [data, countResult] = await Promise.all([
         sql(dataQuery, params),
         sql(countQuery, params),
@@ -62,13 +64,14 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
     try {
         const body = await request.json();
+        const accountId = request.headers.get("x-account-id");
         const { gst_account, platform, amount, payout_date, reference } = body;
-        if (!gst_account || !platform || !amount || !payout_date) {
-            return NextResponse.json({ message: 'Missing required fields' }, { status: 400 });
+        if (!gst_account || !platform || !amount || !payout_date || !accountId) {
+            return NextResponse.json({ message: 'Missing required fields or account' }, { status: 400 });
         }
         const result = await sql`
-            INSERT INTO platform_payouts (gst_account, platform, amount, payout_date, reference)
-            VALUES (${gst_account}, ${platform}, ${amount}, ${payout_date}, ${reference})
+            INSERT INTO platform_payouts (gst_account, platform, amount, payout_date, reference, account_id)
+            VALUES (${gst_account}, ${platform}, ${amount}, ${payout_date}, ${reference}, ${accountId})
             RETURNING *;
         `;
         return NextResponse.json(result[0], { status: 201 });
@@ -80,16 +83,17 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
     try {
         const body = await request.json();
+        const accountId = request.headers.get("x-account-id");
         const { id, gst_account, platform, amount, payout_date, reference } = body;
-        if (!id) return NextResponse.json({ message: 'ID is required' }, { status: 400 });
+        if (!id || !accountId) return NextResponse.json({ message: 'ID and Account are required' }, { status: 400 });
 
         const result = await sql`
             UPDATE platform_payouts
             SET gst_account = ${gst_account}, platform = ${platform}, amount = ${amount}, payout_date = ${payout_date}, reference = ${reference}
-            WHERE id = ${id}
+            WHERE id = ${id} AND account_id = ${accountId}
             RETURNING *;
         `;
-        if (result.length === 0) return NextResponse.json({ message: 'Payout not found' }, { status: 404 });
+        if (result.length === 0) return NextResponse.json({ message: 'Payout not found or access denied' }, { status: 404 });
         return NextResponse.json(result[0]);
     } catch (error: any) {
         return NextResponse.json({ message: 'Failed to update payout', error: error.message }, { status: 500 });
@@ -99,13 +103,14 @@ export async function PUT(request: Request) {
 export async function DELETE(request: Request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
-    if (!id) return NextResponse.json({ message: 'ID is required' }, { status: 400 });
+    const accountId = request.headers.get("x-account-id");
+    if (!id || !accountId) return NextResponse.json({ message: 'ID and Account are required' }, { status: 400 });
 
     try {
         const result = await sql`
-            UPDATE platform_payouts SET is_deleted = true WHERE id = ${id} RETURNING id;
+            UPDATE platform_payouts SET is_deleted = true WHERE id = ${id} AND account_id = ${accountId} RETURNING id;
         `;
-        if (result.length === 0) return NextResponse.json({ message: 'Payout not found' }, { status: 404 });
+        if (result.length === 0) return NextResponse.json({ message: 'Payout not found or access denied' }, { status: 404 });
         return NextResponse.json({ message: 'Payout deleted' });
     } catch (error: any) {
         return NextResponse.json({ message: 'Failed to delete payout', error: error.message }, { status: 500 });

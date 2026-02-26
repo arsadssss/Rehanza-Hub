@@ -1,251 +1,70 @@
-
 "use client"
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { formatINR } from '@/lib/format';
 import { useRouter } from 'next/navigation';
-
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Button } from '@/components/ui/button';
 import { Search, ShoppingCart, Undo2, MoveHorizontal } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { InventoryValueCard } from '@/components/InventoryValueCard';
 
-type InventoryItem = {
-  id: string;
-  sku: string;
-  product_name: string;
-  total_stock: number;
-  total_orders: number;
-  total_returns: number;
-  total_revenue: number;
-  low_stock_threshold: number;
-};
-
 export default function InventoryPage() {
-  const router = useRouter();
-  const [inventory, setInventory] = useState<InventoryItem[]>([]);
+  const [inventory, setInventory] = useState<any[]>([]);
   const [totalValue, setTotalValue] = useState<number>(0);
   const [loading, setLoading] = useState(true);
-  const [loadingValue, setLoadingValue] = useState(true);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState('All');
   const { toast } = useToast();
-  const [isMounted, setIsMounted] = useState(false);
+  const router = useRouter();
 
   useEffect(() => {
-    setIsMounted(true);
     async function fetchData() {
       setLoading(true);
-      setLoadingValue(true);
       try {
+        const accountId = sessionStorage.getItem("active_account") || "";
         const [invRes, valRes] = await Promise.all([
-          fetch('/api/inventory'),
-          fetch('/api/inventory-value')
+          fetch('/api/inventory', { headers: { "x-account-id": accountId } }),
+          fetch('/api/inventory-value', { headers: { "x-account-id": accountId } })
         ]);
 
-        if (!invRes.ok) throw new Error('Failed to fetch inventory');
-        const invData = await invRes.json();
-        setInventory(invData);
-
+        if (invRes.ok) setInventory(await invRes.json());
         if (valRes.ok) {
-          const valData = await valRes.json();
-          if (valData.success) {
-            setTotalValue(valData.total_value);
-          }
+          const vData = await valRes.json();
+          setTotalValue(vData.total_value);
         }
       } catch (error: any) {
-        console.error('Error fetching inventory data:', error);
-        toast({
-          variant: 'destructive',
-          title: 'Error',
-          description: 'Failed to fetch inventory data.',
-        });
-        setInventory([]);
+        toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch inventory' });
       } finally {
         setLoading(false);
-        setLoadingValue(false);
       }
     }
     fetchData();
   }, [toast]);
 
-  const filteredInventory = useMemo(() => {
-    let filtered = inventory;
-
-    // Search filter
-    if (searchTerm) {
-      filtered = filtered.filter(
-        item =>
-          item.sku.toLowerCase().includes(searchTerm.toLowerCase()) ||
-          item.product_name.toLowerCase().includes(searchTerm.toLowerCase())
-      );
-    }
-
-    // Status filter
-    if (statusFilter !== 'All') {
-      filtered = filtered.filter(item => {
-        const stock = item.total_stock;
-        const threshold = item.low_stock_threshold;
-        if (statusFilter === 'In Stock') return stock > threshold;
-        if (statusFilter === 'Low Stock') return stock > 0 && stock <= threshold;
-        if (statusFilter === 'Out of Stock') return stock === 0;
-        return true;
-      });
-    }
-
-    return filtered;
-  }, [inventory, searchTerm, statusFilter]);
-
-  const getStatus = (stock: number, threshold: number) => {
-    if (stock === 0) {
-      return { text: 'Out of Stock', badgeVariant: 'destructive' as const, gradient: 'from-red-500 to-rose-600' };
-    }
-    if (stock <= threshold) {
-      return { text: 'Low Stock', badgeVariant: 'destructive' as const, gradient: 'from-amber-500 to-orange-600' };
-    }
-    return { text: 'In Stock', badgeVariant: 'default' as const, gradient: 'from-cyan-400 to-purple-600' };
-  };
-
   return (
     <div className="p-6 bg-gradient-to-br from-gray-100 to-blue-100 dark:from-gray-900 dark:to-slate-800 min-h-full space-y-6">
-      
-      {loadingValue ? (
-        <Skeleton className="h-[280px] w-full rounded-3xl" />
-      ) : (
-        <InventoryValueCard 
-          title="Inventory Investment Value"
-          amount={totalValue}
-          subtitle="Based on Cost Price × Stock"
-        />
-      )}
-
-      <Card className="bg-background/80 backdrop-blur-sm">
-        <CardHeader>
-          <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div>
-              <CardTitle className="font-headline">Inventory Summary</CardTitle>
-              <CardDescription>
-                A dashboard-style overview of your product inventory.
-              </CardDescription>
-            </div>
-            <div className="flex items-center gap-2 w-full md:w-auto">
-              <div className="relative w-full md:w-64">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search by SKU or name..."
-                  className="pl-10"
-                  value={searchTerm}
-                  onChange={e => setSearchTerm(e.target.value)}
-                />
+      <InventoryValueCard title="Inventory Investment Value" amount={totalValue} subtitle="Based on Cost Price × Stock" />
+      <Card>
+        <CardHeader><CardTitle>Inventory Summary</CardTitle></CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+            {inventory.map(item => (
+              <div key={item.id} className="bg-white/40 dark:bg-black/20 backdrop-blur-lg rounded-3xl p-6 shadow-xl border border-white/30">
+                <p className="font-bold">SKU: {item.sku}</p>
+                <p className="text-4xl font-bold mt-2">{formatINR(item.total_revenue)}</p>
+                <p className="text-sm opacity-70">{item.product_name}</p>
+                <div className="mt-4 flex justify-between items-center">
+                  <Badge>{item.total_stock} in stock</Badge>
+                  <Button variant="ghost" onClick={() => router.push(`/products?tab=variants&search=${item.sku}`)}>Details</Button>
+                </div>
               </div>
-              <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Filter by status" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="All">All</SelectItem>
-                  <SelectItem value="In Stock">In Stock</SelectItem>
-                  <SelectItem value="Low Stock">Low Stock</SelectItem>
-                  <SelectItem value="Out of Stock">Out of Stock</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+            ))}
           </div>
-        </CardHeader>
+        </CardContent>
       </Card>
-      
-      {loading ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {Array.from({ length: 6 }).map((_, i) => (
-            <Skeleton key={i} className="h-80 w-full rounded-3xl" />
-          ))}
-        </div>
-      ) : filteredInventory.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-          {filteredInventory.map(item => {
-            const status = getStatus(item.total_stock, item.low_stock_threshold);
-            return (
-              <div key={item.id} className="bg-white/40 dark:bg-black/20 backdrop-blur-lg rounded-3xl p-6 shadow-xl border border-white/30 dark:border-white/10 text-black dark:text-white">
-                <div className="flex justify-between items-start">
-                  {/* Left Side */}
-                  <div>
-                    <p className="font-bold text-lg">SKU: {item.sku}</p>
-                    <p className="font-headline text-5xl font-bold mt-2">{isMounted ? formatINR(item.total_revenue) : '...'}</p>
-                    <p className="text-sm opacity-70 mt-1">{item.product_name}</p>
-                  </div>
-                  {/* Right Side */}
-                  <div className="flex flex-col items-center">
-                    <div className="relative w-32 h-32">
-                        <div className={`absolute inset-0 rounded-full bg-gradient-to-br ${status.gradient}`}></div>
-                        <div className="absolute inset-2 rounded-full bg-gray-100 dark:bg-slate-800 flex items-center justify-center">
-                            <div className="text-center">
-                                <p className="text-3xl font-bold text-foreground">{item.total_stock}</p>
-                                <p className="text-xs text-muted-foreground">Total Stock</p>
-                            </div>
-                        </div>
-                    </div>
-                    <Badge variant={status.badgeVariant} className="mt-2 text-white">{status.text}</Badge>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-6">
-                  <div className="bg-black/5 dark:bg-white/5 p-4 rounded-xl flex items-center gap-4">
-                      <div className="bg-gradient-to-br from-purple-400 to-indigo-500 p-3 rounded-lg">
-                          <ShoppingCart className="h-6 w-6 text-white" />
-                      </div>
-                      <div>
-                          <p className="opacity-70">Orders</p>
-                          <p className="font-bold text-lg">{item.total_orders} Orders</p>
-                      </div>
-                  </div>
-                   <div className="bg-black/5 dark:bg-white/5 p-4 rounded-xl flex items-center gap-4">
-                      <div className="bg-gradient-to-br from-cyan-400 to-blue-500 p-3 rounded-lg">
-                          <Undo2 className="h-6 w-6 text-white" />
-                      </div>
-                      <div>
-                          <p className="opacity-70">Returns</p>
-                          <p className="font-bold text-lg">{item.total_returns} Returns</p>
-                      </div>
-                  </div>
-                </div>
-
-                <Button 
-                  onClick={() => router.push(`/products?tab=variants&search=${encodeURIComponent(item.sku)}`)}
-                  className="w-full mt-6 h-14 text-lg font-bold bg-white/50 dark:bg-black/20 text-black dark:text-white backdrop-blur-sm border border-white/30 dark:border-black/50 hover:bg-white/70 dark:hover:bg-black/30"
-                >
-                  EXPLORE SIZE BY <MoveHorizontal className="ml-2" />
-                </Button>
-
-              </div>
-            );
-          })}
-        </div>
-      ) : (
-        <Card className="bg-background/80 backdrop-blur-sm">
-            <CardContent className="pt-6">
-                <div className="text-center py-12">
-                <p className="text-lg text-muted-foreground">No inventory items match your criteria.</p>
-                </div>
-            </CardContent>
-        </Card>
-      )}
     </div>
   );
 }

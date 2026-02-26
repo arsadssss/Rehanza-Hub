@@ -7,6 +7,9 @@ export const revalidate = 0;
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
+  const accountId = request.headers.get("x-account-id");
+  if (!accountId) return NextResponse.json({ message: "Account not selected" }, { status: 400 });
+
   const page = parseInt(searchParams.get('page') || '1', 10);
   const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
   const fromDate = searchParams.get('from');
@@ -15,9 +18,9 @@ export async function GET(request: Request) {
   const offset = (page - 1) * pageSize;
 
   try {
-    let whereClauses = ['e.is_deleted = false'];
-    let params: any[] = [];
-    let paramIndex = 1;
+    let whereClauses = ['e.is_deleted = false', `e.account_id = $1` as any];
+    let params: any[] = [accountId];
+    let paramIndex = 2;
 
     if (fromDate) {
         whereClauses.push(`e.expense_date >= $${paramIndex++}`);
@@ -66,11 +69,11 @@ export async function GET(request: Request) {
   }
 }
 
-
 export async function POST(request: Request) {
     try {
         const session = await getServerSession(authOptions);
-        if (!session) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+        const accountId = request.headers.get("x-account-id");
+        if (!session || !accountId) return NextResponse.json({ message: "Unauthorized or Account not selected" }, { status: 401 });
 
         const body = await request.json();
         const { description, amount, expense_date } = body;
@@ -79,8 +82,8 @@ export async function POST(request: Request) {
         }
         
         const result = await sql`
-            INSERT INTO business_expenses (description, amount, expense_date, created_by, created_at)
-            VALUES (${description}, ${amount}, ${expense_date}, ${session.user.id}, NOW())
+            INSERT INTO business_expenses (description, amount, expense_date, created_by, account_id, created_at)
+            VALUES (${description}, ${amount}, ${expense_date}, ${session.user.id}, ${accountId}, NOW())
             RETURNING *;
         `;
         return NextResponse.json(result[0], { status: 201 });
@@ -93,7 +96,8 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
     try {
         const session = await getServerSession(authOptions);
-        if (!session) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+        const accountId = request.headers.get("x-account-id");
+        if (!session || !accountId) return NextResponse.json({ message: "Unauthorized or Account not selected" }, { status: 401 });
 
         const body = await request.json();
         const { id, description, amount, expense_date } = body;
@@ -107,10 +111,10 @@ export async function PUT(request: Request) {
                 expense_date = ${expense_date},
                 updated_by = ${session.user.id},
                 updated_at = NOW()
-            WHERE id = ${id}
+            WHERE id = ${id} AND account_id = ${accountId}
             RETURNING *;
         `;
-        if (result.length === 0) return NextResponse.json({ message: 'Expense not found' }, { status: 404 });
+        if (result.length === 0) return NextResponse.json({ message: 'Expense not found or access denied' }, { status: 404 });
         return NextResponse.json(result[0]);
     } catch (error: any) {
         console.error("API Expenses PUT Error:", error);
@@ -121,13 +125,16 @@ export async function PUT(request: Request) {
 export async function DELETE(request: Request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
-    if (!id) return NextResponse.json({ message: 'ID is required' }, { status: 400 });
+    const accountId = request.headers.get("x-account-id");
+    if (!id || !accountId) return NextResponse.json({ message: 'ID and Account are required' }, { status: 400 });
 
     try {
         const result = await sql`
-            UPDATE business_expenses SET is_deleted = true WHERE id = ${id} RETURNING id;
+            UPDATE business_expenses SET is_deleted = true 
+            WHERE id = ${id} AND account_id = ${accountId} 
+            RETURNING id;
         `;
-        if (result.length === 0) return NextResponse.json({ message: 'Expense not found' }, { status: 404 });
+        if (result.length === 0) return NextResponse.json({ message: 'Expense not found or access denied' }, { status: 404 });
         return NextResponse.json({ message: 'Expense deleted' });
     } catch (error: any) {
         return NextResponse.json({ message: 'Failed to delete expense', error: error.message }, { status: 500 });

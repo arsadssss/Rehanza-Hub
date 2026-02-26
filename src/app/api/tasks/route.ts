@@ -5,7 +5,6 @@ import { authOptions } from "@/lib/auth";
 
 export const revalidate = 0;
 
-// Utility to calculate progress stats
 const calculateProgress = (allTasks: any[]) => {
     const overallTotal = allTasks.length;
     const overallCompleted = allTasks.filter(t => t.status === 'Completed').length;
@@ -27,6 +26,9 @@ const calculateProgress = (allTasks: any[]) => {
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
+  const accountId = request.headers.get("x-account-id");
+  if (!accountId) return NextResponse.json({ message: "Account not selected" }, { status: 400 });
+
   const page = parseInt(searchParams.get('page') || '1', 10);
   const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
   const group = searchParams.get('group');
@@ -34,9 +36,9 @@ export async function GET(request: Request) {
   const offset = (page - 1) * pageSize;
 
   try {
-    let whereClauses = ['t.is_deleted = false'];
-    let params: any[] = [];
-    let paramIndex = 1;
+    let whereClauses = ['t.is_deleted = false', `t.account_id = $1` as any];
+    let params: any[] = [accountId];
+    let paramIndex = 2;
 
     if (group && group !== 'all') {
         whereClauses.push(`t.task_group = $${paramIndex++}`);
@@ -62,7 +64,7 @@ export async function GET(request: Request) {
         LIMIT ${pageSize} OFFSET ${offset}
     `;
     const countQuery = `SELECT COUNT(*) FROM tasks t ${whereString}`;
-    const progressQuery = `SELECT status, task_group FROM tasks WHERE is_deleted = false`;
+    const progressQuery = `SELECT status, task_group FROM tasks WHERE is_deleted = false AND account_id = ${accountId}`;
 
     const [data, countResult, progressResult] = await Promise.all([
         sql(dataQuery, params),
@@ -83,7 +85,8 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
     try {
         const session = await getServerSession(authOptions);
-        if (!session) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+        const accountId = request.headers.get("x-account-id");
+        if (!session || !accountId) return NextResponse.json({ message: "Unauthorized or Account missing" }, { status: 401 });
 
         const body = await request.json();
         const { task_name, task_date, task_group, status, notes } = body;
@@ -92,8 +95,8 @@ export async function POST(request: Request) {
         }
         
         const result = await sql`
-            INSERT INTO tasks (task_name, task_date, task_group, status, notes, created_by, created_at)
-            VALUES (${task_name}, ${task_date}, ${task_group}, ${status}, ${notes}, ${session.user.id}, NOW())
+            INSERT INTO tasks (task_name, task_date, task_group, status, notes, created_by, account_id, created_at)
+            VALUES (${task_name}, ${task_date}, ${task_group}, ${status}, ${notes}, ${session.user.id}, ${accountId}, NOW())
             RETURNING *;
         `;
         return NextResponse.json(result[0], { status: 201 });
@@ -106,7 +109,8 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
     try {
         const session = await getServerSession(authOptions);
-        if (!session) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
+        const accountId = request.headers.get("x-account-id");
+        if (!session || !accountId) return NextResponse.json({ message: "Unauthorized or Account missing" }, { status: 401 });
 
         const body = await request.json();
         const { id, task_name, task_date, task_group, status, notes } = body;
@@ -122,10 +126,10 @@ export async function PUT(request: Request) {
                 notes = ${notes},
                 updated_by = ${session.user.id},
                 updated_at = NOW()
-            WHERE id = ${id}
+            WHERE id = ${id} AND account_id = ${accountId}
             RETURNING *;
         `;
-        if (result.length === 0) return NextResponse.json({ message: 'Task not found' }, { status: 404 });
+        if (result.length === 0) return NextResponse.json({ message: 'Task not found or access denied' }, { status: 404 });
         return NextResponse.json(result[0]);
     } catch (error: any) {
         console.error("API Tasks PUT Error:", error);
@@ -136,13 +140,14 @@ export async function PUT(request: Request) {
 export async function DELETE(request: Request) {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
-    if (!id) return NextResponse.json({ message: 'ID is required' }, { status: 400 });
+    const accountId = request.headers.get("x-account-id");
+    if (!id || !accountId) return NextResponse.json({ message: 'ID and Account are required' }, { status: 400 });
 
     try {
         const result = await sql`
-            UPDATE tasks SET is_deleted = true WHERE id = ${id} RETURNING id;
+            UPDATE tasks SET is_deleted = true WHERE id = ${id} AND account_id = ${accountId} RETURNING id;
         `;
-        if (result.length === 0) return NextResponse.json({ message: 'Task not found' }, { status: 404 });
+        if (result.length === 0) return NextResponse.json({ message: 'Task not found or access denied' }, { status: 404 });
         return NextResponse.json({ message: 'Task deleted' });
     } catch (error: any) {
         return NextResponse.json({ message: 'Failed to delete task', error: error.message }, { status: 500 });

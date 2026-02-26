@@ -1,20 +1,22 @@
-
 import { sql } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
 export const revalidate = 0;
 
-// GET all returns
 export async function GET(request: Request) {
   try {
+    const accountId = request.headers.get("x-account-id");
+    if (!accountId) {
+      return NextResponse.json({ message: "Account not selected" }, { status: 400 });
+    }
+
     const returns = await sql`
       SELECT r.*, pv.variant_sku
       FROM returns r
       LEFT JOIN product_variants pv ON r.variant_id = pv.id
-      WHERE r.is_deleted = false
+      WHERE r.is_deleted = false AND r.account_id = ${accountId}
       ORDER BY r.created_at DESC;
     `;
-    // Manually structure the nested object
     const formattedData = returns.map(r => ({
         ...r,
         product_variants: {
@@ -28,19 +30,19 @@ export async function GET(request: Request) {
   }
 }
 
-// POST new return
 export async function POST(request: Request) {
     try {
         const body = await request.json();
+        const accountId = request.headers.get("x-account-id");
         const { return_date, platform, variant_id, quantity, restockable, shipping_loss, ads_loss, damage_loss } = body;
 
-        if (!return_date || !platform || !variant_id || !quantity) {
-            return NextResponse.json({ message: 'Missing required fields' }, { status: 400 });
+        if (!return_date || !platform || !variant_id || !quantity || !accountId) {
+            return NextResponse.json({ message: 'Missing required fields or account' }, { status: 400 });
         }
 
         const result = await sql`
-            INSERT INTO returns (return_date, platform, variant_id, quantity, restockable, shipping_loss, ads_loss, damage_loss)
-            VALUES (${return_date}, ${platform}, ${variant_id}, ${quantity}, ${restockable}, ${shipping_loss}, ${ads_loss}, ${damage_loss})
+            INSERT INTO returns (return_date, platform, variant_id, quantity, restockable, shipping_loss, ads_loss, damage_loss, account_id)
+            VALUES (${return_date}, ${platform}, ${variant_id}, ${quantity}, ${restockable}, ${shipping_loss}, ${ads_loss}, ${damage_loss}, ${accountId})
             RETURNING *;
         `;
         
@@ -51,14 +53,14 @@ export async function POST(request: Request) {
     }
 }
 
-// PUT update return
 export async function PUT(request: Request) {
     try {
         const body = await request.json();
+        const accountId = request.headers.get("x-account-id");
         const { id, return_date, platform, variant_id, quantity, restockable, shipping_loss, ads_loss, damage_loss } = body;
 
-        if (!id) {
-            return NextResponse.json({ message: "Return ID is required" }, { status: 400 });
+        if (!id || !accountId) {
+            return NextResponse.json({ message: "Return ID and Account are required" }, { status: 400 });
         }
 
         const result = await sql`
@@ -72,12 +74,12 @@ export async function PUT(request: Request) {
                 shipping_loss = ${shipping_loss},
                 ads_loss = ${ads_loss},
                 damage_loss = ${damage_loss}
-            WHERE id = ${id}
+            WHERE id = ${id} AND account_id = ${accountId}
             RETURNING *;
         `;
         
         if (result.length === 0) {
-            return NextResponse.json({ message: 'Return not found' }, { status: 404 });
+            return NextResponse.json({ message: 'Return not found or access denied' }, { status: 404 });
         }
 
         return NextResponse.json(result[0]);
@@ -87,26 +89,25 @@ export async function PUT(request: Request) {
     }
 }
 
-
-// DELETE (soft delete) a return
 export async function DELETE(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const id = searchParams.get('id');
+        const accountId = request.headers.get("x-account-id");
 
-        if (!id) {
-            return NextResponse.json({ message: 'Return ID is required' }, { status: 400 });
+        if (!id || !accountId) {
+            return NextResponse.json({ message: 'Return ID and Account are required' }, { status: 400 });
         }
 
         const result = await sql`
             UPDATE returns
             SET is_deleted = true
-            WHERE id = ${id}
+            WHERE id = ${id} AND account_id = ${accountId}
             RETURNING id;
         `;
         
         if (result.length === 0) {
-            return NextResponse.json({ message: 'Return not found' }, { status: 404 });
+            return NextResponse.json({ message: 'Return not found or access denied' }, { status: 404 });
         }
 
         return NextResponse.json({ message: 'Return deleted successfully' });

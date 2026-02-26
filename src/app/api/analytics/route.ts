@@ -4,8 +4,13 @@ import { subDays, format } from 'date-fns';
 
 export const revalidate = 0;
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const accountId = request.headers.get("x-account-id");
+    if (!accountId) {
+      return NextResponse.json({ success: false, message: "Account not selected" }, { status: 400 });
+    }
+
     const sixDaysAgo = format(subDays(new Date(), 6), 'yyyy-MM-dd');
 
     const [
@@ -17,7 +22,7 @@ export async function GET() {
       salesLast7DaysRes,
     ] = await Promise.all([
       // Total Sales (Last 7 days)
-      sql`SELECT total_amount FROM orders WHERE is_deleted = false AND order_date >= ${sixDaysAgo}`,
+      sql`SELECT total_amount FROM orders WHERE is_deleted = false AND account_id = ${accountId} AND order_date >= ${sixDaysAgo}`,
       
       // Returns Summary (Last 7 days)
       sql`
@@ -26,13 +31,13 @@ export async function GET() {
           SUM(quantity)::int as total_returns,
           SUM(total_loss)::numeric as total_loss
         FROM returns 
-        WHERE is_deleted = false AND return_date >= ${sixDaysAgo}
+        WHERE is_deleted = false AND account_id = ${accountId} AND return_date >= ${sixDaysAgo}
         GROUP BY DATE(return_date)
         ORDER BY return_date ASC
       `,
       
       // Platform Distribution
-      sql`SELECT platform FROM orders WHERE is_deleted = false`,
+      sql`SELECT platform FROM orders WHERE is_deleted = false AND account_id = ${accountId}`,
       
       // Data for Profit Calculation
       sql`
@@ -40,7 +45,7 @@ export async function GET() {
         FROM orders o
         JOIN product_variants pv ON o.variant_id = pv.id
         JOIN allproducts p ON pv.product_id = p.id
-        WHERE o.is_deleted = false
+        WHERE o.is_deleted = false AND o.account_id = ${accountId}
       `,
       
       // Data for Return impact
@@ -49,7 +54,7 @@ export async function GET() {
         FROM returns r
         JOIN product_variants pv ON r.variant_id = pv.id
         JOIN allproducts p ON pv.product_id = p.id
-        WHERE r.is_deleted = false
+        WHERE r.is_deleted = false AND r.account_id = ${accountId}
       `,
       
       // Sales Trend (Last 7 days)
@@ -59,13 +64,12 @@ export async function GET() {
           SUM(total_amount)::numeric as total_sales,
           COUNT(id)::int as total_orders
         FROM orders 
-        WHERE is_deleted = false AND order_date >= ${sixDaysAgo}
+        WHERE is_deleted = false AND account_id = ${accountId} AND order_date >= ${sixDaysAgo}
         GROUP BY DATE(order_date)
         ORDER BY label ASC
       `,
     ]);
 
-    // Format results to ensure numeric types
     const totalSales = (salesRes || []).reduce((acc: number, order: any) => acc + Number(order.total_amount || 0), 0);
     
     const meesho = (allOrdersRes || []).filter((o: any) => o.platform === "Meesho").length;
@@ -86,9 +90,9 @@ export async function GET() {
 
     const returnImpact = (returnsWithMarginRes || []).reduce((acc: number, ret: any) => {
         if (ret.restockable) {
-            return acc + (Number(ret.quantity || 0) * 45); // Fixed loss fallback
+            return acc + (Number(ret.quantity || 0) * 45);
         }
-        return acc + (Number(ret.quantity || 0) * Number(ret.margin || 0)); // Loss of margin
+        return acc + (Number(ret.quantity || 0) * Number(ret.margin || 0));
     }, 0);
 
     const netProfit = grossMargin - returnImpact;

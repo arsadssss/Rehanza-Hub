@@ -1,15 +1,8 @@
-
 "use client"
 
 import React, { useEffect, useState, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { subDays, format, parseISO, addDays } from 'date-fns';
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
+import { format, parseISO } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   PieChart,
@@ -27,22 +20,8 @@ import {
   ChartContainer,
   ChartTooltipContent,
 } from '@/components/ui/chart';
-import { Button } from '@/components/ui/button';
 import { DollarSign, ShoppingCart, Undo2, TrendingUp, ArrowUpRight } from 'lucide-react';
-import { cn } from '@/lib/utils';
 import { formatINR } from '@/lib/format';
-
-type ReturnsSummary = {
-  return_date: string;
-  total_returns: number;
-  total_loss: number;
-};
-
-type SalesAnalyticsData = {
-  label: string;
-  total_sales: number;
-  total_orders: number;
-}
 
 const KpiCard = ({ title, value, icon: Icon, loading, gradient }: { title: string, value: string, icon: React.ElementType, loading: boolean, gradient: string }) => {
     return (
@@ -81,10 +60,9 @@ const SalesTooltip = ({ active, payload, label }: any) => {
     return null;
 };
 
-
 export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
-  const [returnsData, setReturnsData] = useState<ReturnsSummary[]>([]);
+  const [returnsData, setReturnsData] = useState<any[]>([]);
   const [platformOrders, setPlatformOrders] = useState<{ name: string; value: number }[]>([]);
   const [totalPlatformOrders, setTotalPlatformOrders] = useState(0);
   const [isMounted, setIsMounted] = useState(false);
@@ -92,7 +70,7 @@ export default function AnalyticsPage() {
   const [netProfit, setNetProfit] = useState(0);
   const [totalSales, setTotalSales] = useState(0);
 
-  const [salesData, setSalesData] = useState<SalesAnalyticsData[]>([]);
+  const [salesData, setSalesData] = useState<any[]>([]);
   const [loadingSales, setLoadingSales] = useState(true);
 
   useEffect(() => {
@@ -101,7 +79,9 @@ export default function AnalyticsPage() {
       setLoading(true);
       setLoadingSales(true);
       try {
-        const res = await fetch('/api/analytics');
+        const res = await fetch('/api/analytics', {
+          headers: { "x-account-id": sessionStorage.getItem("active_account") || "" }
+        });
         if (!res.ok) {
           const errorData = await res.json();
           throw new Error(errorData.message || 'Failed to fetch analytics data');
@@ -135,14 +115,10 @@ export default function AnalyticsPage() {
     fetchAnalyticsData();
   }, [toast]);
 
-
   const kpiStats = useMemo(() => {
     const totalOrders = salesData.reduce((acc, item) => acc + item.total_orders, 0);
     const totalReturns = returnsData.reduce((acc, item) => acc + item.total_returns, 0);
-    
-    return { 
-      totalOrders, totalReturns
-    };
+    return { totalOrders, totalReturns };
   }, [salesData, returnsData]);
 
   const platformChartConfig = {

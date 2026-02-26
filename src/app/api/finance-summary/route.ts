@@ -3,15 +3,16 @@ import { NextResponse } from 'next/server';
 
 export const revalidate = 0;
 
-/**
- * GET /api/finance-summary
- * Aggregates total payments received and total business expenses.
- */
-export async function GET() {
+export async function GET(request: Request) {
   try {
+    const accountId = request.headers.get("x-account-id");
+    if (!accountId) {
+      return NextResponse.json({ success: false, message: "Account not selected" }, { status: 400 });
+    }
+
     const [payoutRes, expenseRes] = await Promise.all([
-      sql`SELECT COALESCE(SUM(amount), 0) as total FROM platform_payouts WHERE is_deleted = false`,
-      sql`SELECT COALESCE(SUM(amount), 0) as total FROM business_expenses WHERE is_deleted = false`
+      sql`SELECT COALESCE(SUM(amount), 0) as total FROM platform_payouts WHERE is_deleted = false AND account_id = ${accountId}`,
+      sql`SELECT COALESCE(SUM(amount), 0) as total FROM business_expenses WHERE is_deleted = false AND account_id = ${accountId}`
     ]);
 
     const totalReceived = Number(payoutRes[0]?.total || 0);

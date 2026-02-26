@@ -1,13 +1,15 @@
-
 import { sql } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
 export const revalidate = 0;
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    // Note: We are selecting from `product_variants` and summing their stock,
-    // not from `allproducts.stock` which might be out of sync.
+    const accountId = request.headers.get("x-account-id");
+    if (!accountId) {
+      return NextResponse.json({ message: "Account not selected" }, { status: 400 });
+    }
+
     const result = await sql`
         SELECT
             COUNT(*) AS total_products,
@@ -17,15 +19,16 @@ export async function GET() {
             SELECT p.id, COALESCE(SUM(v.stock), 0) as stock
             FROM allproducts p
             LEFT JOIN product_variants v ON p.id = v.product_id
+            WHERE p.account_id = ${accountId}
             GROUP BY p.id
         ) as product_stock;
     `;
     
     const stats = result[0];
-    const totalProducts = Number(stats.total_products);
-    const inStockProducts = Number(stats.in_stock_products);
+    const totalProducts = Number(stats.total_products || 0);
+    const inStockProducts = Number(stats.in_stock_products || 0);
     const outOfStockProducts = totalProducts - inStockProducts;
-    const totalInventoryUnits = Number(stats.total_inventory_units);
+    const totalInventoryUnits = Number(stats.total_inventory_units || 0);
 
     return NextResponse.json({
         totalProducts,

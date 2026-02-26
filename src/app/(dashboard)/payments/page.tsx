@@ -4,302 +4,64 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { formatINR } from '@/lib/format';
-
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from '@/components/ui/card';
-import {
-  Table,
-  TableHeader,
-  TableRow,
-  TableHead,
-  TableBody,
-  TableCell,
-} from '@/components/ui/table';
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from '@/components/ui/alert-dialog';
-import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Input } from '@/components/ui/input';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
-import { PlusCircle, Pencil, Trash2, Wallet } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { PlusCircle, Wallet } from 'lucide-react';
 import { AddPayoutModal } from './components/add-payout-modal';
-
-export type PlatformPayout = {
-  id: string;
-  gst_account: 'Fashion' | 'Cosmetics';
-  platform: 'Meesho' | 'Flipkart' | 'Amazon';
-  amount: number;
-  payout_date: string;
-  reference: string | null;
-  is_deleted: boolean;
-};
 
 export default function PaymentsPage() {
   const { toast } = useToast();
-
-  const [payouts, setPayouts] = useState<PlatformPayout[]>([]);
+  const [payouts, setPayouts] = useState<any[]>([]);
   const [totalReceived, setTotalReceived] = useState(0);
-  const [loadingSummary, setLoadingSummary] = useState(true);
-  const [loadingPayouts, setLoadingPayouts] = useState(true);
-
+  const [loading, setLoading] = useState(true);
   const [isAddPayoutOpen, setIsAddPayoutOpen] = useState(false);
-  const [payoutToEdit, setPayoutToEdit] = useState<PlatformPayout | null>(null);
-  const [itemToDelete, setItemToDelete] = useState<{ id: string; description: string } | null>(null);
 
-  // Payouts pagination and filtering
-  const [payoutsPage, setPayoutsPage] = useState(1);
-  const [payoutsPageSize] = useState(10);
-  const [payoutsTotalRows, setPayoutsTotalRows] = useState(0);
-  const [accountFilter, setAccountFilter] = useState('all');
-  const [platformFilter, setPlatformFilter] = useState('all');
-  const [dateFromFilter, setDateFromFilter] = useState('');
-  const [dateToFilter, setDateToFilter] = useState('');
-
-  const fetchSummary = useCallback(async () => {
-    setLoadingSummary(true);
+  const fetchData = useCallback(async () => {
+    setLoading(true);
     try {
-      const res = await fetch('/api/payments-summary');
-      if (!res.ok) throw new Error('Failed to fetch payments summary');
-      const data = await res.json();
-      setTotalReceived(data.total_received);
+      const accountId = sessionStorage.getItem("active_account") || "";
+      const [pRes, sRes] = await Promise.all([
+        fetch('/api/payouts', { headers: { "x-account-id": accountId } }),
+        fetch('/api/payments-summary', { headers: { "x-account-id": accountId } })
+      ]);
+      if (pRes.ok) setPayouts((await pRes.json()).data);
+      if (sRes.ok) setTotalReceived((await sRes.json()).total_received);
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error', description: error.message });
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch data' });
     } finally {
-      setLoadingSummary(false);
+      setLoading(false);
     }
   }, [toast]);
 
-  const fetchPayouts = useCallback(async () => {
-    setLoadingPayouts(true);
-    try {
-      const params = new URLSearchParams({
-        page: payoutsPage.toString(),
-        pageSize: payoutsPageSize.toString(),
-        account: accountFilter,
-        platform: platformFilter,
-        from: dateFromFilter,
-        to: dateToFilter,
-      });
-
-      const res = await fetch(`/api/payouts?${params.toString()}`);
-      if (!res.ok) throw new Error('Failed to fetch payouts');
-      const { data, count } = await res.json();
-      setPayouts(data);
-      setPayoutsTotalRows(count);
-    } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch platform payouts.' });
-      setPayouts([]);
-    } finally {
-      setLoadingPayouts(false);
-    }
-  }, [toast, payoutsPage, payoutsPageSize, accountFilter, platformFilter, dateFromFilter, dateToFilter]);
-
-  useEffect(() => {
-    fetchSummary();
-  }, [fetchSummary]);
-
-  useEffect(() => {
-    fetchPayouts();
-  }, [fetchPayouts]);
-
-  useEffect(() => {
-    setPayoutsPage(1);
-  }, [accountFilter, platformFilter, dateFromFilter, dateToFilter]);
-
-  const handleSuccess = () => {
-    fetchSummary();
-    fetchPayouts();
-  };
-
-  const handleConfirmDelete = async () => {
-    if (!itemToDelete) return;
-    try {
-      const res = await fetch(`/api/payouts?id=${itemToDelete.id}`, { method: 'DELETE' });
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.message);
-      }
-      toast({
-        title: 'Success',
-        description: `The payout has been deleted.`,
-      });
-      handleSuccess();
-    } catch (error: any) {
-      toast({
-        variant: "destructive",
-        title: "Error",
-        description: error.message,
-      });
-    } finally {
-      setItemToDelete(null);
-    }
-  };
-
-  const resetPayoutFilters = () => {
-    setAccountFilter('all');
-    setPlatformFilter('all');
-    setDateFromFilter('');
-    setDateToFilter('');
-  }
+  useEffect(() => { fetchData(); }, [fetchData]);
 
   return (
     <div className="w-full px-6 py-6 space-y-8">
-      <AddPayoutModal
-        isOpen={isAddPayoutOpen || !!payoutToEdit}
-        onClose={() => { setIsAddPayoutOpen(false); setPayoutToEdit(null); }}
-        onSuccess={handleSuccess}
-        payout={payoutToEdit}
-      />
-      
-      <AlertDialog open={!!itemToDelete} onOpenChange={() => setItemToDelete(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-            <AlertDialogDescription>
-              This will mark the item "{itemToDelete?.description}" as deleted. You cannot undo this action.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive hover:bg-destructive/90">
-              Delete
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Hero Header Card */}
-      <div className="w-full">
-        {loadingSummary ? (
-            <Skeleton className="h-[280px] w-full rounded-3xl" />
-        ) : (
-            <div className="rounded-3xl p-12 bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-xl text-center relative overflow-hidden">
-                {/* Decorative background element */}
-                <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/4 w-64 h-64 bg-white/10 rounded-full blur-3xl pointer-events-none"></div>
-                <div className="absolute bottom-0 left-0 translate-y-1/2 -translate-x-1/4 w-64 h-64 bg-black/10 rounded-full blur-3xl pointer-events-none"></div>
-                
-                <div className="relative z-10">
-                    <p className="tracking-widest uppercase text-xs opacity-80 font-bold">Total Payment Received</p>
-                    <h1 className="text-6xl md:text-7xl font-bold mt-4 font-headline tracking-tighter">
-                        {formatINR(totalReceived)}
-                    </h1>
-                    <div className="w-16 h-1 bg-white/40 mx-auto my-6 rounded-full"></div>
-                    <p className="text-sm md:text-base opacity-80 font-medium">Total Platform Collections Across All Accounts</p>
-                </div>
-            </div>
-        )}
+      <AddPayoutModal isOpen={isAddPayoutOpen} onClose={() => setIsAddPayoutOpen(false)} onSuccess={fetchData} />
+      <div className="rounded-3xl p-12 bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-xl text-center">
+          <p className="tracking-widest uppercase text-xs opacity-80 font-bold">Total Payment Received</p>
+          <h1 className="text-6xl font-bold mt-4 font-headline">{formatINR(totalReceived)}</h1>
       </div>
-
       <Card>
-        <CardHeader className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <CardTitle className="text-2xl font-headline">Platform Payouts</CardTitle>
-            <p className="text-sm text-muted-foreground">Manage incoming settlement transfers from Meesho, Flipkart, and Amazon.</p>
-          </div>
-          <Button onClick={() => setIsAddPayoutOpen(true)} className="w-full md:w-auto">
-            <PlusCircle className="mr-2 h-4 w-4" /> Add Payout
-          </Button>
+        <CardHeader className="flex flex-row justify-between items-center">
+          <CardTitle>Platform Payouts</CardTitle>
+          <Button onClick={() => setIsAddPayoutOpen(true)}><PlusCircle className="mr-2 h-4 w-4" /> Add Payout</Button>
         </CardHeader>
         <CardContent>
-          <div className="flex flex-col md:flex-row gap-4 mb-6">
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 w-full">
-                <Select value={accountFilter} onValueChange={setAccountFilter}>
-                <SelectTrigger><SelectValue placeholder="Filter by Account..." /></SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all">All Accounts</SelectItem>
-                    <SelectItem value="Fashion">Fashion</SelectItem>
-                    <SelectItem value="Cosmetics">Cosmetics</SelectItem>
-                </SelectContent>
-                </Select>
-                <Select value={platformFilter} onValueChange={setPlatformFilter}>
-                <SelectTrigger><SelectValue placeholder="Filter by Platform..." /></SelectTrigger>
-                <SelectContent>
-                    <SelectItem value="all">All Platforms</SelectItem>
-                    <SelectItem value="Meesho">Meesho</SelectItem>
-                    <SelectItem value="Flipkart">Flipkart</SelectItem>
-                    <SelectItem value="Amazon">Amazon</SelectItem>
-                </SelectContent>
-                </Select>
-                <Input type="date" value={dateFromFilter} onChange={e => setDateFromFilter(e.target.value)} />
-                <Input type="date" value={dateToFilter} onChange={e => setDateToFilter(e.target.value)} />
-            </div>
-            <Button variant="outline" onClick={resetPayoutFilters} className="shrink-0">Clear</Button>
-          </div>
-          <div className="rounded-xl border bg-card overflow-hidden shadow-sm">
-            <Table>
-              <TableHeader className="bg-muted/50">
-                <TableRow>
-                    <TableHead className="font-bold">Date</TableHead>
-                    <TableHead className="font-bold">Accounts</TableHead>
-                    <TableHead className="font-bold">Platform</TableHead>
-                    <TableHead className="font-bold">Reference</TableHead>
-                    <TableHead className="text-right font-bold">Amount</TableHead>
-                    <TableHead className="text-right w-[100px] font-bold">Actions</TableHead>
+          <Table>
+            <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Platform</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
+            <TableBody>
+              {payouts.map(p => (
+                <TableRow key={p.id}>
+                  <TableCell>{format(new Date(p.payout_date), 'dd MMM yyyy')}</TableCell>
+                  <TableCell><Badge variant="outline">{p.platform}</Badge></TableCell>
+                  <TableCell className="text-right font-bold">{formatINR(p.amount)}</TableCell>
                 </TableRow>
-              </TableHeader>
-              <TableBody>
-                {loadingPayouts ? Array.from({ length: payoutsPageSize }).map((_, i) => <TableRow key={i}><TableCell colSpan={6}><Skeleton className="h-8 w-full" /></TableCell></TableRow>)
-                  : payouts.length > 0 ? payouts.map(p => (
-                    <TableRow key={p.id} className="hover:bg-muted/30">
-                      <TableCell className="font-medium">{format(new Date(p.payout_date), 'dd MMM yyyy')}</TableCell>
-                      <TableCell><Badge variant="secondary" className="font-bold">{p.gst_account}</Badge></TableCell>
-                      <TableCell><Badge variant="outline" className="font-bold">{p.platform}</Badge></TableCell>
-                      <TableCell className="text-xs text-muted-foreground font-mono">{p.reference || 'N/A'}</TableCell>
-                      <TableCell className="text-right font-bold text-emerald-600 dark:text-emerald-400">{formatINR(p.amount)}</TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex justify-end gap-1">
-                          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full" onClick={() => setPayoutToEdit(p)}><Pencil className="h-4 w-4" /></Button>
-                          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-full hover:bg-destructive/10 hover:text-destructive" onClick={() => setItemToDelete({ id: p.id, description: `Payout from ${p.platform} (${formatINR(p.amount)})` })}><Trash2 className="h-4 w-4" /></Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                    : <TableRow><TableCell colSpan={6} className="h-32 text-center text-muted-foreground">No payouts found matching your filters.</TableCell></TableRow>}
-              </TableBody>
-            </Table>
-          </div>
-          <div className="flex items-center justify-end space-x-2 py-4">
-            <span className="text-sm text-muted-foreground font-medium">
-              {payoutsTotalRows > 0 ? `Page ${payoutsPage} of ${Math.ceil(payoutsTotalRows / payoutsPageSize)}` : 'Page 0 of 0'}
-            </span>
-            <div className="flex gap-2">
-                <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPayoutsPage(p => p - 1)}
-                disabled={payoutsPage === 1}
-                >
-                Previous
-                </Button>
-                <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setPayoutsPage(p => p + 1)}
-                disabled={(payoutsPage * payoutsPageSize) >= payoutsTotalRows}
-                >
-                Next
-                </Button>
-            </div>
-          </div>
+              ))}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
     </div>

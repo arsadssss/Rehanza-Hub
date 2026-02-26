@@ -3,13 +3,16 @@ import { NextResponse } from 'next/server';
 
 export const revalidate = 0;
 
-// GET all variants
 export async function GET(request: Request) {
   try {
+    const accountId = request.headers.get("x-account-id");
+    if (!accountId) return NextResponse.json({ message: "Account not selected" }, { status: 400 });
+
     const variants = await sql`
       SELECT v.id, v.variant_sku, v.color, v.size, v.stock, a.sku, a.product_name
       FROM product_variants v
       LEFT JOIN allproducts a ON v.product_id = a.id
+      WHERE a.account_id = ${accountId}
       ORDER BY v.created_at DESC;
     `;
 
@@ -32,15 +35,19 @@ export async function GET(request: Request) {
   }
 }
 
-// POST new variant
 export async function POST(request: Request) {
     try {
         const body = await request.json();
+        const accountId = request.headers.get("x-account-id");
         const { product_id, color, size, stock, variant_sku } = body;
         
-        if (!product_id || !variant_sku) {
-            return NextResponse.json({ message: "Missing required fields" }, { status: 400 });
+        if (!product_id || !variant_sku || !accountId) {
+            return NextResponse.json({ message: "Missing required fields or account" }, { status: 400 });
         }
+
+        // Verify product belongs to account
+        const productCheck = await sql`SELECT id FROM allproducts WHERE id = ${product_id} AND account_id = ${accountId}`;
+        if (productCheck.length === 0) return NextResponse.json({ message: "Access denied" }, { status: 403 });
 
         const result = await sql`
             INSERT INTO product_variants (product_id, color, size, stock, variant_sku)
@@ -51,22 +58,28 @@ export async function POST(request: Request) {
         return NextResponse.json(result[0], { status: 201 });
     } catch (error: any) {
         console.error("API Variants POST Error:", error);
-         if (error.message.includes('unique constraint')) {
-            return NextResponse.json({ message: `Variant with SKU '${body.variant_sku}' already exists.` }, { status: 409 });
-        }
         return NextResponse.json({ message: 'Failed to create variant', error: error.message }, { status: 500 });
     }
 }
 
-// PUT update variant stock
 export async function PUT(request: Request) {
     try {
         const body = await request.json();
+        const accountId = request.headers.get("x-account-id");
         const { id, stock } = body;
 
-        if (!id || stock === undefined) {
-            return NextResponse.json({ message: "Variant ID and stock are required" }, { status: 400 });
+        if (!id || stock === undefined || !accountId) {
+            return NextResponse.json({ message: "Variant ID, stock and Account are required" }, { status: 400 });
         }
+
+        // Verify variant belongs to account via product
+        const variantCheck = await sql`
+            SELECT v.id 
+            FROM product_variants v
+            JOIN allproducts a ON v.product_id = a.id
+            WHERE v.id = ${id} AND a.account_id = ${accountId}
+        `;
+        if (variantCheck.length === 0) return NextResponse.json({ message: "Access denied" }, { status: 403 });
 
         const result = await sql`
             UPDATE product_variants
@@ -74,10 +87,6 @@ export async function PUT(request: Request) {
             WHERE id = ${id}
             RETURNING *;
         `;
-
-        if (result.length === 0) {
-            return NextResponse.json({ message: "Variant not found" }, { status: 404 });
-        }
         
         return NextResponse.json(result[0]);
     } catch (error: any) {
@@ -86,23 +95,25 @@ export async function PUT(request: Request) {
     }
 }
 
-// DELETE multiple variants
 export async function DELETE(request: Request) {
     try {
         const body = await request.json();
+        const accountId = request.headers.get("x-account-id");
         const { ids } = body;
 
-        if (!ids || !Array.isArray(ids) || ids.length === 0) {
-            return NextResponse.json({ message: 'Array of variant IDs is required' }, { status: 400 });
+        if (!ids || !Array.isArray(ids) || ids.length === 0 || !accountId) {
+            return NextResponse.json({ message: 'IDs and Account are required' }, { status: 400 });
         }
 
-        const placeholders = ids.map((_, i) => `$${i + 1}`).join(', ');
-        
-        // Use standard function call for dynamic query string
-        const result = await sql(
-            `DELETE FROM product_variants WHERE id IN (${placeholders}) RETURNING id`,
-            ids
-        );
+        const result = await sql`
+            DELETE FROM product_variants 
+            WHERE id IN (
+                SELECT v.id FROM product_variants v
+                JOIN allproducts a ON v.product_id = a.id
+                WHERE v.id = ANY(${ids}) AND a.account_id = ${accountId}
+            )
+            RETURNING id;
+        `;
 
         return NextResponse.json({ message: `${result.length} variants deleted successfully` });
     } catch (error: any) {

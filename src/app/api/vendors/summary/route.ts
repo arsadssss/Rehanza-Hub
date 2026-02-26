@@ -1,25 +1,18 @@
-
-import { sql } from '@/lib/neon';
+import { sql } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
 export const revalidate = 0;
 
-/**
- * GET detailed vendor summary for the Vendors Page UI
- * Aggregates purchases and payments per individual vendor.
- */
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    console.log("Vendors Breakdown API (Plural) hit");
+    const accountId = request.headers.get("x-account-id");
+    if (!accountId) return NextResponse.json({ success: false, message: "Account not selected" }, { status: 400 });
 
-    // Fetch base data using the correct Neon schema
     const [vendorsRes, purchasesRes, paymentsRes] = await Promise.all([
-        sql`SELECT id, vendor_name FROM vendors`, // Safely fetch vendors without is_deleted filter
-        sql`SELECT vendor_id, (quantity * cost_per_unit)::numeric as line_total FROM vendor_purchases WHERE is_deleted = false`,
-        sql`SELECT vendor_id, amount::numeric as amount FROM vendor_payments WHERE is_deleted = false`,
+        sql`SELECT id, vendor_name FROM vendors WHERE account_id = ${accountId}`,
+        sql`SELECT vendor_id, (quantity * cost_per_unit)::numeric as line_total FROM vendor_purchases WHERE account_id = ${accountId} AND is_deleted = false`,
+        sql`SELECT vendor_id, amount::numeric as amount FROM vendor_payments WHERE account_id = ${accountId} AND is_deleted = false`,
     ]);
-
-    console.log(`Fetched ${vendorsRes.length} vendors, ${purchasesRes.length} purchases, ${paymentsRes.length} payments`);
 
     const summaryData = vendorsRes.map((vendor: any) => {
       const total_purchase = purchasesRes
@@ -39,7 +32,6 @@ export async function GET() {
       };
     });
 
-    // Calculate overall aggregates for the summary cards
     const totalDue = summaryData.reduce((acc: number, v: any) => acc + (v.balance_due > 0 ? v.balance_due : 0), 0);
     const totalInventoryValue = purchasesRes.reduce((acc: number, p: any) => acc + Number(p.line_total || 0), 0);
     
@@ -51,7 +43,7 @@ export async function GET() {
     });
 
   } catch (error: any) {
-    console.error("Vendors Breakdown API (Plural) Error:", error);
+    console.error("Vendors Breakdown API Error:", error);
     return NextResponse.json({ 
         success: false, 
         message: 'Failed to fetch vendor summary', 

@@ -5,19 +5,12 @@ import { sql } from "@/lib/db";
 
 export const revalidate = 0;
 
-/**
- * GET /api/wholesale-prices
- * Retrieves wholesale pricing tiers.
- * Supports filtering by product_id query param.
- */
 export async function GET(request: Request) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json(
-        { success: false, message: "Unauthorized" },
-        { status: 401 }
-      );
+    const accountId = request.headers.get("x-account-id");
+    if (!session || !accountId) {
+      return NextResponse.json({ success: false, message: "Unauthorized or Account missing" }, { status: 401 });
     }
 
     const { searchParams } = new URL(request.url);
@@ -26,144 +19,81 @@ export async function GET(request: Request) {
     let rows;
     if (productId) {
       rows = await sql`
-        SELECT
-          wp.*,
-          p.product_name,
-          u.name as created_by_name
+        SELECT wp.*, p.product_name, u.name as created_by_name
         FROM public.wholesale_prices wp
         LEFT JOIN public.allproducts p ON wp.product_id = p.id
         LEFT JOIN public.users u ON wp.created_by = u.id
-        WHERE wp.product_id = ${productId}
+        WHERE wp.product_id = ${productId} AND p.account_id = ${accountId}
         ORDER BY wp.min_quantity ASC;
       `;
     } else {
       rows = await sql`
-        SELECT
-          wp.*,
-          p.product_name,
-          u.name as created_by_name
+        SELECT wp.*, p.product_name, u.name as created_by_name
         FROM public.wholesale_prices wp
         LEFT JOIN public.allproducts p ON wp.product_id = p.id
         LEFT JOIN public.users u ON wp.created_by = u.id
+        WHERE p.account_id = ${accountId}
         ORDER BY p.product_name ASC, wp.min_quantity ASC;
       `;
     }
 
-    return NextResponse.json({
-      success: true,
-      data: rows,
-    });
+    return NextResponse.json({ success: true, data: rows });
   } catch (error: any) {
     console.error("Wholesale Prices GET Error:", error);
-    return NextResponse.json(
-      { success: false, message: "Failed to fetch wholesale prices", error: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, message: "Failed to fetch wholesale prices", error: error.message }, { status: 500 });
   }
 }
 
-/**
- * POST /api/wholesale-prices
- * Creates a new wholesale pricing tier.
- */
 export async function POST(request: Request) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session || !session.user?.id) {
-      return NextResponse.json(
-        { success: false, message: "Unauthorized" },
-        { status: 401 }
-      );
+    const accountId = request.headers.get("x-account-id");
+    if (!session || !session.user?.id || !accountId) {
+      return NextResponse.json({ success: false, message: "Unauthorized or Account missing" }, { status: 401 });
     }
 
     const body = await request.json();
     const { product_id, min_quantity, wholesale_price } = body;
 
     if (!product_id || min_quantity === undefined || wholesale_price === undefined) {
-      return NextResponse.json(
-        { success: false, message: "Missing required fields: product_id, min_quantity, or wholesale_price" },
-        { status: 400 }
-      );
+      return NextResponse.json({ success: false, message: "Missing required fields" }, { status: 400 });
     }
 
     const result = await sql`
-      INSERT INTO public.wholesale_prices (
-        product_id, 
-        min_quantity, 
-        wholesale_price, 
-        created_by,
-        created_at
-      )
-      VALUES (
-        ${product_id}, 
-        ${min_quantity}, 
-        ${wholesale_price}, 
-        ${session.user.id},
-        NOW()
-      )
+      INSERT INTO public.wholesale_prices (product_id, min_quantity, wholesale_price, created_by, created_at)
+      VALUES (${product_id}, ${min_quantity}, ${wholesale_price}, ${session.user.id}, NOW())
       RETURNING *;
     `;
 
-    return NextResponse.json({
-      success: true,
-      message: "Wholesale price tier created successfully",
-      data: result[0],
-    }, { status: 201 });
+    return NextResponse.json({ success: true, message: "Wholesale price tier created", data: result[0] }, { status: 201 });
   } catch (error: any) {
     console.error("Wholesale Prices POST Error:", error);
-    return NextResponse.json(
-      { success: false, message: "Failed to create wholesale price tier", error: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, message: "Failed to create tier", error: error.message }, { status: 500 });
   }
 }
 
-/**
- * DELETE /api/wholesale-prices
- * Deletes a specific wholesale pricing tier by ID.
- */
 export async function DELETE(request: Request) {
   try {
     const session = await getServerSession(authOptions);
-    if (!session) {
-      return NextResponse.json(
-        { success: false, message: "Unauthorized" },
-        { status: 401 }
-      );
-    }
+    const accountId = request.headers.get("x-account-id");
+    if (!session || !accountId) return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
 
     const { searchParams } = new URL(request.url);
     const id = searchParams.get("id");
 
-    if (!id) {
-      return NextResponse.json(
-        { success: false, message: "ID is required to delete a tier" },
-        { status: 400 }
-      );
-    }
+    if (!id) return NextResponse.json({ success: false, message: "ID is required" }, { status: 400 });
 
     const result = await sql`
       DELETE FROM public.wholesale_prices 
-      WHERE id = ${id}
+      WHERE id = ${id} AND product_id IN (SELECT id FROM allproducts WHERE account_id = ${accountId})
       RETURNING id;
     `;
 
-    if (result.length === 0) {
-      return NextResponse.json(
-        { success: false, message: "Wholesale price tier not found" },
-        { status: 404 }
-      );
-    }
+    if (result.length === 0) return NextResponse.json({ success: false, message: "Tier not found or access denied" }, { status: 404 });
 
-    return NextResponse.json({
-      success: true,
-      message: "Wholesale price tier deleted successfully",
-    });
+    return NextResponse.json({ success: true, message: "Wholesale tier deleted" });
   } catch (error: any) {
     console.error("Wholesale Prices DELETE Error:", error);
-    return NextResponse.json(
-      { success: false, message: "Failed to delete wholesale price tier", error: error.message },
-      { status: 500 }
-    );
+    return NextResponse.json({ success: false, message: "Failed to delete tier", error: error.message }, { status: 500 });
   }
 }

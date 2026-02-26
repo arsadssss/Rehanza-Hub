@@ -1,18 +1,17 @@
-
-import { sql } from '@/lib/neon';
+import { sql } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
 export const revalidate = 0;
 
-/**
- * GET list of all vendors
- * Used for dropdowns and listing.
- */
-export async function GET() {
+export async function GET(request: Request) {
     try {
+        const accountId = request.headers.get("x-account-id");
+        if (!accountId) return NextResponse.json({ success: false, message: "Account not selected" }, { status: 400 });
+
         const vendors = await sql`
             SELECT id, vendor_name, contact_person, email, phone 
             FROM vendors 
+            WHERE account_id = ${accountId}
             ORDER BY vendor_name ASC
         `;
         return NextResponse.json({
@@ -28,21 +27,19 @@ export async function GET() {
     }
 }
 
-/**
- * POST a new vendor
- */
 export async function POST(request: Request) {
     try {
         const body = await request.json();
+        const accountId = request.headers.get("x-account-id");
         const { vendor_name, contact_person, email, phone } = body;
         
-        if (!vendor_name) {
-            return NextResponse.json({ success: false, message: 'Vendor name is required' }, { status: 400 });
+        if (!vendor_name || !accountId) {
+            return NextResponse.json({ success: false, message: 'Vendor name and Account are required' }, { status: 400 });
         }
         
         const result = await sql`
-            INSERT INTO vendors (vendor_name, contact_person, email, phone)
-            VALUES (${vendor_name}, ${contact_person}, ${email}, ${phone})
+            INSERT INTO vendors (vendor_name, contact_person, email, phone, account_id)
+            VALUES (${vendor_name}, ${contact_person}, ${email}, ${phone}, ${accountId})
             RETURNING *;
         `;
         
@@ -52,9 +49,6 @@ export async function POST(request: Request) {
         }, { status: 201 });
     } catch (error: any) {
         console.error("API Vendors POST error:", error);
-        if (error.message.includes('unique constraint')) {
-            return NextResponse.json({ success: false, message: `A vendor with the name "${body.vendor_name}" already exists.` }, { status: 409 });
-        }
         return NextResponse.json({ success: false, message: 'Failed to create vendor', error: error.message }, { status: 500 });
     }
 }

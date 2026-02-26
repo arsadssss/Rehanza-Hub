@@ -3,9 +3,12 @@ import { NextResponse } from 'next/server';
 
 export const revalidate = 0;
 
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    console.log("Dashboard API: Fetching consolidated data...");
+    const accountId = request.headers.get("x-account-id");
+    if (!accountId) {
+      return NextResponse.json({ success: false, message: "Account not selected" }, { status: 400 });
+    }
 
     const [
       platformRes,
@@ -23,7 +26,7 @@ export async function GET() {
           COALESCE(SUM(quantity), 0)::int as total_units,
           COALESCE(SUM(total_amount), 0)::numeric as total_revenue
         FROM orders
-        WHERE is_deleted = false
+        WHERE is_deleted = false AND account_id = ${accountId}
         GROUP BY platform
       `,
       // Weekly Orders vs Returns
@@ -36,8 +39,8 @@ export async function GET() {
           SELECT CURRENT_DATE - i as date 
           FROM generate_series(0, 6) i
         ) d
-        LEFT JOIN orders o ON DATE(o.order_date) = d.date AND o.is_deleted = false
-        LEFT JOIN returns r ON DATE(r.return_date) = d.date AND r.is_deleted = false
+        LEFT JOIN orders o ON DATE(o.order_date) = d.date AND o.is_deleted = false AND o.account_id = ${accountId}
+        LEFT JOIN returns r ON DATE(r.return_date) = d.date AND r.is_deleted = false AND r.account_id = ${accountId}
         GROUP BY d.date
         ORDER BY d.date ASC
       `,
@@ -47,7 +50,7 @@ export async function GET() {
         FROM orders o
         LEFT JOIN product_variants pv ON o.variant_id = pv.id
         LEFT JOIN allproducts p ON pv.product_id = p.id
-        WHERE o.is_deleted = false
+        WHERE o.is_deleted = false AND o.account_id = ${accountId}
         ORDER BY o.created_at DESC 
         LIMIT 5
       `,
@@ -61,25 +64,24 @@ export async function GET() {
         FROM orders o
         JOIN product_variants pv ON o.variant_id = pv.id
         JOIN allproducts p ON pv.product_id = p.id
-        WHERE o.is_deleted = false
+        WHERE o.is_deleted = false AND o.account_id = ${accountId}
         GROUP BY p.product_name, pv.variant_sku
         ORDER BY total_units_sold DESC
         LIMIT 5
       `,
-      // Vendor Raw Data for dashboard financial components
-      sql`SELECT vendor_id, quantity, cost_per_unit FROM vendor_purchases WHERE is_deleted = false`,
-      sql`SELECT vendor_id, amount FROM vendor_payments WHERE is_deleted = false`,
+      // Vendor Raw Data
+      sql`SELECT id FROM vendor_purchases WHERE is_deleted = false AND account_id = ${accountId}`,
+      sql`SELECT id FROM vendor_payments WHERE is_deleted = false AND account_id = ${accountId}`,
       // Aggregated Summary
       sql`
         SELECT 
           COALESCE(SUM(quantity), 0)::int as total_units,
           COALESCE(SUM(total_amount), 0)::numeric as gross_revenue
         FROM orders 
-        WHERE is_deleted = false
+        WHERE is_deleted = false AND account_id = ${accountId}
       `
     ]);
 
-    // Calculate Return Rate
     const totalUnitsSold = Number(summaryStatsRes[0]?.total_units || 0);
     const totalReturnsCount = ordersReturnsRes.reduce((acc: number, d: any) => acc + Number(d.total_returns), 0);
     const returnRate = totalUnitsSold > 0 ? (totalReturnsCount / totalUnitsSold) * 100 : 0;
@@ -87,7 +89,7 @@ export async function GET() {
     const summary = {
       total_units: totalUnitsSold,
       gross_revenue: Number(summaryStatsRes[0]?.gross_revenue || 0),
-      net_profit: Number(summaryStatsRes[0]?.gross_revenue || 0) * 0.2, // Est fallback margin
+      net_profit: Number(summaryStatsRes[0]?.gross_revenue || 0) * 0.2,
       return_rate: returnRate,
     };
 
@@ -114,22 +116,10 @@ export async function GET() {
         total_revenue: Number(p.total_revenue),
         total_units_sold: Number(p.total_units_sold)
       })),
-      vendorPurchases: vendorPurchasesRes.map((p: any) => ({
-        ...p,
-        quantity: Number(p.quantity),
-        cost_per_unit: Number(p.cost_per_unit)
-      })),
-      vendorPayments: vendorPaymentsRes.map((p: any) => ({
-        ...p,
-        amount: Number(p.amount)
-      })),
     });
 
   } catch (error: any) {
-    console.error("Dashboard API Final Catch:", error);
-    return NextResponse.json(
-      { success: false, message: "Failed to fetch dashboard data", error: error.message },
-      { status: 500 }
-    );
+    console.error("Dashboard API Error:", error);
+    return NextResponse.json({ success: false, message: "Failed to fetch dashboard data", error: error.message }, { status: 500 });
   }
 }

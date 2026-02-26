@@ -6,14 +6,15 @@ export const revalidate = 0;
 export async function GET(request: Request, { params }: { params: Promise<{ vendorId: string }> }) {
   try {
     const { vendorId } = await params;
+    const accountId = request.headers.get("x-account-id");
 
-    if (!vendorId) {
-      return NextResponse.json({ success: false, message: 'Vendor ID is required' }, { status: 400 });
+    if (!vendorId || !accountId) {
+      return NextResponse.json({ success: false, message: 'Vendor ID and Account are required' }, { status: 400 });
     }
 
     const [purchases, payments] = await Promise.all([
-      sql`SELECT * FROM vendor_purchases WHERE vendor_id = ${vendorId} AND is_deleted = false`,
-      sql`SELECT * FROM vendor_payments WHERE vendor_id = ${vendorId} AND is_deleted = false`
+      sql`SELECT * FROM vendor_purchases WHERE vendor_id = ${vendorId} AND account_id = ${accountId} AND is_deleted = false`,
+      sql`SELECT * FROM vendor_payments WHERE vendor_id = ${vendorId} AND account_id = ${accountId} AND is_deleted = false`
     ]);
 
     return NextResponse.json({ 

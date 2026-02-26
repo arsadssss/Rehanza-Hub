@@ -1,35 +1,29 @@
-
-import { sql } from '@/lib/neon';
+import { sql } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
 export const revalidate = 0;
 
-/**
- * GET overall vendor financial summary
- * Used for high-level dashboard metrics.
- */
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    console.log("Vendor Summary API (Singular) hit");
+    const accountId = request.headers.get("x-account-id");
+    if (!accountId) return NextResponse.json({ success: false, message: "Account missing" }, { status: 400 });
 
     const [purchasesRes, paymentsRes] = await Promise.all([
       sql`
         SELECT COALESCE(SUM(quantity * cost_per_unit), 0) as total_purchase 
         FROM vendor_purchases 
-        WHERE is_deleted = false
+        WHERE is_deleted = false AND account_id = ${accountId}
       `,
       sql`
         SELECT COALESCE(SUM(amount), 0) as total_paid 
         FROM vendor_payments 
-        WHERE is_deleted = false
+        WHERE is_deleted = false AND account_id = ${accountId}
       `
     ]);
 
     const totalPurchase = Number(purchasesRes[0]?.total_purchase || 0);
     const totalPaid = Number(paymentsRes[0]?.total_paid || 0);
     const totalDue = totalPurchase - totalPaid;
-
-    console.log("Overall Totals Calculated:", { totalPurchase, totalPaid, totalDue });
 
     return NextResponse.json({
       success: true,
@@ -40,10 +34,7 @@ export async function GET() {
     });
 
   } catch (error: any) {
-    console.error("Vendor Summary API (Singular) Error:", error);
-    return NextResponse.json(
-      { success: false, error: error.message },
-      { status: 500 }
-    );
+    console.error("Vendor Summary API Error:", error);
+    return NextResponse.json({ success: false, error: error.message }, { status: 500 });
   }
 }

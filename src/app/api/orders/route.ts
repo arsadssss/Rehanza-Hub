@@ -5,6 +5,9 @@ export const revalidate = 0;
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
+  const accountId = request.headers.get("x-account-id");
+  if (!accountId) return NextResponse.json({ success: false, message: "Account not selected" }, { status: 400 });
+
   const page = parseInt(searchParams.get('page') || '1', 10);
   const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
   const platform = searchParams.get('platform');
@@ -15,9 +18,9 @@ export async function GET(request: Request) {
   const offset = (page - 1) * pageSize;
 
   try {
-    let whereClauses = ['o.is_deleted = false'];
-    let params: any[] = [];
-    let paramIndex = 1;
+    let whereClauses = ['o.is_deleted = false', `o.account_id = $1` as any];
+    let params: any[] = [accountId];
+    let paramIndex = 2;
 
     if (platform && platform !== 'all') {
       whereClauses.push(`o.platform = $${paramIndex++}`);
@@ -93,15 +96,16 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
     try {
         const body = await request.json();
+        const accountId = request.headers.get("x-account-id");
         const { order_date, platform, variant_id, quantity, selling_price } = body;
 
-        if (!order_date || !platform || !variant_id || !quantity || selling_price === null) {
-            return NextResponse.json({ success: false, message: 'Missing required fields' }, { status: 400 });
+        if (!order_date || !platform || !variant_id || !quantity || selling_price === null || !accountId) {
+            return NextResponse.json({ success: false, message: 'Missing required fields or account' }, { status: 400 });
         }
 
         const result = await sql`
-            INSERT INTO orders (order_date, platform, variant_id, quantity, selling_price, total_amount)
-            VALUES (${order_date}, ${platform}, ${variant_id}, ${quantity}, ${selling_price}, ${Number(quantity) * Number(selling_price)})
+            INSERT INTO orders (order_date, platform, variant_id, quantity, selling_price, total_amount, account_id)
+            VALUES (${order_date}, ${platform}, ${variant_id}, ${quantity}, ${selling_price}, ${Number(quantity) * Number(selling_price)}, ${accountId})
             RETURNING *;
         `;
         
@@ -114,10 +118,11 @@ export async function POST(request: Request) {
 export async function PUT(request: Request) {
     try {
         const body = await request.json();
+        const accountId = request.headers.get("x-account-id");
         const { id, order_date, platform, variant_id, quantity, selling_price } = body;
         
-        if (!id || !order_date || !platform || !variant_id || !quantity || selling_price === null) {
-            return NextResponse.json({ success: false, message: 'Missing required fields' }, { status: 400 });
+        if (!id || !order_date || !platform || !variant_id || !quantity || selling_price === null || !accountId) {
+            return NextResponse.json({ success: false, message: 'Missing required fields or account' }, { status: 400 });
         }
 
         const result = await sql`
@@ -129,12 +134,12 @@ export async function PUT(request: Request) {
                 quantity = ${quantity}, 
                 selling_price = ${selling_price},
                 total_amount = ${Number(quantity) * Number(selling_price)}
-            WHERE id = ${id} AND is_deleted = false
+            WHERE id = ${id} AND account_id = ${accountId} AND is_deleted = false
             RETURNING *;
         `;
         
         if (result.length === 0) {
-            return NextResponse.json({ success: false, message: 'Order not found' }, { status: 404 });
+            return NextResponse.json({ success: false, message: 'Order not found or access denied' }, { status: 404 });
         }
 
         return NextResponse.json({ success: true, data: result[0] });
@@ -147,20 +152,21 @@ export async function DELETE(request: Request) {
     try {
         const { searchParams } = new URL(request.url);
         const id = searchParams.get('id');
+        const accountId = request.headers.get("x-account-id");
 
-        if (!id) {
-            return NextResponse.json({ success: false, message: 'Order ID is required' }, { status: 400 });
+        if (!id || !accountId) {
+            return NextResponse.json({ success: false, message: 'Order ID and Account are required' }, { status: 400 });
         }
 
         const result = await sql`
             UPDATE orders
             SET is_deleted = true
-            WHERE id = ${id}
+            WHERE id = ${id} AND account_id = ${accountId}
             RETURNING id;
         `;
         
         if (result.length === 0) {
-            return NextResponse.json({ success: false, message: 'Order not found' }, { status: 404 });
+            return NextResponse.json({ success: false, message: 'Order not found or access denied' }, { status: 404 });
         }
 
         return NextResponse.json({ success: true, message: 'Order deleted successfully' });
