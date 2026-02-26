@@ -1,8 +1,8 @@
 "use client"
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { format, parseISO } from 'date-fns';
+import { format } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
 import {
   PieChart,
@@ -49,11 +49,8 @@ const SalesTooltip = ({ active, payload, label }: any) => {
             <div className="rounded-lg bg-primary text-primary-foreground p-3 shadow-lg">
                 <p className="text-sm font-medium mb-1">Date: {label}</p>
                 <p className="text-xs">
-                    <span className="font-semibold">Total Sales:</span>{' '}
+                    <span className="font-semibold">Revenue:</span>{' '}
                     {formatINR(data.total_sales)}
-                </p>
-                <p className="text-xs">
-                    <span className="font-semibold">Orders:</span> {data.total_orders}
                 </p>
             </div>
         );
@@ -63,42 +60,45 @@ const SalesTooltip = ({ active, payload, label }: any) => {
 
 export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
-  const [returnsData, setReturnsData] = useState<any[]>([]);
-  const [platformOrders, setPlatformOrders] = useState<{ name: string; value: number }[]>([]);
-  const [totalPlatformOrders, setTotalPlatformOrders] = useState(0);
   const [isMounted, setIsMounted] = useState(false);
   const { toast } = useToast();
-  const [netProfit, setNetProfit] = useState(0);
+  
   const [totalSales, setTotalSales] = useState(0);
-
-  const [salesData, setSalesData] = useState<any[]>([]);
-  const [loadingSales, setLoadingSales] = useState(true);
+  const [totalOrders, setTotalOrders] = useState(0);
+  const [totalReturns, setTotalReturns] = useState(0);
+  const [netProfit, setNetProfit] = useState(0);
+  
+  const [salesTrend, setSalesTrend] = useState<any[]>([]);
+  const [platformBreakdown, setPlatformBreakdown] = useState<{ name: string; value: number }[]>([]);
+  const [totalPlatformOrders, setTotalPlatformOrders] = useState(0);
 
   useEffect(() => {
     setIsMounted(true);
     async function fetchAnalyticsData() {
       setLoading(true);
-      setLoadingSales(true);
       try {
         const res = await apiFetch('/api/analytics');
         if (!res.ok) {
           const errorData = await res.json();
-          throw new Error(errorData.message || 'Failed to fetch analytics data');
+          throw new Error(errorData.message || 'Failed to fetch report data');
         }
         const data = await res.json();
         
         setTotalSales(data.totalSales);
-        setReturnsData(data.returnsData || []);
-        setPlatformOrders(data.platformOrders || []);
-        setTotalPlatformOrders(data.totalPlatformOrders || 0);
-        setNetProfit(data.netProfit || 0);
+        setTotalOrders(data.totalOrders);
+        setTotalReturns(data.totalReturns);
+        setNetProfit(data.netProfit);
         
-        const processedSalesData = (data.salesData || []).map((d: any) => ({
-            label: format(parseISO(d.label), 'dd MMM'),
-            total_sales: Number(d.total_sales) || 0,
-            total_orders: Number(d.total_orders) || 0,
-        }));
-        setSalesData(processedSalesData);
+        setSalesTrend((data.salesTrend || []).map((s: any) => ({
+            label: format(new Date(s.date), 'dd MMM'),
+            total_sales: Number(s.revenue)
+        })));
+
+        setPlatformBreakdown((data.platformOrders?.breakdown || []).map((b: any) => ({
+            name: b.platform,
+            value: b.orders
+        })));
+        setTotalPlatformOrders(data.platformOrders?.totalOrders || 0);
         
       } catch (error: any) {
         toast({
@@ -108,17 +108,10 @@ export default function AnalyticsPage() {
         });
       } finally {
         setLoading(false);
-        setLoadingSales(false);
       }
     }
     fetchAnalyticsData();
   }, [toast]);
-
-  const kpiStats = useMemo(() => {
-    const totalOrders = salesData.reduce((acc, item) => acc + item.total_orders, 0);
-    const totalReturns = returnsData.reduce((acc, item) => acc + item.total_returns, 0);
-    return { totalOrders, totalReturns };
-  }, [salesData, returnsData]);
 
   const platformChartConfig = {
     value: { label: "Orders" },
@@ -136,21 +129,21 @@ export default function AnalyticsPage() {
 
         <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             <KpiCard title="Total Sales" value={isMounted ? formatINR(totalSales) : '...'} icon={DollarSign} loading={loading} gradient="from-purple-400 to-indigo-500" />
-            <KpiCard title="Total Orders" value={kpiStats.totalOrders.toLocaleString('en-IN')} icon={ShoppingCart} loading={loading} gradient="from-cyan-400 to-blue-500" />
-            <KpiCard title="Total Returns" value={kpiStats.totalReturns.toLocaleString('en-IN')} icon={Undo2} loading={loading} gradient="from-amber-500 to-orange-500" />
+            <KpiCard title="Total Orders" value={isMounted ? totalOrders.toLocaleString('en-IN') : '...'} icon={ShoppingCart} loading={loading} gradient="from-cyan-400 to-blue-500" />
+            <KpiCard title="Total Returns" value={isMounted ? totalReturns.toLocaleString('en-IN') : '...'} icon={Undo2} loading={loading} gradient="from-amber-500 to-orange-500" />
             <KpiCard title="Net Profit" value={isMounted ? formatINR(netProfit) : '...'} icon={TrendingUp} loading={loading} gradient="from-emerald-500 to-green-500" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
             <div className="lg:col-span-3 bg-white/40 dark:bg-black/20 backdrop-blur-lg rounded-3xl p-6 shadow-xl border border-white/30 dark:border-white/10 text-black dark:text-white">
                 <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-bold text-xl">Sales</h3>
+                    <h3 className="font-bold text-xl">Daily Revenue Trend</h3>
                 </div>
                 <div className="h-[350px] w-full">
-                    {loadingSales ? <Skeleton className="h-full w-full bg-black/10 dark:bg-white/10" /> : (
+                    {loading ? <Skeleton className="h-full w-full bg-black/10 dark:bg-white/10" /> : (
                         <ResponsiveContainer width="100%" height={300}>
                             <LineChart
-                                data={salesData}
+                                data={salesTrend}
                                 margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
                             >
                                 <CartesianGrid strokeDasharray="3 3" stroke={"hsl(var(--border))"} />
@@ -183,7 +176,7 @@ export default function AnalyticsPage() {
 
             <div className="lg:col-span-2 bg-white/40 dark:bg-black/20 backdrop-blur-lg rounded-3xl p-6 shadow-xl border border-white/30 dark:border-white/10 text-black dark:text-white">
                 <div className="flex justify-between items-center">
-                    <h3 className="font-bold text-xl">Platform Orders</h3>
+                    <h3 className="font-bold text-xl">Platform Distribution</h3>
                     <a href="#" className="text-sm opacity-70 flex items-center gap-1">See All <ArrowUpRight className="h-4 w-4" /></a>
                 </div>
                 {loading ? <Skeleton className="h-[350px] w-full bg-black/10 dark:bg-white/10 mt-4" /> : (
@@ -198,7 +191,7 @@ export default function AnalyticsPage() {
                                     <PieChart>
                                         <Tooltip content={<ChartTooltipContent nameKey="name" formatter={(value) => `${value} orders`} />} />
                                         <Pie 
-                                            data={platformOrders} 
+                                            data={platformBreakdown} 
                                             dataKey="value" 
                                             nameKey="name" 
                                             cx="50%" 
@@ -208,7 +201,7 @@ export default function AnalyticsPage() {
                                             strokeWidth={2}
                                             paddingAngle={5}
                                         >
-                                            {platformOrders.map((entry) => (
+                                            {platformBreakdown.map((entry) => (
                                                 <Cell key={`cell-${entry.name}`} fill={platformChartConfig[entry.name as keyof typeof platformChartConfig]?.color} />
                                             ))}
                                         </Pie>
@@ -218,7 +211,7 @@ export default function AnalyticsPage() {
                         </div>
                         <div className="w-full">
                             <ul className="flex flex-wrap justify-center items-center gap-x-6 gap-y-2">
-                                {platformOrders.map((platform) => (
+                                {platformBreakdown.map((platform) => (
                                     <li key={platform.name} className="flex items-center justify-start text-sm">
                                       <div className="flex items-center gap-2">
                                           <span style={{ backgroundColor: platformChartConfig[platform.name as keyof typeof platformChartConfig]?.color }} className="h-2.5 w-2.5 rounded-full" />
