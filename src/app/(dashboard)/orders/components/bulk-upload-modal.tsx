@@ -14,7 +14,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { apiFetch } from "@/lib/apiFetch"
-import { AlertCircle, CheckCircle2, Download, FileUp, Info } from "lucide-react"
+import { Download, FileUp, AlertCircle, CheckCircle2 } from "lucide-react"
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
@@ -39,12 +39,12 @@ export function BulkUploadModal({ isOpen, onClose, onSuccess }: BulkUploadModalP
   }
 
   const downloadSample = () => {
-    const csvContent = "external_order_id,order_date,platform,variant_sku,quantity,selling_price\nORD-1001,2024-07-25,Amazon,SKU-BLUE-L,2,499\nORD-1002,2024-07-25,Meesho,SKU-RED-M,1,299";
+    const csvContent = "external_order_id,order_date,platform,variant_sku,quantity,selling_price\nORD-WH-101,2024-08-01,Amazon,SKU-SAMPLE-RED,2,499\nORD-WH-102,2024-08-01,Meesho,SKU-SAMPLE-BLUE,1,299";
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'orders_import_sample.csv';
+    a.download = 'orders_import_template.csv';
     a.click();
   }
 
@@ -52,36 +52,33 @@ export function BulkUploadModal({ isOpen, onClose, onSuccess }: BulkUploadModalP
     if (!file) return;
 
     setIsUploading(true)
-    setUploadProgress(20)
+    setUploadProgress(30)
     
     try {
       const formData = new FormData()
       formData.append('file', file)
 
+      // apiFetch automatically handles the x-account-id and FormData boundaries correctly now
       const res = await apiFetch('/api/orders/bulk-upload', {
         method: 'POST',
         body: formData,
-        // headers is omitted to let browser set boundary for multipart
       });
 
       setUploadProgress(100)
       const data = await res.json()
 
       if (!res.ok) {
-        throw new Error(data.error || data.message || "Upload failed")
+        throw new Error(data.error || data.details || "Upload failed")
       }
 
       setResult(data)
       if (data.inserted > 0) {
         onSuccess()
+        toast({
+          title: "Import Complete",
+          description: `Successfully processed ${data.inserted} orders.`,
+        })
       }
-      
-      toast({
-        title: data.inserted > 0 ? "Import Complete" : "Import Failed",
-        description: `Successfully imported ${data.inserted} orders.`,
-        variant: data.inserted > 0 ? "default" : "destructive"
-      })
-
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -108,7 +105,7 @@ export function BulkUploadModal({ isOpen, onClose, onSuccess }: BulkUploadModalP
         <DialogHeader>
           <DialogTitle>Bulk Import Orders</DialogTitle>
           <DialogDescription>
-            Upload a CSV file to import multiple orders at once. Stock will be auto-deducted.
+            Upload a CSV file to import multiple orders. Stock will be auto-deducted per row.
           </DialogDescription>
         </DialogHeader>
 
@@ -117,10 +114,10 @@ export function BulkUploadModal({ isOpen, onClose, onSuccess }: BulkUploadModalP
             <div className="flex justify-between items-center p-4 bg-muted/50 rounded-xl border">
               <div className="space-y-1">
                 <p className="text-sm font-bold">Standard Template</p>
-                <p className="text-xs text-muted-foreground">Download the sample CSV to match our format.</p>
+                <p className="text-xs text-muted-foreground">Ensure columns match exactly.</p>
               </div>
               <Button variant="outline" size="sm" onClick={downloadSample}>
-                <Download className="mr-2 h-4 w-4" /> Sample
+                <Download className="mr-2 h-4 w-4" /> Download
               </Button>
             </div>
 
@@ -137,11 +134,8 @@ export function BulkUploadModal({ isOpen, onClose, onSuccess }: BulkUploadModalP
 
             {isUploading && (
               <div className="space-y-2">
-                <div className="flex justify-between text-xs font-medium">
-                  <span>Processing orders...</span>
-                  <span>{uploadProgress}%</span>
-                </div>
                 <Progress value={uploadProgress} className="h-2" />
+                <p className="text-[10px] text-center text-muted-foreground animate-pulse">Processing database transactions...</p>
               </div>
             )}
           </div>
@@ -149,24 +143,24 @@ export function BulkUploadModal({ isOpen, onClose, onSuccess }: BulkUploadModalP
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="p-4 rounded-xl border bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400">
-                <p className="text-xs font-bold uppercase">Inserted</p>
+                <p className="text-xs font-bold uppercase">Success</p>
                 <p className="text-3xl font-black">{result.inserted}</p>
               </div>
               <div className="p-4 rounded-xl border bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400">
-                <p className="text-xs font-bold uppercase">Errors/Skipped</p>
-                <p className="text-3xl font-black">{result.totalRows - result.inserted}</p>
+                <p className="text-xs font-bold uppercase">Skipped</p>
+                <p className="text-3xl font-black">{result.skipped}</p>
               </div>
             </div>
 
             {result.errors.length > 0 && (
               <div className="space-y-2">
-                <p className="text-xs font-bold uppercase text-muted-foreground ml-1">Error Log</p>
+                <p className="text-xs font-bold uppercase text-muted-foreground ml-1">Error Details</p>
                 <ScrollArea className="h-48 rounded-xl border bg-muted/30 p-4">
                   <ul className="space-y-2">
-                    {result.errors.map((err: any, idx: number) => (
-                      <li key={idx} className="text-xs flex gap-2 text-destructive">
-                        <span className="font-bold shrink-0">Row {err.row}:</span>
-                        <span>{err.reason}</span>
+                    {result.errors.map((err: string, idx: number) => (
+                      <li key={idx} className="text-[11px] flex gap-2 text-destructive">
+                        <AlertCircle className="h-3 w-3 shrink-0 mt-0.5" />
+                        <span>{err}</span>
                       </li>
                     ))}
                   </ul>
