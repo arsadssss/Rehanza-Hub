@@ -81,7 +81,7 @@ function ProductsContent() {
   const search = searchParams.get('search') || '';
   const categoryFilter = searchParams.get('category') || 'all';
   const stockFilter = searchParams.get('stock') || 'all';
-  const lowStockFilter = searchParams.get('low_stock') === 'true';
+  const healthFilter = searchParams.get('health') || 'all';
 
   // Data State
   const [products, setProducts] = useState<Product[]>([]);
@@ -157,7 +157,7 @@ function ProductsContent() {
           page: page.toString(),
           limit: limit.toString(),
           search,
-          low_stock_only: lowStockFilter.toString()
+          health: healthFilter
         });
         const vRes = await apiFetch(`/api/variants?${params.toString()}`);
         if (vRes.ok) {
@@ -174,7 +174,7 @@ function ProductsContent() {
     } finally {
       setLoading(false);
     }
-  }, [toast, view, page, limit, search, categoryFilter, stockFilter, lowStockFilter]);
+  }, [toast, view, page, limit, search, categoryFilter, stockFilter, healthFilter]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -342,10 +342,12 @@ function ProductsContent() {
             ) : (
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Health</label>
-                <Select value={lowStockFilter ? "low" : "all"} onValueChange={(v) => updateQuery({ low_stock: v === 'low' ? 'true' : null })}>
-                  <SelectTrigger className="bg-background"><SelectValue placeholder="All Variants" /></SelectTrigger>
+                <Select value={healthFilter} onValueChange={(v) => updateQuery({ health: v })}>
+                  <SelectTrigger className="bg-background"><SelectValue placeholder="All Inventory" /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="all">All Inventory</SelectItem>
+                    <SelectItem value="in_stock">In Stock</SelectItem>
+                    <SelectItem value="out_of_stock">Out of Stock</SelectItem>
                     <SelectItem value="low">Low Stock Only</SelectItem>
                   </SelectContent>
                 </Select>

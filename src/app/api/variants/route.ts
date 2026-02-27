@@ -2,10 +2,11 @@ import { sql } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
 export const revalidate = 0;
+export const dynamic = "force-dynamic";
 
 /**
  * GET /api/variants
- * Supports server-side pagination, search, and filtering.
+ * Supports server-side pagination, search across multiple fields, and health filtering.
  */
 export async function GET(request: Request) {
   try {
@@ -16,37 +17,63 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, message: "Account context missing" }, { status: 400 });
     }
 
+    // Pagination params
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '10', 10);
-    const search = searchParams.get('search') || '';
-    const productId = searchParams.get('product_id');
-    const lowStockOnly = searchParams.get('low_stock_only') === 'true';
     const offset = (page - 1) * limit;
 
-    let whereClause = sql`pv.account_id = ${accountId} AND pv.is_deleted = false`;
+    // Filter params
+    const search = searchParams.get('search') || '';
+    const health = searchParams.get('health') || 'all';
+    const productId = searchParams.get('product_id');
 
+    console.log("Variants filters:", { search, health, page, limit, accountId });
+
+    // Build dynamic where clauses
+    let whereClauses = ['pv.account_id = $1', 'pv.is_deleted = false'];
+    let params: any[] = [accountId];
+    let paramIndex = 2;
+
+    // Search filter (SKU, Color, Size, Product Name)
     if (search) {
-      const searchPattern = `%${search}%`;
-      whereClause = sql`${whereClause} AND (pv.variant_sku ILIKE ${searchPattern} OR pv.color ILIKE ${searchPattern} OR pv.size ILIKE ${searchPattern})`;
+      whereClauses.push(`(
+        pv.variant_sku ILIKE $${paramIndex} OR 
+        pv.color ILIKE $${paramIndex} OR 
+        pv.size ILIKE $${paramIndex} OR 
+        ap.product_name ILIKE $${paramIndex}
+      )`);
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+
+    // Health filter logic
+    if (health === 'in_stock') {
+      whereClauses.push(`pv.stock > 0`);
+    } else if (health === 'out_of_stock') {
+      whereClauses.push(`pv.stock = 0`);
+    } else if (health === 'low') {
+      whereClauses.push(`pv.stock <= pv.low_stock_threshold AND pv.stock > 0`);
     }
 
     if (productId && productId !== 'all') {
-      whereClause = sql`${whereClause} AND pv.product_id = ${productId}`;
+      whereClauses.push(`pv.product_id = $${paramIndex++}`);
+      params.push(productId);
     }
 
-    if (lowStockOnly) {
-      whereClause = sql`${whereClause} AND pv.stock <= pv.low_stock_threshold`;
-    }
+    const whereString = `WHERE ${whereClauses.join(' AND ')}`;
 
-    // 1. Fetch total count
-    const countRes = await sql`
-      SELECT COUNT(*) FROM product_variants pv 
-      WHERE ${whereClause}
+    // 1. Fetch total count for pagination
+    const countQuery = `
+      SELECT COUNT(*) 
+      FROM product_variants pv
+      JOIN allproducts ap ON pv.product_id = ap.id
+      ${whereString}
     `;
+    const countRes = await sql(countQuery, params);
     const total = Number(countRes[0]?.count || 0);
 
     // 2. Fetch paginated data with join
-    const data = await sql`
+    const dataQuery = `
       SELECT 
         pv.*, 
         ap.product_name, 
@@ -56,20 +83,21 @@ export async function GET(request: Request) {
         ap.amazon_price
       FROM product_variants pv
       JOIN allproducts ap ON pv.product_id = ap.id
-      WHERE ${whereClause}
+      ${whereString}
       ORDER BY pv.variant_sku ASC
       LIMIT ${limit} OFFSET ${offset}
     `;
+    const data = await sql(dataQuery, params);
 
     return NextResponse.json({
       success: true,
       data: (data || []).map((v: any) => ({
         ...v,
-        stock: Number(v.stock),
-        low_stock_threshold: Number(v.low_stock_threshold),
-        meesho_price: Number(v.meesho_price),
-        flipkart_price: Number(v.flipkart_price),
-        amazon_price: Number(v.amazon_price)
+        stock: Number(v.stock || 0),
+        low_stock_threshold: Number(v.low_stock_threshold || 5),
+        meesho_price: Number(v.meesho_price || 0),
+        flipkart_price: Number(v.flipkart_price || 0),
+        amazon_price: Number(v.amazon_price || 0)
       })),
       pagination: {
         page,
@@ -81,7 +109,11 @@ export async function GET(request: Request) {
 
   } catch (error: any) {
     console.error("API Variants GET Error:", error);
-    return NextResponse.json({ success: false, message: "Failed to fetch variants", error: error.message }, { status: 500 });
+    return NextResponse.json({ 
+      success: false, 
+      message: "Failed to fetch variants", 
+      error: error.message 
+    }, { status: 500 });
   }
 }
 
@@ -202,6 +234,10 @@ export async function PUT(request: Request) {
   }
 }
 
+/**
+ * DELETE /api/variants
+ * Soft-deletes a variant if not referenced.
+ */
 export async function DELETE(request: Request) {
   try {
     const { searchParams } = new URL(request.url);
