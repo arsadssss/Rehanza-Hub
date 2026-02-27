@@ -14,13 +14,24 @@ export async function GET(request: Request) {
   try {
     const type = searchParams.get('type');
     
-    // List for dropdowns (un-paginated, minimal fields)
+    // 1. Dropdown List (minimal fields)
     if (type === 'list') {
         const data = await sql`SELECT id, sku, product_name FROM allproducts WHERE account_id = ${accountId} AND is_deleted = false ORDER BY sku`;
         return NextResponse.json(data);
     }
+
+    // 2. Variants List (used by modals)
+    if (type === 'variants') {
+        const data = await sql`
+          SELECT id, variant_sku, stock 
+          FROM product_variants 
+          WHERE account_id = ${accountId} AND is_deleted = false 
+          ORDER BY variant_sku ASC
+        `;
+        return NextResponse.json(data);
+    }
     
-    // Main Products View with Pagination & Filters
+    // 3. Main Products View with Pagination & Filters
     const page = parseInt(searchParams.get('page') || '1', 10);
     const limit = parseInt(searchParams.get('limit') || '10', 10);
     const search = searchParams.get('search') || '';
@@ -28,48 +39,53 @@ export async function GET(request: Request) {
     const stockStatus = searchParams.get('stock_status') || 'all';
     const offset = (page - 1) * limit;
 
-    const searchPattern = `%${search}%`;
-    
-    // Build dynamic where clause components
-    let whereClause = sql`p.account_id = ${accountId} AND p.is_deleted = false`;
-    
+    // Build dynamic where clause components manually for Neon compatibility
+    let whereClauses = ['p.account_id = $1', 'p.is_deleted = false'];
+    let params: any[] = [accountId];
+    let paramIndex = 2;
+
     if (search) {
-      whereClause = sql`${whereClause} AND (p.sku ILIKE ${searchPattern} OR p.product_name ILIKE ${searchPattern})`;
-    }
-    
-    if (category && category !== 'all') {
-      whereClause = sql`${whereClause} AND p.category = ${category}`;
+      whereClauses.push(`(p.sku ILIKE $${paramIndex} OR p.product_name ILIKE $${paramIndex})`);
+      params.push(`%${search}%`);
+      paramIndex++;
     }
 
-    // We use a subquery to calculate total_stock first so we can filter by it
-    const dataQuery = sql`
+    if (category && category !== 'all' && category !== 'All Categories') {
+      whereClauses.push(`p.category = $${paramIndex++}`);
+      params.push(category);
+    }
+
+    const whereString = whereClauses.length > 0 ? `WHERE ${whereClauses.join(' AND ')}` : '';
+
+    // Handle Aggregated Having Logic for stock status
+    let havingClauses = [];
+    if (stockStatus === 'in_stock') {
+      havingClauses.push(`COALESCE(SUM(CASE WHEN v.is_deleted = false THEN v.stock ELSE 0 END), 0) > 0`);
+    } else if (stockStatus === 'out_of_stock') {
+      havingClauses.push(`COALESCE(SUM(CASE WHEN v.is_deleted = false THEN v.stock ELSE 0 END), 0) = 0`);
+    }
+    const havingString = havingClauses.length > 0 ? `HAVING ${havingClauses.join(' AND ')}` : '';
+
+    const baseQuery = `
         SELECT 
             p.*, 
             COALESCE(SUM(CASE WHEN v.is_deleted = false THEN v.stock ELSE 0 END), 0)::int as total_stock
         FROM allproducts p
         LEFT JOIN product_variants v ON p.id = v.product_id
-        WHERE ${whereClause}
+        ${whereString}
         GROUP BY p.id
-        HAVING 1=1
-        ${stockStatus === 'in_stock' ? sql`AND COALESCE(SUM(CASE WHEN v.is_deleted = false THEN v.stock ELSE 0 END), 0) > 0` : stockStatus === 'out_of_stock' ? sql`AND COALESCE(SUM(CASE WHEN v.is_deleted = false THEN v.stock ELSE 0 END), 0) = 0` : sql``}
-        ORDER BY p.id DESC 
-        LIMIT ${limit} OFFSET ${offset}
     `;
 
-    // For total count, we need a similar wrap to handle the HAVING clause correctly
-    const countQuery = sql`
-        SELECT COUNT(*) FROM (
-          SELECT p.id
-          FROM allproducts p
-          LEFT JOIN product_variants v ON p.id = v.product_id
-          WHERE ${whereClause}
-          GROUP BY p.id
-          HAVING 1=1
-          ${stockStatus === 'in_stock' ? sql`AND COALESCE(SUM(CASE WHEN v.is_deleted = false THEN v.stock ELSE 0 END), 0) > 0` : stockStatus === 'out_of_stock' ? sql`AND COALESCE(SUM(CASE WHEN v.is_deleted = false THEN v.stock ELSE 0 END), 0) = 0` : sql``}
-        ) as filtered_products
-    `;
-    
-    const [data, countResult] = await Promise.all([dataQuery, countQuery]);
+    const dataQuery = `${baseQuery} ${havingString} ORDER BY p.id DESC LIMIT ${limit} OFFSET ${offset}`;
+    const countQuery = `SELECT COUNT(*) FROM (${baseQuery} ${havingString}) as filtered_products`;
+
+    console.log('Fetching products with:', { accountId, page, search, category, stockStatus });
+
+    const [data, countResult] = await Promise.all([
+      sql(dataQuery, params),
+      sql(countQuery, params)
+    ]);
+
     const total = Number(countResult[0]?.count || 0);
     
     return NextResponse.json({ 

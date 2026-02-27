@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, Suspense } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { formatINR } from '@/lib/format';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -69,7 +69,7 @@ export type Variant = {
   amazon_price: number;
 };
 
-export default function ProductsPage() {
+function ProductsContent() {
   const { toast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -101,6 +101,7 @@ export default function ProductsPage() {
   // Helper to update URL params
   const updateQuery = useCallback((updates: Record<string, string | null>) => {
     const params = new URLSearchParams(searchParams.toString());
+    
     Object.entries(updates).forEach(([key, value]) => {
       if (value === null || value === 'all' || value === '') {
         params.delete(key);
@@ -108,10 +109,12 @@ export default function ProductsPage() {
         params.set(key, value);
       }
     });
-    // Reset page if filters change
+
+    // CRITICAL: Reset page if filters change (except when updating page itself)
     if (!updates.page) {
       params.set('page', '1');
     }
+
     router.push(`?${params.toString()}`);
   }, [router, searchParams]);
 
@@ -128,11 +131,11 @@ export default function ProductsPage() {
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      // 1. Fetch Summary (always fetch)
+      // 1. Fetch Summary
       const sRes = await apiFetch('/api/products/summary');
       if (sRes.ok) setSummary(await sRes.json());
 
-      // 2. Fetch Main Data based on View
+      // 2. Main Data based on View
       if (view === 'products') {
         const params = new URLSearchParams({
           page: page.toString(),
@@ -144,8 +147,10 @@ export default function ProductsPage() {
         const pRes = await apiFetch(`/api/products?${params.toString()}`);
         if (pRes.ok) {
           const json = await pRes.json();
-          setProducts(json.data);
-          setPagination(json.pagination);
+          if (json.success) {
+            setProducts(json.data);
+            setPagination(json.pagination);
+          }
         }
       } else {
         const params = new URLSearchParams({
@@ -157,11 +162,14 @@ export default function ProductsPage() {
         const vRes = await apiFetch(`/api/variants?${params.toString()}`);
         if (vRes.ok) {
           const json = await vRes.json();
-          setVariants(json.data);
-          setPagination(json.pagination);
+          if (json.success) {
+            setVariants(json.data);
+            setPagination(json.pagination);
+          }
         }
       }
     } catch (error: any) {
+      console.error('Products fetch error:', error);
       toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch products data' });
     } finally {
       setLoading(false);
@@ -490,7 +498,6 @@ export default function ProductsPage() {
               
               {Array.from({ length: Math.min(5, pagination.totalPages) }).map((_, i) => {
                 let pageNum = i + 1;
-                // Simple pagination logic to show current window
                 if (pagination.totalPages > 5 && page > 3) {
                   pageNum = page - 2 + i;
                   if (pageNum > pagination.totalPages) pageNum = pagination.totalPages - (4 - i);
@@ -522,5 +529,13 @@ export default function ProductsPage() {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+export default function ProductsPage() {
+  return (
+    <Suspense fallback={<div className="p-8"><Skeleton className="h-64 w-full" /></div>}>
+      <ProductsContent />
+    </Suspense>
   );
 }
