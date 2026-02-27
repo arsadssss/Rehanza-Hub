@@ -19,8 +19,18 @@ import {
   ChevronLeft, 
   ChevronRight, 
   FilterX, 
-  Filter
+  Archive
 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { SummaryStatCard } from '@/components/SummaryStatCard';
 import { ProductViewToggle } from '@/components/ProductViewToggle';
 import { apiFetch } from '@/lib/apiFetch';
@@ -86,6 +96,7 @@ export default function ProductsPage() {
   const [isAddVariantOpen, setIsAddVariantOpen] = useState(false);
   const [productToEdit, setProductToEdit] = useState<Product | null>(null);
   const [variantToEdit, setVariantToEdit] = useState<Variant | null>(null);
+  const [itemToArchive, setItemToArchive] = useState<{ id: string; name: string; type: 'product' | 'variant' } | null>(null);
 
   // Helper to update URL params
   const updateQuery = useCallback((updates: Record<string, string | null>) => {
@@ -168,6 +179,37 @@ export default function ProductsPage() {
     setVariantToEdit(variant);
   };
 
+  const handleArchive = async () => {
+    if (!itemToArchive) return;
+    
+    try {
+      const endpoint = itemToArchive.type === 'product' ? '/api/products' : '/api/variants';
+      const res = await apiFetch(`${endpoint}?id=${itemToArchive.id}`, {
+        method: 'DELETE'
+      });
+      
+      const json = await res.json();
+      
+      if (!res.ok) {
+        throw new Error(json.message || 'Archive failed');
+      }
+      
+      toast({
+        title: "Archived",
+        description: `${itemToArchive.name} has been archived successfully.`
+      });
+      fetchData();
+    } catch (error: any) {
+      toast({
+        variant: 'destructive',
+        title: 'Archive Failed',
+        description: error.message
+      });
+    } finally {
+      setItemToArchive(null);
+    }
+  };
+
   const resetFilters = () => {
     setSearchTerm('');
     router.push(`?tab=${view}`);
@@ -192,6 +234,26 @@ export default function ProductsPage() {
         onVariantUpdated={fetchData} 
         variant={variantToEdit} 
       />
+
+      {/* Archive Confirmation */}
+      <AlertDialog open={!!itemToArchive} onOpenChange={() => setItemToArchive(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Archive {itemToArchive?.type === 'product' ? 'Product' : 'Variant'}?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to archive <strong>{itemToArchive?.name}</strong>? 
+              {itemToArchive?.type === 'product' && " This will also archive all of its variants."} 
+              This item will be hidden from the dashboard but retained in historical records.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleArchive} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
+              Confirm Archive
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <div className="flex justify-center w-full">
         <div className="inline-flex">
@@ -328,9 +390,14 @@ export default function ProductsPage() {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" onClick={() => handleEditProduct(p)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="icon" onClick={() => handleEditProduct(p)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive" onClick={() => setItemToArchive({ id: p.id, name: p.product_name, type: 'product' })}>
+                            <Archive className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   )) : (
@@ -374,9 +441,14 @@ export default function ProductsPage() {
                         <Badge variant={v.stock > 0 ? "outline" : "destructive"}>{v.stock} pcs</Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="ghost" size="icon" onClick={() => handleEditVariant(v)}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
+                        <div className="flex justify-end gap-1">
+                          <Button variant="ghost" size="icon" onClick={() => handleEditVariant(v)}>
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-destructive" onClick={() => setItemToArchive({ id: v.id, name: v.variant_sku, type: 'variant' })}>
+                            <Archive className="h-4 w-4" />
+                          </Button>
+                        </div>
                       </TableCell>
                     </TableRow>
                   )) : (

@@ -16,7 +16,7 @@ export async function GET(request: Request) {
     
     // List for dropdowns (un-paginated, minimal fields)
     if (type === 'list') {
-        const data = await sql`SELECT id, sku, product_name FROM allproducts WHERE account_id = ${accountId} ORDER BY sku`;
+        const data = await sql`SELECT id, sku, product_name FROM allproducts WHERE account_id = ${accountId} AND is_deleted = false ORDER BY sku`;
         return NextResponse.json(data);
     }
     
@@ -31,7 +31,7 @@ export async function GET(request: Request) {
     const searchPattern = `%${search}%`;
     
     // Build dynamic where clause components
-    let whereClause = sql`p.account_id = ${accountId}`;
+    let whereClause = sql`p.account_id = ${accountId} AND p.is_deleted = false`;
     
     if (search) {
       whereClause = sql`${whereClause} AND (p.sku ILIKE ${searchPattern} OR p.product_name ILIKE ${searchPattern})`;
@@ -45,13 +45,13 @@ export async function GET(request: Request) {
     const dataQuery = sql`
         SELECT 
             p.*, 
-            COALESCE(SUM(v.stock), 0)::int as total_stock
+            COALESCE(SUM(CASE WHEN v.is_deleted = false THEN v.stock ELSE 0 END), 0)::int as total_stock
         FROM allproducts p
         LEFT JOIN product_variants v ON p.id = v.product_id
         WHERE ${whereClause}
         GROUP BY p.id
         HAVING 1=1
-        ${stockStatus === 'in_stock' ? sql`AND COALESCE(SUM(v.stock), 0) > 0` : stockStatus === 'out_of_stock' ? sql`AND COALESCE(SUM(v.stock), 0) = 0` : sql``}
+        ${stockStatus === 'in_stock' ? sql`AND COALESCE(SUM(CASE WHEN v.is_deleted = false THEN v.stock ELSE 0 END), 0) > 0` : stockStatus === 'out_of_stock' ? sql`AND COALESCE(SUM(CASE WHEN v.is_deleted = false THEN v.stock ELSE 0 END), 0) = 0` : sql``}
         ORDER BY p.id DESC 
         LIMIT ${limit} OFFSET ${offset}
     `;
@@ -65,7 +65,7 @@ export async function GET(request: Request) {
           WHERE ${whereClause}
           GROUP BY p.id
           HAVING 1=1
-          ${stockStatus === 'in_stock' ? sql`AND COALESCE(SUM(v.stock), 0) > 0` : stockStatus === 'out_of_stock' ? sql`AND COALESCE(SUM(v.stock), 0) = 0` : sql``}
+          ${stockStatus === 'in_stock' ? sql`AND COALESCE(SUM(CASE WHEN v.is_deleted = false THEN v.stock ELSE 0 END), 0) > 0` : stockStatus === 'out_of_stock' ? sql`AND COALESCE(SUM(CASE WHEN v.is_deleted = false THEN v.stock ELSE 0 END), 0) = 0` : sql``}
         ) as filtered_products
     `;
     
@@ -165,7 +165,7 @@ export async function PUT(request: Request) {
                 meesho_price = ${meesho_price},
                 flipkart_price = ${flipkart_price},
                 amazon_price = ${amazon_price}
-            WHERE id = ${id} AND account_id = ${accountId}
+            WHERE id = ${id} AND account_id = ${accountId} AND is_deleted = false
             RETURNING *;
         `;
 
@@ -178,4 +178,45 @@ export async function PUT(request: Request) {
         console.error("API Products PUT Error:", error);
         return NextResponse.json({ message: 'Failed to update product', error: error.message }, { status: 500 });
     }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    const accountId = request.headers.get("x-account-id");
+
+    if (!id || !accountId) {
+      return NextResponse.json({ message: "Product ID and Account are required" }, { status: 400 });
+    }
+
+    // 1. Check if any variant of this product is referenced in orders or returns
+    const refCheck = await sql`
+      SELECT 
+        (SELECT COUNT(*) FROM orders WHERE variant_id IN (SELECT id FROM product_variants WHERE product_id = ${id}) AND is_deleted = false) as order_count,
+        (SELECT COUNT(*) FROM returns WHERE variant_id IN (SELECT id FROM product_variants WHERE product_id = ${id}) AND is_deleted = false) as return_count
+    `;
+
+    const orderCount = Number(refCheck[0]?.order_count || 0);
+    const returnCount = Number(refCheck[0]?.return_count || 0);
+
+    if (orderCount > 0 || returnCount > 0) {
+      return NextResponse.json({ 
+        message: `Cannot archive product. It has ${orderCount} active orders and ${returnCount} active returns.` 
+      }, { status: 400 });
+    }
+
+    // 2. Perform soft delete on product and all its variants
+    await sql`
+      UPDATE allproducts SET is_deleted = true WHERE id = ${id} AND account_id = ${accountId};
+    `;
+    await sql`
+      UPDATE product_variants SET is_deleted = true WHERE product_id = ${id} AND account_id = ${accountId};
+    `;
+
+    return NextResponse.json({ success: true, message: "Product and its variants archived successfully." });
+  } catch (error: any) {
+    console.error("API Products DELETE Error:", error);
+    return NextResponse.json({ message: 'Failed to archive product', error: error.message }, { status: 500 });
+  }
 }

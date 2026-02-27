@@ -23,7 +23,7 @@ export async function GET(request: Request) {
     const lowStockOnly = searchParams.get('low_stock_only') === 'true';
     const offset = (page - 1) * limit;
 
-    let whereClause = sql`pv.account_id = ${accountId}`;
+    let whereClause = sql`pv.account_id = ${accountId} AND pv.is_deleted = false`;
 
     if (search) {
       const searchPattern = `%${search}%`;
@@ -108,6 +108,7 @@ export async function POST(request: Request) {
       FROM allproducts 
       WHERE id = ${product_id} 
       AND account_id = ${accountId}
+      AND is_deleted = false
       LIMIT 1
     `;
 
@@ -180,7 +181,7 @@ export async function PUT(request: Request) {
     const result = await sql`
       UPDATE product_variants
       SET stock = ${stock}
-      WHERE id = ${id} AND account_id = ${accountId}
+      WHERE id = ${id} AND account_id = ${accountId} AND is_deleted = false
       RETURNING *;
     `;
 
@@ -198,5 +199,47 @@ export async function PUT(request: Request) {
       }, 
       { status: 500 }
     );
+  }
+}
+
+export async function DELETE(request: Request) {
+  try {
+    const { searchParams } = new URL(request.url);
+    const id = searchParams.get('id');
+    const accountId = request.headers.get("x-account-id");
+
+    if (!id || !accountId) {
+      return NextResponse.json({ message: "Variant ID and Account are required" }, { status: 400 });
+    }
+
+    // 1. Check if variant is referenced in orders or returns
+    const refCheck = await sql`
+      SELECT 
+        (SELECT COUNT(*) FROM orders WHERE variant_id = ${id} AND is_deleted = false) as order_count,
+        (SELECT COUNT(*) FROM returns WHERE variant_id = ${id} AND is_deleted = false) as return_count
+    `;
+
+    const orderCount = Number(refCheck[0]?.order_count || 0);
+    const returnCount = Number(refCheck[0]?.return_count || 0);
+
+    if (orderCount > 0 || returnCount > 0) {
+      return NextResponse.json({ 
+        message: `Cannot archive variant. It has ${orderCount} active orders and ${returnCount} active returns.` 
+      }, { status: 400 });
+    }
+
+    // 2. Perform soft delete
+    const result = await sql`
+      UPDATE product_variants SET is_deleted = true WHERE id = ${id} AND account_id = ${accountId} RETURNING id;
+    `;
+
+    if (result.length === 0) {
+      return NextResponse.json({ message: "Variant not found or access denied" }, { status: 404 });
+    }
+
+    return NextResponse.json({ success: true, message: "Variant archived successfully." });
+  } catch (error: any) {
+    console.error("API Variants DELETE Error:", error);
+    return NextResponse.json({ message: 'Failed to archive variant', error: error.message }, { status: 500 });
   }
 }

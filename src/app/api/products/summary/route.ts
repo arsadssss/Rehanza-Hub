@@ -17,10 +17,10 @@ export async function GET(request: Request) {
             COUNT(CASE WHEN stock = 0 THEN 1 END) AS out_of_stock_products,
             SUM(stock) AS total_inventory_units
         FROM (
-            SELECT p.id, COALESCE(SUM(v.stock), 0) as stock
+            SELECT p.id, COALESCE(SUM(CASE WHEN v.is_deleted = false THEN v.stock ELSE 0 END), 0) as stock
             FROM allproducts p
             LEFT JOIN product_variants v ON p.id = v.product_id
-            WHERE p.account_id = ${accountId}
+            WHERE p.account_id = ${accountId} AND p.is_deleted = false
             GROUP BY p.id
         ) as product_stock;
     `;
