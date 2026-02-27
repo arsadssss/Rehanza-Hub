@@ -3,19 +3,34 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { formatINR } from '@/lib/format';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { PlusCircle, Package, Warehouse, ShoppingCart, Ban, Search, Pencil } from 'lucide-react';
+import { 
+  PlusCircle, 
+  Package, 
+  Warehouse, 
+  ShoppingCart, 
+  Ban, 
+  Search, 
+  Pencil, 
+  ChevronLeft, 
+  ChevronRight, 
+  FilterX, 
+  Filter
+} from 'lucide-react';
 import { SummaryStatCard } from '@/components/SummaryStatCard';
 import { ProductViewToggle } from '@/components/ProductViewToggle';
 import { apiFetch } from '@/lib/apiFetch';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AddProductModal } from './components/add-product-modal';
 import { AddVariantModal } from './components/add-variant-modal';
 import { EditVariantModal } from './components/edit-variant-modal';
+import { cn } from '@/lib/utils';
 
 export type Product = {
   id: string;
@@ -42,43 +57,105 @@ export type Variant = {
   meesho_price: number;
   flipkart_price: number;
   amazon_price: number;
-  allproducts?: {
-    sku: string;
-    product_name: string;
-  };
 };
 
 export default function ProductsPage() {
   const { toast } = useToast();
-  const [view, setView] = useState<"products" | "variants">("products");
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  
+  // URL-synced State
+  const view = (searchParams.get('tab') as "products" | "variants") || "products";
+  const page = parseInt(searchParams.get('page') || '1', 10);
+  const limit = parseInt(searchParams.get('limit') || '10', 10);
+  const search = searchParams.get('search') || '';
+  const categoryFilter = searchParams.get('category') || 'all';
+  const stockFilter = searchParams.get('stock') || 'all';
+  const lowStockFilter = searchParams.get('low_stock') === 'true';
+
+  // Data State
   const [products, setProducts] = useState<Product[]>([]);
   const [variants, setVariants] = useState<Variant[]>([]);
   const [summary, setSummary] = useState<any>(null);
+  const [pagination, setPagination] = useState({ total: 0, totalPages: 0 });
   const [loading, setLoading] = useState(true);
-  const [searchTerm, setSearchTerm] = useState("");
-
+  
+  // UI State
+  const [searchTerm, setSearchTerm] = useState(search);
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
   const [isAddVariantOpen, setIsAddVariantOpen] = useState(false);
   const [productToEdit, setProductToEdit] = useState<Product | null>(null);
   const [variantToEdit, setVariantToEdit] = useState<Variant | null>(null);
 
+  // Helper to update URL params
+  const updateQuery = useCallback((updates: Record<string, string | null>) => {
+    const params = new URLSearchParams(searchParams.toString());
+    Object.entries(updates).forEach(([key, value]) => {
+      if (value === null || value === 'all' || value === '') {
+        params.delete(key);
+      } else {
+        params.set(key, value);
+      }
+    });
+    // Reset page if filters change
+    if (!updates.page) {
+      params.set('page', '1');
+    }
+    router.push(`?${params.toString()}`);
+  }, [router, searchParams]);
+
+  // Debounced search effect
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      if (searchTerm !== search) {
+        updateQuery({ search: searchTerm });
+      }
+    }, 400);
+    return () => clearTimeout(handler);
+  }, [searchTerm, search, updateQuery]);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
-      const [pRes, vRes, sRes] = await Promise.all([
-        apiFetch(`/api/products?search=${searchTerm}`),
-        apiFetch(`/api/products?type=variants`),
-        apiFetch('/api/products/summary')
-      ]);
-      if (pRes.ok) setProducts((await pRes.json()).data);
-      if (vRes.ok) setVariants(await vRes.json());
+      // 1. Fetch Summary (always fetch)
+      const sRes = await apiFetch('/api/products/summary');
       if (sRes.ok) setSummary(await sRes.json());
+
+      // 2. Fetch Main Data based on View
+      if (view === 'products') {
+        const params = new URLSearchParams({
+          page: page.toString(),
+          limit: limit.toString(),
+          search,
+          category: categoryFilter,
+          stock_status: stockFilter
+        });
+        const pRes = await apiFetch(`/api/products?${params.toString()}`);
+        if (pRes.ok) {
+          const json = await pRes.json();
+          setProducts(json.data);
+          setPagination(json.pagination);
+        }
+      } else {
+        const params = new URLSearchParams({
+          page: page.toString(),
+          limit: limit.toString(),
+          search,
+          low_stock_only: lowStockFilter.toString()
+        });
+        const vRes = await apiFetch(`/api/variants?${params.toString()}`);
+        if (vRes.ok) {
+          const json = await vRes.json();
+          setVariants(json.data);
+          setPagination(json.pagination);
+        }
+      }
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch products' });
+      toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch products data' });
     } finally {
       setLoading(false);
     }
-  }, [toast, searchTerm]);
+  }, [toast, view, page, limit, search, categoryFilter, stockFilter, lowStockFilter]);
 
   useEffect(() => { fetchData(); }, [fetchData]);
 
@@ -87,8 +164,13 @@ export default function ProductsPage() {
     setIsAddProductOpen(true);
   };
 
-  const handleEditVariant = (variant: Variant) => {
+  const handleEditVariant = (variant: any) => {
     setVariantToEdit(variant);
+  };
+
+  const resetFilters = () => {
+    setSearchTerm('');
+    router.push(`?tab=${view}`);
   };
 
   return (
@@ -113,7 +195,10 @@ export default function ProductsPage() {
 
       <div className="flex justify-center w-full">
         <div className="inline-flex">
-          <ProductViewToggle value={view} onChange={setView} />
+          <ProductViewToggle 
+            value={view} 
+            onChange={(val) => updateQuery({ tab: val, page: '1' })} 
+          />
         </div>
       </div>
 
@@ -125,38 +210,91 @@ export default function ProductsPage() {
       </div>
 
       <Card className="w-full shadow-md border-0">
-        <CardHeader className="flex flex-col md:flex-row items-center justify-between gap-4">
-          <CardTitle className="capitalize font-headline text-xl flex items-center gap-2">
-            {view === 'products' ? <Package className="h-5 w-5 text-primary" /> : <Warehouse className="h-5 w-5 text-primary" />}
-            {view} Management
-          </CardTitle>
-          <div className="flex items-center gap-2 w-full md:w-auto">
-            <div className="relative w-full md:w-64">
-              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder={`Search ${view}...`}
-                className="pl-8"
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-              />
+        <CardHeader className="flex flex-col gap-4">
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4">
+            <CardTitle className="capitalize font-headline text-xl flex items-center gap-2">
+              {view === 'products' ? <Package className="h-5 w-5 text-primary" /> : <Warehouse className="h-5 w-5 text-primary" />}
+              {view} Management
+            </CardTitle>
+            <div className="flex items-center gap-2">
+              {view === 'products' ? (
+                <Button onClick={() => setIsAddProductOpen(true)}>
+                  <PlusCircle className="mr-2 h-4 w-4" /> Add Product
+                </Button>
+              ) : (
+                <Button onClick={() => setIsAddVariantOpen(true)}>
+                  <PlusCircle className="mr-2 h-4 w-4" /> Add Variant
+                </Button>
+              )}
             </div>
+          </div>
+
+          {/* Filter Bar */}
+          <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-6 gap-3 items-end bg-muted/30 p-4 rounded-xl">
+            <div className="space-y-1.5 md:col-span-2">
+              <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Search</label>
+              <div className="relative">
+                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder={view === 'products' ? "Search SKU or Product Name..." : "Search SKU, Color, Size..."}
+                  className="pl-8 bg-background"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
+                />
+              </div>
+            </div>
+
             {view === 'products' ? (
-              <Button onClick={() => setIsAddProductOpen(true)}>
-                <PlusCircle className="mr-2 h-4 w-4" /> Add Product
-              </Button>
+              <>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Category</label>
+                  <Select value={categoryFilter} onValueChange={(v) => updateQuery({ category: v })}>
+                    <SelectTrigger className="bg-background"><SelectValue placeholder="All Categories" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Categories</SelectItem>
+                      <SelectItem value="Apparel">Apparel</SelectItem>
+                      <SelectItem value="Cosmetics">Cosmetics</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Stock Status</label>
+                  <Select value={stockFilter} onValueChange={(v) => updateQuery({ stock: v })}>
+                    <SelectTrigger className="bg-background"><SelectValue placeholder="All Status" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Status</SelectItem>
+                      <SelectItem value="in_stock">In Stock</SelectItem>
+                      <SelectItem value="out_of_stock">Out of Stock</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
             ) : (
-              <Button onClick={() => setIsAddVariantOpen(true)}>
-                <PlusCircle className="mr-2 h-4 w-4" /> Add Variant
-              </Button>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Health</label>
+                <Select value={lowStockFilter ? "low" : "all"} onValueChange={(v) => updateQuery({ low_stock: v === 'low' ? 'true' : null })}>
+                  <SelectTrigger className="bg-background"><SelectValue placeholder="All Variants" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Inventory</SelectItem>
+                    <SelectItem value="low">Low Stock Only</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
             )}
+
+            <div className="flex gap-2">
+              <Button variant="ghost" size="sm" onClick={resetFilters} className="text-xs font-bold uppercase">
+                <FilterX className="mr-2 h-4 w-4" /> Reset
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>
-          <div className="w-full overflow-x-auto">
+          <div className="w-full overflow-x-auto rounded-md border">
             {view === "products" ? (
               <Table className="min-w-full">
                 <TableHeader>
-                  <TableRow>
+                  <TableRow className="bg-muted/50">
                     <TableHead>SKU</TableHead>
                     <TableHead>Name</TableHead>
                     <TableHead className="text-right">Cost</TableHead>
@@ -171,10 +309,10 @@ export default function ProductsPage() {
                 </TableHeader>
                 <TableBody>
                   {loading ? (
-                    Array.from({ length: 5 }).map((_, i) => (
+                    Array.from({ length: limit }).map((_, i) => (
                       <TableRow key={i}><TableCell colSpan={10}><Skeleton className="h-10 w-full" /></TableCell></TableRow>
                     ))
-                  ) : products.map(p => (
+                  ) : products.length > 0 ? products.map(p => (
                     <TableRow key={p.id} className="hover:bg-muted/50 transition-colors">
                       <TableCell className="font-bold font-code">{p.sku}</TableCell>
                       <TableCell className="font-medium">{p.product_name}</TableCell>
@@ -195,13 +333,15 @@ export default function ProductsPage() {
                         </Button>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  )) : (
+                    <TableRow><TableCell colSpan={10} className="h-24 text-center text-muted-foreground">No products found matching your filters.</TableCell></TableRow>
+                  )}
                 </TableBody>
               </Table>
             ) : (
               <Table className="min-w-full">
                 <TableHeader>
-                  <TableRow>
+                  <TableRow className="bg-muted/50">
                     <TableHead>Variant SKU</TableHead>
                     <TableHead>Product</TableHead>
                     <TableHead>Color/Size</TableHead>
@@ -214,13 +354,18 @@ export default function ProductsPage() {
                 </TableHeader>
                 <TableBody>
                   {loading ? (
-                    Array.from({ length: 5 }).map((_, i) => (
+                    Array.from({ length: limit }).map((_, i) => (
                       <TableRow key={i}><TableCell colSpan={8}><Skeleton className="h-10 w-full" /></TableCell></TableRow>
                     ))
-                  ) : variants.map(v => (
+                  ) : variants.length > 0 ? variants.map(v => (
                     <TableRow key={v.id} className="hover:bg-muted/50 transition-colors">
                       <TableCell className="font-bold font-code">{v.variant_sku}</TableCell>
-                      <TableCell className="text-xs">{v.product_name}</TableCell>
+                      <TableCell className="text-xs">
+                        <div className="flex flex-col">
+                          <span className="font-medium">{v.product_name}</span>
+                          <span className="text-[10px] text-muted-foreground">{v.product_sku}</span>
+                        </div>
+                      </TableCell>
                       <TableCell className="text-xs italic">{v.color || 'N/A'} / {v.size || 'N/A'}</TableCell>
                       <TableCell className="text-right">{formatINR(v.meesho_price)}</TableCell>
                       <TableCell className="text-right">{formatINR(v.flipkart_price)}</TableCell>
@@ -234,10 +379,73 @@ export default function ProductsPage() {
                         </Button>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  )) : (
+                    <TableRow><TableCell colSpan={8} className="h-24 text-center text-muted-foreground">No variants found matching your filters.</TableCell></TableRow>
+                  )}
                 </TableBody>
               </Table>
             )}
+          </div>
+
+          {/* Pagination Footer */}
+          <div className="flex flex-col md:flex-row items-center justify-between gap-4 mt-6">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>Show</span>
+              <Select value={limit.toString()} onValueChange={(v) => updateQuery({ limit: v, page: '1' })}>
+                <SelectTrigger className="h-8 w-16 bg-background"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="10">10</SelectItem>
+                  <SelectItem value="25">25</SelectItem>
+                  <SelectItem value="50">50</SelectItem>
+                </SelectContent>
+              </Select>
+              <span>entries</span>
+              <span className="ml-4 border-l pl-4">
+                {pagination.total > 0 ? `Showing ${(page - 1) * limit + 1} to ${Math.min(page * limit, pagination.total)} of ${pagination.total}` : 'No entries'}
+              </span>
+            </div>
+
+            <div className="flex items-center gap-1">
+              <Button 
+                variant="outline" 
+                size="icon" 
+                className="h-8 w-8"
+                disabled={page === 1}
+                onClick={() => updateQuery({ page: (page - 1).toString() })}
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </Button>
+              
+              {Array.from({ length: Math.min(5, pagination.totalPages) }).map((_, i) => {
+                let pageNum = i + 1;
+                // Simple pagination logic to show current window
+                if (pagination.totalPages > 5 && page > 3) {
+                  pageNum = page - 2 + i;
+                  if (pageNum > pagination.totalPages) pageNum = pagination.totalPages - (4 - i);
+                }
+                
+                return (
+                  <Button
+                    key={pageNum}
+                    variant={page === pageNum ? "default" : "outline"}
+                    className="h-8 w-8 text-xs font-bold"
+                    onClick={() => updateQuery({ page: pageNum.toString() })}
+                  >
+                    {pageNum}
+                  </Button>
+                );
+              })}
+
+              <Button 
+                variant="outline" 
+                size="icon" 
+                className="h-8 w-8"
+                disabled={page >= pagination.totalPages}
+                onClick={() => updateQuery({ page: (page + 1).toString() })}
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>

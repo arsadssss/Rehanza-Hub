@@ -5,7 +5,6 @@ export const revalidate = 0;
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  const type = searchParams.get('type');
   const accountId = request.headers.get("x-account-id");
 
   if (!accountId) {
@@ -13,57 +12,69 @@ export async function GET(request: Request) {
   }
 
   try {
-    // List for dropdowns
+    const type = searchParams.get('type');
+    
+    // List for dropdowns (un-paginated, minimal fields)
     if (type === 'list') {
         const data = await sql`SELECT id, sku, product_name FROM allproducts WHERE account_id = ${accountId} ORDER BY sku`;
         return NextResponse.json(data);
     }
     
-    // Variants view
-    if (type === 'variants') {
-        const data = await sql`
-          SELECT v.id, v.variant_sku, v.stock, v.color, v.size, a.sku as product_sku, a.product_name, a.meesho_price, a.flipkart_price, a.amazon_price 
-          FROM product_variants v 
-          JOIN allproducts a ON v.product_id = a.id 
-          WHERE a.account_id = ${accountId}
-          ORDER BY v.variant_sku
-        `;
-        return NextResponse.json(data);
+    // Main Products View with Pagination & Filters
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const limit = parseInt(searchParams.get('limit') || '10', 10);
+    const search = searchParams.get('search') || '';
+    const category = searchParams.get('category') || 'all';
+    const stockStatus = searchParams.get('stock_status') || 'all';
+    const offset = (page - 1) * limit;
+
+    const searchPattern = `%${search}%`;
+    
+    // Build dynamic where clause components
+    let whereClause = sql`p.account_id = ${accountId}`;
+    
+    if (search) {
+      whereClause = sql`${whereClause} AND (p.sku ILIKE ${searchPattern} OR p.product_name ILIKE ${searchPattern})`;
     }
     
-    // Main Products View
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
-    const searchTerm = searchParams.get('search') || '';
-    const offset = (page - 1) * pageSize;
+    if (category && category !== 'all') {
+      whereClause = sql`${whereClause} AND p.category = ${category}`;
+    }
 
-    let data;
-    let countResult;
-
-    const searchPattern = `%${searchTerm}%`;
-
-    data = await sql`
+    // We use a subquery to calculate total_stock first so we can filter by it
+    const dataQuery = sql`
         SELECT 
             p.*, 
             COALESCE(SUM(v.stock), 0)::int as total_stock
         FROM allproducts p
         LEFT JOIN product_variants v ON p.id = v.product_id
-        WHERE p.account_id = ${accountId} 
-        AND (p.sku ILIKE ${searchPattern} OR p.product_name ILIKE ${searchPattern})
+        WHERE ${whereClause}
         GROUP BY p.id
+        HAVING 1=1
+        ${stockStatus === 'in_stock' ? sql`AND COALESCE(SUM(v.stock), 0) > 0` : stockStatus === 'out_of_stock' ? sql`AND COALESCE(SUM(v.stock), 0) = 0` : sql``}
         ORDER BY p.id DESC 
-        LIMIT ${pageSize} OFFSET ${offset}
+        LIMIT ${limit} OFFSET ${offset}
     `;
 
-    countResult = await sql`
-        SELECT COUNT(*) FROM allproducts 
-        WHERE account_id = ${accountId} 
-        AND (sku ILIKE ${searchPattern} OR product_name ILIKE ${searchPattern})
+    // For total count, we need a similar wrap to handle the HAVING clause correctly
+    const countQuery = sql`
+        SELECT COUNT(*) FROM (
+          SELECT p.id
+          FROM allproducts p
+          LEFT JOIN product_variants v ON p.id = v.product_id
+          WHERE ${whereClause}
+          GROUP BY p.id
+          HAVING 1=1
+          ${stockStatus === 'in_stock' ? sql`AND COALESCE(SUM(v.stock), 0) > 0` : stockStatus === 'out_of_stock' ? sql`AND COALESCE(SUM(v.stock), 0) = 0` : sql``}
+        ) as filtered_products
     `;
+    
+    const [data, countResult] = await Promise.all([dataQuery, countQuery]);
+    const total = Number(countResult[0]?.count || 0);
     
     return NextResponse.json({ 
         success: true,
-        data: data.map(p => ({
+        data: data.map((p: any) => ({
             ...p,
             cost_price: Number(p.cost_price || 0),
             margin: Number(p.margin || 0),
@@ -72,7 +83,12 @@ export async function GET(request: Request) {
             amazon_price: Number(p.amazon_price || 0),
             total_stock: Number(p.total_stock || 0)
         })), 
-        count: Number(countResult[0].count) 
+        pagination: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit)
+        }
     });
 
   } catch (error: any) {
