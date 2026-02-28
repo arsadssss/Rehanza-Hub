@@ -1,18 +1,16 @@
 "use client";
 
-import React, { useEffect, useState, useMemo } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { formatINR } from '@/lib/format';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from '@/components/ui/card';
+import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { Area, LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, PieChart, Pie, Cell, Sector } from 'recharts';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Package, CircleDollarSign, TrendingUp, Undo2, Download, ChevronDown, Medal, Wallet, Archive } from 'lucide-react';
-import { Button } from '@/components/ui/button';
+import { Package, CircleDollarSign, TrendingUp, Undo2, Wallet, Archive } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { ChartContainer, ChartTooltipContent } from '@/components/ui/chart';
 import { apiFetch } from '@/lib/apiFetch';
+import { TaskPerformanceCard, type TrackRecordEntry } from '@/components/TaskPerformanceCard';
 
 const KpiCard = ({ title, value, icon: Icon, gradient, loading }: { title: string; value: string; icon: React.ElementType; gradient: string; loading: boolean }) => (
     <Card className={cn('text-white shadow-lg rounded-2xl border-0 overflow-hidden bg-gradient-to-br', gradient)}>
@@ -94,11 +92,13 @@ export default function DashboardPage() {
   const { toast } = useToast();
   const [summary, setSummary] = useState<any>(null);
   const [platformPerformance, setPlatformPerformance] = useState<any[]>([]);
-  const [ordersReturnsData, setOrdersReturnsData] = useState<any[]>([]);
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
-  const [topSellingProducts, setTopSellingProducts] = useState<any[]>([]);
+  const [trackRecord, setTrackRecord] = useState<TrackRecordEntry[]>([]);
+  
   const [loading, setLoading] = useState(true);
+  const [loadingTrackRecord, setLoadingTrackRecord] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
+  
   const [totalDueAllVendors, setTotalDueAllVendors] = useState(0);
   const [totalInventoryValue, setTotalInventoryValue] = useState(0);
 
@@ -106,37 +106,43 @@ export default function DashboardPage() {
     setIsMounted(true);
     async function fetchData() {
       setLoading(true);
+      setLoadingTrackRecord(true);
       try {
-        const [dashRes, vendorRes] = await Promise.all([
+        const [dashRes, vendorRes, trackRes] = await Promise.all([
           apiFetch('/api/dashboard'),
-          apiFetch('/api/vendors/summary')
+          apiFetch('/api/vendors/summary'),
+          apiFetch('/api/tasks/track-record')
         ]);
 
-        if (!dashRes.ok) throw new Error('Failed to fetch dashboard');
-        
-        const data = await dashRes.json();
-        setSummary(data.summary);
-        setPlatformPerformance(data.platformPerformance || []);
-        setOrdersReturnsData(data.ordersReturnsData || []);
-        setRecentOrders(data.recentOrders || []);
-        setTopSellingProducts(data.topSellingProducts || []);
+        if (dashRes.ok) {
+          const data = await dashRes.json();
+          setSummary(data.summary);
+          setPlatformPerformance(data.platformPerformance || []);
+          setRecentOrders(data.recentOrders || []);
+        }
 
         if (vendorRes.ok) {
           const vData = await vendorRes.json();
           setTotalDueAllVendors(vData.totalDueAllVendors);
           setTotalInventoryValue(vData.totalInventoryValue);
         }
+
+        if (trackRes.ok) {
+          const tData = await trackRes.json();
+          setTrackRecord(tData.data || []);
+        }
       } catch (error: any) {
         toast({ variant: 'destructive', title: 'Error', description: error.message });
       } finally {
         setLoading(false);
+        setLoadingTrackRecord(false);
       }
     }
     fetchData();
   }, [toast]);
 
   return (
-    <div className="p-6 md:p-8 space-y-6 bg-gray-50/50 dark:bg-black/50">
+    <div className="p-6 md:p-8 space-y-8 bg-gray-50/50 dark:bg-black/50">
        <div className="grid gap-6 md:grid-cols-2">
         <div className="bg-gradient-to-r from-red-500 to-orange-600 text-white rounded-2xl p-6 shadow-lg">
           {loading ? <Skeleton className="h-20 w-full bg-white/20" /> : (
@@ -175,6 +181,8 @@ export default function DashboardPage() {
               return <PlatformPerformanceCard key={p} platform={p as any} units={Number(data?.total_units || 0)} revenue={Number(data?.total_revenue || 0)} totalUnits={Number(summary?.total_units || 1)} loading={loading} />;
           })}
       </div>
+
+      <TaskPerformanceCard data={trackRecord} loading={loadingTrackRecord} title="Task Performance" />
 
       <Card className="rounded-2xl shadow-md border-0">
         <CardHeader><CardTitle>Recent Orders</CardTitle></CardHeader>
