@@ -44,11 +44,12 @@ export async function GET(request: Request) {
       // Total Return Loss (Aggregated damage/shipping losses)
       sql`SELECT COALESCE(SUM(total_loss), 0) as total FROM returns WHERE account_id = ${accountId} AND is_deleted = false`,
       
-      // Daily Sales Trend
+      // Daily Sales Trend with Order Count
       sql`
         SELECT 
           DATE(order_date) as date, 
-          SUM(total_amount)::numeric as revenue
+          SUM(total_amount)::numeric as revenue,
+          COUNT(id)::int as orders
         FROM orders 
         WHERE account_id = ${accountId} AND is_deleted = false
         GROUP BY DATE(order_date)
@@ -103,7 +104,8 @@ export async function GET(request: Request) {
       returnRate: Number(returnRate.toFixed(2)),
       salesTrend: (salesTrendRes || []).map((row: any) => ({
         date: row.date,
-        revenue: Number(row.revenue)
+        revenue: Number(row.revenue),
+        orders: Number(row.orders)
       })),
       platformOrders: {
         totalOrders,

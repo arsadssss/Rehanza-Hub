@@ -13,20 +13,20 @@ import {
   ResponsiveContainer,
   CartesianGrid,
   Cell,
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
 } from 'recharts';
 import {
   ChartContainer,
   ChartTooltipContent,
 } from '@/components/ui/chart';
-import { DollarSign, ShoppingCart, Undo2, TrendingUp, ArrowUpRight } from 'lucide-react';
+import { DollarSign, ShoppingCart, Undo2, TrendingUp, ArrowUpRight, ChevronRight } from 'lucide-react';
 import { formatINR } from '@/lib/format';
 import { apiFetch } from '@/lib/apiFetch';
 
 const KpiCard = ({ title, value, icon: Icon, loading, gradient }: { title: string, value: string, icon: React.ElementType, loading: boolean, gradient: string }) => {
     return (
-        <div className={`bg-white/40 dark:bg-black/20 backdrop-blur-lg rounded-3xl p-6 shadow-xl border border-white/30 dark:border-white/10`}>
+        <div className={`bg-white/40 dark:bg-black/20 backdrop-blur-lg rounded-3xl p-6 shadow-xl border border-white/30 dark:border-white/10 hover:-translate-y-1 transition-transform duration-300`}>
             <div className="flex justify-between items-start text-black dark:text-white">
                 <div className="flex-1">
                     <p className="font-bold text-lg">{title}</p>
@@ -46,12 +46,22 @@ const SalesTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
         const data = payload[0].payload;
         return (
-            <div className="rounded-lg bg-primary text-primary-foreground p-3 shadow-lg">
-                <p className="text-sm font-medium mb-1">Date: {label}</p>
-                <p className="text-xs">
-                    <span className="font-semibold">Revenue:</span>{' '}
-                    {formatINR(data.total_sales)}
+            <div className="rounded-xl bg-slate-900/90 backdrop-blur-md text-white p-4 shadow-2xl border border-white/10 scale-105 transition-all duration-200">
+                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-2 flex items-center gap-2">
+                    {label} <ChevronRight className="h-3 w-3" />
                 </p>
+                <div className="space-y-1.5">
+                    <div className="flex flex-col">
+                        <span className="text-[10px] text-slate-400 font-medium">Revenue</span>
+                        <p className="text-xl font-black text-indigo-400 leading-tight">
+                            {formatINR(data.total_sales)}
+                        </p>
+                    </div>
+                    <div className="pt-1.5 border-t border-white/10 flex items-center justify-between gap-4">
+                        <span className="text-[10px] text-slate-300">Total Orders</span>
+                        <span className="text-sm font-bold text-white bg-indigo-500/20 px-2 py-0.5 rounded-full">{data.orders}</span>
+                    </div>
+                </div>
             </div>
         );
     }
@@ -91,7 +101,8 @@ export default function AnalyticsPage() {
         
         setSalesTrend((data.salesTrend || []).map((s: any) => ({
             label: format(new Date(s.date), 'dd MMM'),
-            total_sales: Number(s.revenue)
+            total_sales: Number(s.revenue),
+            orders: Number(s.orders)
         })));
 
         setPlatformBreakdown((data.platformOrders?.breakdown || []).map((b: any) => ({
@@ -135,56 +146,75 @@ export default function AnalyticsPage() {
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-            <div className="lg:col-span-3 bg-white/40 dark:bg-black/20 backdrop-blur-lg rounded-3xl p-6 shadow-xl border border-white/30 dark:border-white/10 text-black dark:text-white">
-                <div className="flex justify-between items-center mb-4">
-                    <h3 className="font-bold text-xl">Daily Revenue Trend</h3>
+            <div className="lg:col-span-3 bg-white/40 dark:bg-black/20 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/30 dark:border-white/10 text-black dark:text-white transition-all duration-500 hover:shadow-indigo-500/5 hover:-translate-y-1">
+                <div className="flex justify-between items-center mb-8">
+                    <div>
+                        <h3 className="font-bold text-2xl tracking-tight">Daily Revenue Trend</h3>
+                        <p className="text-sm opacity-60">Revenue growth over the past month</p>
+                    </div>
+                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold">
+                        <TrendingUp className="h-3 w-3" />
+                        Live tracking
+                    </div>
                 </div>
                 <div className="h-[350px] w-full">
-                    {loading ? <Skeleton className="h-full w-full bg-black/10 dark:bg-white/10" /> : (
+                    {loading ? <Skeleton className="h-full w-full bg-black/10 dark:bg-white/10 rounded-2xl" /> : (
                         <ResponsiveContainer width="100%" height={300}>
-                            <LineChart
+                            <AreaChart
                                 data={salesTrend}
                                 margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
                             >
-                                <CartesianGrid strokeDasharray="3 3" stroke={"hsl(var(--border))"} />
+                                <defs>
+                                    <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                                        <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3}/>
+                                        <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
+                                    </linearGradient>
+                                </defs>
+                                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={"rgba(0,0,0,0.05)"} />
                                 <XAxis
                                     dataKey="label"
-                                    tick={{ fontSize: 12, fill: "hsl(var(--foreground))" }}
-                                    stroke={"hsl(var(--muted-foreground))"}
+                                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))", fontWeight: 600 }}
+                                    axisLine={false}
+                                    tickLine={false}
+                                    dy={10}
                                 />
                                 <YAxis
-                                    tick={{ fontSize: 12, fill: "hsl(var(--foreground))" }}
-                                    stroke={"hsl(var(--muted-foreground))"}
-                                    tickFormatter={(value) => formatINR(value as number)}
+                                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))", fontWeight: 600 }}
+                                    axisLine={false}
+                                    tickLine={false}
+                                    tickFormatter={(value) => `₹${value >= 1000 ? (value/1000).toFixed(0) + 'k' : value}`}
                                 />
                                 <Tooltip
                                     content={<SalesTooltip />}
+                                    cursor={{ stroke: '#4f46e5', strokeWidth: 2, strokeDasharray: '5 5' }}
                                 />
-                                <Line
+                                <Area
                                     type="monotone"
                                     dataKey="total_sales"
                                     stroke="#4f46e5"
-                                    strokeWidth={3}
-                                    dot={{ r: 4 }}
-                                    activeDot={{ r: 6 }}
+                                    strokeWidth={4}
+                                    fillOpacity={1}
+                                    fill="url(#colorSales)"
+                                    activeDot={{ r: 8, strokeWidth: 0, fill: '#4f46e5' }}
+                                    animationDuration={2500}
                                 />
-                            </LineChart>
+                            </AreaChart>
                         </ResponsiveContainer>
                     )}
                 </div>
             </div>
 
-            <div className="lg:col-span-2 bg-white/40 dark:bg-black/20 backdrop-blur-lg rounded-3xl p-6 shadow-xl border border-white/30 dark:border-white/10 text-black dark:text-white">
-                <div className="flex justify-between items-center">
+            <div className="lg:col-span-2 bg-white/40 dark:bg-black/20 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/30 dark:border-white/10 text-black dark:text-white">
+                <div className="flex justify-between items-center mb-6">
                     <h3 className="font-bold text-xl">Platform Distribution</h3>
-                    <a href="#" className="text-sm opacity-70 flex items-center gap-1">See All <ArrowUpRight className="h-4 w-4" /></a>
+                    <a href="#" className="text-xs font-bold opacity-70 flex items-center gap-1 hover:opacity-100 transition-opacity">Full View <ArrowUpRight className="h-3 w-3" /></a>
                 </div>
-                {loading ? <Skeleton className="h-[350px] w-full bg-black/10 dark:bg-white/10 mt-4" /> : (
+                {loading ? <Skeleton className="h-[350px] w-full bg-black/10 dark:bg-white/10 mt-4 rounded-2xl" /> : (
                     <div className="flex flex-col items-center gap-4 mt-4">
                         <div className="w-full h-[250px] relative">
                             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
-                                <p className="text-3xl font-bold">{totalPlatformOrders}</p>
-                                <p className="text-xs opacity-70">Total Orders</p>
+                                <p className="text-4xl font-black">{totalPlatformOrders}</p>
+                                <p className="text-[10px] font-bold uppercase tracking-widest opacity-50">Total Orders</p>
                             </div>
                             <ChartContainer config={platformChartConfig} className="h-full w-full">
                                 <ResponsiveContainer>
@@ -215,7 +245,7 @@ export default function AnalyticsPage() {
                                     <li key={platform.name} className="flex items-center justify-start text-sm">
                                       <div className="flex items-center gap-2">
                                           <span style={{ backgroundColor: platformChartConfig[platform.name as keyof typeof platformChartConfig]?.color }} className="h-2.5 w-2.5 rounded-full" />
-                                          <span>{platform.name} — <span className="font-medium">{platform.value} orders</span></span>
+                                          <span className="text-xs font-medium">{platform.name} — <span className="font-bold">{platform.value}</span></span>
                                       </div>
                                     </li>
                                 ))}
