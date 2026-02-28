@@ -89,10 +89,10 @@ export function SidebarNav() {
   const firstLetter = userName.charAt(0).toUpperCase();
 
   return (
-    <Sidebar className="border-none bg-black/40 backdrop-blur-2xl text-white/70 shadow-2xl">
-      <SidebarHeader className="p-8">
+    <Sidebar className="border-none bg-gradient-to-b from-indigo-700 to-purple-700 rounded-r-[2rem] text-white shadow-2xl overflow-hidden">
+      <SidebarHeader className="p-6 pt-10">
         <div className="flex items-center gap-3 px-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 shadow-lg border border-white/10">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 shadow-lg border border-white/20">
             <Package className="h-6 w-6 text-white" />
           </div>
           <h1 className="text-xl font-bold text-white tracking-tight font-headline">
@@ -102,7 +102,7 @@ export function SidebarNav() {
 
         {/* Account Switcher */}
         <div className="mt-8 px-2 relative group">
-          <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-white/40">
+          <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-white/60">
             <ChevronDown className="h-4 w-4" />
           </div>
           <select
@@ -112,11 +112,11 @@ export function SidebarNav() {
               setSelectedAccount(e.target.value);
               window.location.reload();
             }}
-            className="w-full appearance-none rounded-xl bg-white/5 border border-white/10 p-3 pr-10 text-xs font-medium text-white/80 focus:outline-none focus:ring-2 focus:ring-white/20 transition-all cursor-pointer hover:bg-white/10"
+            className="w-full appearance-none rounded-xl bg-white/10 border border-white/10 p-3 pr-10 text-xs font-medium text-white focus:outline-none focus:ring-2 focus:ring-white/20 transition-all cursor-pointer hover:bg-white/20"
           >
-            {accounts.length === 0 && <option value="" className="bg-slate-900">Loading accounts...</option>}
+            {accounts.length === 0 && <option value="" className="bg-indigo-800">Loading...</option>}
             {accounts.map((acc) => (
-              <option key={acc.id} value={acc.id} className="bg-slate-900 text-white">
+              <option key={acc.id} value={acc.id} className="bg-indigo-800 text-white">
                 {acc.name}
               </option>
             ))}
@@ -124,8 +124,8 @@ export function SidebarNav() {
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="px-6 py-2">
-        <SidebarMenu className="gap-1">
+      <SidebarContent className="px-4 py-2 mt-4">
+        <SidebarMenu className="gap-1.5">
           {navItems.map((item) => {
             const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
             
@@ -134,15 +134,15 @@ export function SidebarNav() {
                 <Link 
                   href={item.href}
                   className={cn(
-                    "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ease-in-out group",
+                    "flex items-center gap-3 px-5 py-3 text-sm font-medium transition-all duration-200 ease-in-out group",
                     isActive 
-                      ? "bg-white/15 text-white shadow-lg backdrop-blur-md border border-white/10" 
-                      : "text-white/70 hover:bg-white/10 hover:text-white hover:translate-x-1"
+                      ? "bg-white text-indigo-700 rounded-full shadow-lg font-bold" 
+                      : "text-white/80 rounded-xl hover:bg-white/10 hover:text-white"
                   )}
                 >
                   <item.icon className={cn(
                     "h-5 w-5 transition-colors",
-                    isActive ? "text-white" : "text-white/60 group-hover:text-white"
+                    isActive ? "text-indigo-700" : "text-white/70 group-hover:text-white"
                   )} />
                   <span>{item.label}</span>
                 </Link>
@@ -152,18 +152,17 @@ export function SidebarNav() {
         </SidebarMenu>
       </SidebarContent>
 
-      <Separator className="my-4 bg-white/10 mx-8" />
-
-      <SidebarFooter className="p-8 space-y-4">
+      <SidebarFooter className="p-6 mt-auto space-y-4">
+        <Separator className="bg-white/10" />
         <div className="flex items-center gap-3 px-2">
-          <Avatar className="h-10 w-10 border-2 border-white/10">
-            <AvatarFallback className="bg-white/10 text-white font-bold">{firstLetter}</AvatarFallback>
+          <Avatar className="h-10 w-10 border-2 border-white/20">
+            <AvatarFallback className="bg-white/20 text-white font-bold">{firstLetter}</AvatarFallback>
           </Avatar>
           <div className="flex flex-col overflow-hidden">
             <span className="text-sm font-semibold text-white truncate">
               {userName}
             </span>
-            <span className="text-[10px] text-white/40 uppercase tracking-widest font-bold">
+            <span className="text-[10px] text-white/60 uppercase tracking-widest font-bold">
               {session?.user?.role || 'Member'}
             </span>
           </div>
