@@ -143,6 +143,7 @@ export default function DashboardPage() {
 
   return (
     <div className="p-6 md:p-8 space-y-8 bg-gray-50/50 dark:bg-black/50">
+       {/* 1. Vendor + Inventory summary cards */}
        <div className="grid gap-6 md:grid-cols-2">
         <div className="bg-gradient-to-r from-red-500 to-orange-600 text-white rounded-2xl p-6 shadow-lg">
           {loading ? <Skeleton className="h-20 w-full bg-white/20" /> : (
@@ -167,7 +168,11 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* 2. Task Performance section */}
+      <TaskPerformanceCard data={trackRecord} loading={loadingTrackRecord} title="Task Performance" />
       
+      {/* 3. Sales metric cards */}
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
         <KpiCard title="Total Units Sold" value={loading || !isMounted ? '...' : (summary?.total_units || 0).toLocaleString('en-IN')} icon={Package} gradient="from-purple-500 to-indigo-600" loading={loading} />
         <KpiCard title="Gross Revenue" value={loading || !isMounted ? '...' : formatINR(summary?.gross_revenue || 0)} icon={CircleDollarSign} gradient="from-cyan-500 to-blue-600" loading={loading} />
@@ -175,14 +180,13 @@ export default function DashboardPage() {
         <ReturnRateCard rate={summary?.return_rate || 0} loading={loading} />
       </div>
 
+      {/* 4. Platform Distribution cards */}
       <div className="grid gap-6 md:grid-cols-3">
           {['Meesho', 'Flipkart', 'Amazon'].map(p => {
               const data = platformPerformance.find((item: any) => item.platform === p);
               return <PlatformPerformanceCard key={p} platform={p as any} units={Number(data?.total_units || 0)} revenue={Number(data?.total_revenue || 0)} totalUnits={Number(summary?.total_units || 1)} loading={loading} />;
           })}
       </div>
-
-      <TaskPerformanceCard data={trackRecord} loading={loadingTrackRecord} title="Task Performance" />
 
       <Card className="rounded-2xl shadow-md border-0">
         <CardHeader><CardTitle>Recent Orders</CardTitle></CardHeader>
