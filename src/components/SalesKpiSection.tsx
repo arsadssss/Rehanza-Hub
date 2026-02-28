@@ -11,7 +11,10 @@ interface KpiCardProps {
   value: string;
   icon: React.ElementType;
   loading: boolean;
-  gradient: string;
+  borderClass: string;
+  glowClass: string;
+  iconBgClass: string;
+  iconColorClass: string;
   description?: string;
   isTrendUp?: boolean;
 }
@@ -21,49 +24,55 @@ const KpiCard = ({
     value, 
     icon: Icon, 
     loading, 
-    gradient, 
+    borderClass,
+    glowClass,
+    iconBgClass,
+    iconColorClass,
     description,
     isTrendUp 
 }: KpiCardProps) => {
     return (
-        <div className="group relative overflow-hidden bg-white/60 dark:bg-slate-900/40 backdrop-blur-2xl rounded-[2rem] p-6 shadow-[0_10px_40px_rgba(0,0,0,0.04)] border border-white/50 dark:border-white/5 hover:-translate-y-1 transition-all duration-300">
-            <div className="flex justify-between items-start relative z-10">
-                <div className="flex-1">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/80 mb-1">{title}</p>
-                    {loading ? (
-                        <div className="pt-2 space-y-2">
-                            <Skeleton className="h-8 w-32 bg-muted/40 rounded-lg" />
-                            <Skeleton className="h-3 w-20 bg-muted/30 rounded-md" />
-                        </div>
-                    ) : (
-                        <div className="pt-1">
-                            <h2 className="text-3xl font-black font-headline tracking-tighter text-foreground">
-                                {value}
-                            </h2>
-                            {description && (
-                                <div className="flex items-center gap-1.5 mt-2">
-                                    <div className={cn(
-                                        "flex items-center justify-center w-4 h-4 rounded-full",
-                                        isTrendUp ? "bg-emerald-500/10 text-emerald-600" : "bg-rose-500/10 text-rose-600"
-                                    )}>
-                                        {isTrendUp ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
-                                    </div>
-                                    <span className="text-[10px] font-bold text-muted-foreground/70">{description}</span>
-                                </div>
-                            )}
-                        </div>
-                    )}
-                </div>
-                <div className={cn(
-                    "w-12 h-12 flex items-center justify-center rounded-2xl bg-gradient-to-br shadow-lg transition-all duration-500 group-hover:scale-110 group-hover:rotate-6", 
-                    gradient
-                )}>
-                    <Icon className="h-5 w-5 text-white" strokeWidth={2.5} />
-                </div>
-            </div>
+        <div className={cn(
+            "relative bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 border-l-4 hover:-translate-y-1 overflow-hidden",
+            borderClass
+        )}>
+            {/* Soft Gradient Overlay Layer */}
+            <div className={cn("absolute inset-0 bg-gradient-to-br to-transparent rounded-2xl pointer-events-none opacity-40", glowClass)} />
             
-            {/* Background decorative elements */}
-            <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-24 h-24 bg-white/5 rounded-full blur-2xl group-hover:bg-white/10 transition-colors duration-500" />
+            <div className="relative z-10">
+                <p className="text-xs font-semibold text-gray-400 dark:text-muted-foreground tracking-wider uppercase">{title}</p>
+                {loading ? (
+                    <div className="mt-2 space-y-2">
+                        <Skeleton className="h-9 w-32 bg-muted/40" />
+                        <Skeleton className="h-4 w-24 bg-muted/20" />
+                    </div>
+                ) : (
+                    <div className="mt-2">
+                        <h2 className="text-3xl font-bold text-gray-800 dark:text-gray-100 font-headline tracking-tight">
+                            {value}
+                        </h2>
+                        {description && (
+                            <div className="flex items-center gap-1.5 mt-2">
+                                <div className={cn(
+                                    "flex items-center justify-center w-4 h-4 rounded-full",
+                                    isTrendUp ? "bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400" : "bg-rose-100 dark:bg-rose-900/30 text-rose-600 dark:text-rose-400"
+                                )}>
+                                    {isTrendUp ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
+                                </div>
+                                <span className="text-sm text-gray-500 dark:text-muted-foreground font-medium">{description}</span>
+                            </div>
+                        )}
+                    </div>
+                )}
+            </div>
+
+            {/* Icon Badge Style */}
+            <div className={cn(
+                "absolute top-6 right-6 w-12 h-12 rounded-xl flex items-center justify-center shadow-md",
+                iconBgClass
+            )}>
+                <Icon className={cn("w-5 h-5", iconColorClass)} strokeWidth={2.5} />
+            </div>
         </div>
     );
 };
@@ -90,7 +99,10 @@ export function SalesKpiSection({
           value={totalUnits.toLocaleString('en-IN')} 
           icon={ShoppingCart} 
           loading={loading} 
-          gradient="from-blue-400 to-cyan-500" 
+          borderClass="border-indigo-500"
+          glowClass="from-indigo-50"
+          iconBgClass="bg-indigo-100 dark:bg-indigo-900/30"
+          iconColorClass="text-indigo-600 dark:text-indigo-400"
           description="Units dispatched"
           isTrendUp={true}
       />
@@ -99,7 +111,10 @@ export function SalesKpiSection({
           value={formatINR(grossRevenue)} 
           icon={Sparkles} 
           loading={loading} 
-          gradient="from-violet-500 to-indigo-600" 
+          borderClass="border-blue-500"
+          glowClass="from-blue-50"
+          iconBgClass="bg-blue-100 dark:bg-blue-900/30"
+          iconColorClass="text-blue-600 dark:text-blue-400"
           description="Total sales value"
           isTrendUp={true}
       />
@@ -108,7 +123,10 @@ export function SalesKpiSection({
           value={formatINR(netProfit)} 
           icon={netProfit >= 0 ? TrendingUp : TrendingDown} 
           loading={loading} 
-          gradient={netProfit >= 0 ? "from-emerald-400 to-teal-600" : "from-rose-400 to-red-600"} 
+          borderClass="border-emerald-500"
+          glowClass="from-emerald-50"
+          iconBgClass="bg-emerald-100 dark:bg-emerald-900/30"
+          iconColorClass="text-emerald-600 dark:text-emerald-400"
           description={netProfit >= 0 ? "Profit margin" : "Loss detected"}
           isTrendUp={netProfit >= 0}
       />
@@ -117,7 +135,10 @@ export function SalesKpiSection({
           value={`${returnRate.toFixed(1)}%`} 
           icon={Percent} 
           loading={loading} 
-          gradient="from-orange-400 to-rose-500" 
+          borderClass="border-orange-500"
+          glowClass="from-orange-50"
+          iconBgClass="bg-orange-100 dark:bg-orange-900/30"
+          iconColorClass="text-orange-600 dark:text-orange-400"
           description="Refunds ratio"
           isTrendUp={returnRate < 15}
       />

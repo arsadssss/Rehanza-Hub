@@ -100,8 +100,31 @@ export default function DashboardPage() {
         loading={loading}
       />
 
-      {/* 2. Vendor + Inventory summary cards (Due, Investment) */}
-      <div className="grid gap-6 md:grid-cols-2">
+      
+
+      {/* 3. Sales Summary Cards (Legacy Drill-down metrics) */}
+      {/* <SalesSummaryCards 
+        totalSales={salesData?.totalSales || 0}
+        totalOrders={salesData?.totalOrders || 0}
+        totalReturns={salesData?.totalReturns || 0}
+        netProfit={salesData?.netProfit || 0}
+        loading={loadingAnalytics}
+      /> */}
+
+      {/* 4. Analytics Section (Trends + Platform Distribution) */}
+      <AnalyticsSection 
+        salesTrendRaw={salesData?.salesTrend || []}
+        platformBreakdownRaw={salesData?.platformOrders?.breakdown || []}
+        totalPlatformOrders={salesData?.platformOrders?.totalOrders || 0}
+        timeRange={timeRange}
+        onTimeRangeChange={setTimeRange}
+        loading={loadingAnalytics}
+      />
+      {/* 5. Task Performance section */}
+      <TaskPerformanceCard data={trackRecord} loading={loadingTrackRecord} title="Task Performance" />
+      
+{/* 2. Vendor + Inventory summary cards (Due, Investment) */}
+<div className="grid gap-6 md:grid-cols-2">
         <div className="bg-gradient-to-r from-red-500 to-orange-600 text-white rounded-2xl p-6 shadow-lg">
           {loading ? <Skeleton className="h-20 w-full bg-white/20" /> : (
             <div className="flex items-center justify-between">
@@ -125,28 +148,6 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
-
-      {/* 3. Sales Summary Cards (Legacy Drill-down metrics) */}
-      <SalesSummaryCards 
-        totalSales={salesData?.totalSales || 0}
-        totalOrders={salesData?.totalOrders || 0}
-        totalReturns={salesData?.totalReturns || 0}
-        netProfit={salesData?.netProfit || 0}
-        loading={loadingAnalytics}
-      />
-
-      {/* 4. Analytics Section (Trends + Platform Distribution) */}
-      <AnalyticsSection 
-        salesTrendRaw={salesData?.salesTrend || []}
-        platformBreakdownRaw={salesData?.platformOrders?.breakdown || []}
-        totalPlatformOrders={salesData?.platformOrders?.totalOrders || 0}
-        timeRange={timeRange}
-        onTimeRangeChange={setTimeRange}
-        loading={loadingAnalytics}
-      />
-
-      {/* 5. Task Performance section */}
-      <TaskPerformanceCard data={trackRecord} loading={loadingTrackRecord} title="Task Performance" />
       
       {/* 6. Recent Orders Table */}
       <Card className="rounded-2xl shadow-md border-0">
@@ -168,6 +169,7 @@ export default function DashboardPage() {
           </Table>
         </CardContent>
       </Card>
+      
     </div>
   );
 }
