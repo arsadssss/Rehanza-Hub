@@ -136,7 +136,7 @@ export function SidebarNav() {
                   className={cn(
                     "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ease-in-out group",
                     isActive 
-                      ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg shadow-indigo-500/30" 
+                      ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg shadow-indigo-500/40 animate-glow" 
                       : "text-slate-300 hover:bg-white/10 hover:text-white hover:translate-x-1"
                   )}
                 >
