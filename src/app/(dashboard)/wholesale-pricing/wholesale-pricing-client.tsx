@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -149,6 +150,8 @@ export function WholesalePricingClient() {
     }
   }
 
+  const totalWholesaleValue = tiers.reduce((sum, tier) => sum + (tier.wholesale_price || 0), 0);
+
   return (
     <div className="p-6 space-y-6 bg-gray-50/50 dark:bg-black/50 min-h-full">
       <div className="flex flex-col gap-1">
@@ -231,12 +234,20 @@ export function WholesalePricingClient() {
 
         {/* Table Column */}
         <Card className="lg:col-span-2 shadow-lg border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
-          <CardHeader>
-            <CardTitle className="text-xl flex items-center gap-2">
-              <Tag className="h-5 w-5 text-primary" />
-              Wholesale Price List
-            </CardTitle>
-            <CardDescription>All currently active wholesale discount levels.</CardDescription>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0">
+            <div>
+              <CardTitle className="text-xl flex items-center gap-2">
+                <Tag className="h-5 w-5 text-primary" />
+                Wholesale Price List
+              </CardTitle>
+              <CardDescription>All currently active wholesale discount levels.</CardDescription>
+            </div>
+            <div className="text-right">
+              <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Total Wholesale Value</p>
+              <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
+                {formatINR(totalWholesaleValue)}
+              </p>
+            </div>
           </CardHeader>
           <CardContent>
             <div className="rounded-xl border border-border/50 overflow-hidden">
