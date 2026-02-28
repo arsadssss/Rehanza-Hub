@@ -8,8 +8,8 @@ export const revalidate = 0;
 /**
  * GET /api/wholesale
  * Consolidated endpoint for Wholesale page:
- * 1. Fetches products belonging to account (for dropdown)
- * 2. Fetches wholesale tiers belonging to account (for list)
+ * 1. Fetches non-archived products belonging to account (for dropdown)
+ * 2. Fetches wholesale tiers with aggregated non-archived stock
  */
 export async function GET(request: Request) {
   try {
@@ -19,25 +19,34 @@ export async function GET(request: Request) {
     }
 
     const [products, tiers] = await Promise.all([
-      // 1. Fetch Products for Dropdown
+      // 1. Fetch Products for Dropdown (Exclude archived)
       sql`
         SELECT id, sku, product_name 
         FROM allproducts 
         WHERE account_id = ${accountId} 
+        AND is_deleted = false
         ORDER BY product_name ASC
       `,
-      // 2. Fetch Wholesale Tiers with joined data
+      // 2. Fetch Wholesale Tiers with joined data and live total stock sum
       sql`
         SELECT 
           wp.id,
           ap.product_name,
           wp.min_quantity,
           wp.wholesale_price,
-          u.name AS added_by
+          u.name AS added_by,
+          (
+            SELECT COALESCE(SUM(pv.stock), 0)::int
+            FROM product_variants pv
+            WHERE pv.product_id = wp.product_id 
+            AND pv.account_id = ${accountId} 
+            AND pv.is_deleted = false
+          ) as total_stock
         FROM wholesale_prices wp
         JOIN allproducts ap ON wp.product_id = ap.id
         LEFT JOIN users u ON wp.created_by = u.id
         WHERE wp.account_id = ${accountId}
+        AND ap.is_deleted = false
         ORDER BY ap.product_name ASC, wp.min_quantity ASC
       `
     ]);
@@ -47,7 +56,8 @@ export async function GET(request: Request) {
       products: products || [],
       tiers: (tiers || []).map((t: any) => ({
         ...t,
-        wholesale_price: Number(t.wholesale_price || 0)
+        wholesale_price: Number(t.wholesale_price || 0),
+        total_stock: Number(t.total_stock || 0)
       }))
     });
 

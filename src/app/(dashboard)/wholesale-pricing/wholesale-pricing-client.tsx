@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useCallback } from 'react';
@@ -56,6 +55,7 @@ type WholesaleTier = {
   product_name: string;
   min_quantity: number;
   wholesale_price: number;
+  total_stock: number;
   added_by: string;
 };
 
@@ -150,7 +150,11 @@ export function WholesalePricingClient() {
     }
   }
 
-  const totalWholesaleValue = tiers.reduce((sum, tier) => sum + (tier.wholesale_price || 0), 0);
+  // UPDATED CALCULATION: Sum of (Wholesale Price * Total Product Stock) per tier
+  const totalWholesaleValue = tiers.reduce(
+    (sum, tier) => sum + (Number(tier.wholesale_price || 0) * Number(tier.total_stock || 0)), 
+    0
+  );
 
   return (
     <div className="p-6 space-y-6 bg-gray-50/50 dark:bg-black/50 min-h-full">
