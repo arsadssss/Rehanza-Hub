@@ -11,7 +11,6 @@ import {
   SidebarFooter,
   SidebarMenu,
   SidebarMenuItem,
-  SidebarMenuButton,
 } from '@/components/ui/sidebar';
 import {
   LayoutDashboard,
@@ -32,6 +31,7 @@ import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { LogoutButton } from '@/components/logout-button';
 import { apiFetch } from '@/lib/apiFetch';
+import { cn } from '@/lib/utils';
 
 const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -89,18 +89,20 @@ export function SidebarNav() {
   const firstLetter = userName.charAt(0).toUpperCase();
 
   return (
-    <Sidebar className="border-r">
-      <SidebarHeader className="p-4">
-        <div className="flex items-center gap-2">
-          <Package className="h-8 w-8 text-primary" />
-          <h1 className="text-2xl font-bold text-sidebar-foreground font-headline">
+    <Sidebar className="border-none bg-[#0F172A] text-slate-400">
+      <SidebarHeader className="p-6">
+        <div className="flex items-center gap-3 px-2">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500 shadow-lg shadow-indigo-500/20">
+            <Package className="h-6 w-6 text-white" />
+          </div>
+          <h1 className="text-xl font-bold text-white tracking-tight font-headline">
             Rehanza Hub
           </h1>
         </div>
 
         {/* Account Switcher */}
-        <div className="mt-4 relative group">
-          <div className="absolute right-3 top-1/2 -translate-y-1/2 pointer-events-none text-sidebar-foreground/50">
+        <div className="mt-6 px-2 relative group">
+          <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-500">
             <ChevronDown className="h-4 w-4" />
           </div>
           <select
@@ -110,11 +112,11 @@ export function SidebarNav() {
               setSelectedAccount(e.target.value);
               window.location.reload();
             }}
-            className="w-full appearance-none rounded-md bg-sidebar-accent/50 border border-sidebar-border p-2 pr-10 text-sm text-sidebar-foreground focus:outline-none focus:ring-2 focus:ring-sidebar-ring transition-colors cursor-pointer hover:bg-sidebar-accent"
+            className="w-full appearance-none rounded-xl bg-white/5 border border-white/10 p-3 pr-10 text-xs font-medium text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/50 transition-all cursor-pointer hover:bg-white/10"
           >
-            {accounts.length === 0 && <option value="">Loading accounts...</option>}
+            {accounts.length === 0 && <option value="" className="bg-[#0F172A]">Loading accounts...</option>}
             {accounts.map((acc) => (
-              <option key={acc.id} value={acc.id} className="bg-sidebar text-sidebar-foreground">
+              <option key={acc.id} value={acc.id} className="bg-[#0F172A] text-white">
                 {acc.name}
               </option>
             ))}
@@ -122,43 +124,53 @@ export function SidebarNav() {
         </div>
       </SidebarHeader>
 
-      <SidebarContent className="p-2">
-        <SidebarMenu>
-          {navItems.map((item) => (
-            <SidebarMenuItem key={item.href}>
-              <SidebarMenuButton
-                asChild
-                isActive={
-                  pathname.startsWith(item.href) &&
-                  (item.href === '/dashboard'
-                    ? pathname === item.href
-                    : true)
-                }
-              >
-                <Link href={item.href}>
-                  <item.icon className="h-5 w-5" />
+      <SidebarContent className="px-4 py-2">
+        <SidebarMenu className="gap-1">
+          {navItems.map((item) => {
+            const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
+            
+            return (
+              <SidebarMenuItem key={item.href}>
+                <Link 
+                  href={item.href}
+                  className={cn(
+                    "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ease-in-out group",
+                    isActive 
+                      ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg shadow-indigo-500/20" 
+                      : "text-slate-400 hover:bg-white/5 hover:text-white hover:translate-x-1"
+                  )}
+                >
+                  <item.icon className={cn(
+                    "h-5 w-5 transition-colors",
+                    isActive ? "text-white" : "text-slate-400 group-hover:text-white"
+                  )} />
                   <span>{item.label}</span>
                 </Link>
-              </SidebarMenuButton>
-            </SidebarMenuItem>
-          ))}
+              </SidebarMenuItem>
+            );
+          })}
         </SidebarMenu>
       </SidebarContent>
 
-      <Separator className="my-2" />
+      <Separator className="my-4 bg-white/5 mx-6" />
 
-      <SidebarFooter className="p-4 space-y-4">
-        <div className="flex items-center gap-3">
-          <Avatar className="h-9 w-9">
-            <AvatarFallback>{firstLetter}</AvatarFallback>
+      <SidebarFooter className="p-6 space-y-4">
+        <div className="flex items-center gap-3 px-2">
+          <Avatar className="h-10 w-10 border-2 border-white/10">
+            <AvatarFallback className="bg-white/10 text-white font-bold">{firstLetter}</AvatarFallback>
           </Avatar>
           <div className="flex flex-col overflow-hidden">
-            <span className="text-sm font-medium text-sidebar-foreground truncate">
+            <span className="text-sm font-semibold text-white truncate">
               {userName}
+            </span>
+            <span className="text-[10px] text-slate-500 uppercase tracking-widest font-bold">
+              {session?.user?.role || 'Member'}
             </span>
           </div>
         </div>
-        <LogoutButton />
+        <div className="px-2">
+          <LogoutButton />
+        </div>
       </SidebarFooter>
     </Sidebar>
   );
