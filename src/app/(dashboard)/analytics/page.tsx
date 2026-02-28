@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useEffect, useState } from 'react';
@@ -21,6 +20,13 @@ import {
   ChartContainer,
   ChartTooltipContent,
 } from '@/components/ui/chart';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { DollarSign, ShoppingCart, Undo2, TrendingUp, TrendingDown, ArrowUpRight, ChevronRight, Sparkles } from 'lucide-react';
 import { formatINR } from '@/lib/format';
 import { apiFetch } from '@/lib/apiFetch';
@@ -131,13 +137,14 @@ export default function AnalyticsPage() {
   const [salesTrend, setSalesTrend] = useState<any[]>([]);
   const [platformBreakdown, setPlatformBreakdown] = useState<{ name: string; value: number }[]>([]);
   const [totalPlatformOrders, setTotalPlatformOrders] = useState(0);
+  const [timeRange, setTimeRange] = useState('7d');
 
   useEffect(() => {
     setIsMounted(true);
     async function fetchAnalyticsData() {
       setLoading(true);
       try {
-        const res = await apiFetch('/api/analytics');
+        const res = await apiFetch(`/api/analytics?range=${timeRange}`);
         if (!res.ok) {
           const errorData = await res.json();
           throw new Error(errorData.message || 'Failed to fetch report data');
@@ -149,11 +156,21 @@ export default function AnalyticsPage() {
         setTotalReturns(data.totalReturns);
         setNetProfit(data.netProfit);
         
-        setSalesTrend((data.salesTrend || []).map((s: any) => ({
-            label: format(new Date(s.date), 'dd MMM'),
-            total_sales: Number(s.revenue),
-            orders: Number(s.orders)
-        })));
+        setSalesTrend((data.salesTrend || []).map((s: any) => {
+            const d = new Date(s.date);
+            let label = '';
+            
+            if (timeRange === '7d') label = format(d, 'eee');
+            else if (timeRange === 'monthly') label = format(d, 'd');
+            else if (timeRange === 'yearly') label = format(d, 'MMM');
+            else label = format(d, 'dd MMM');
+
+            return {
+                label,
+                total_sales: Number(s.revenue),
+                orders: Number(s.orders)
+            }
+        }));
 
         setPlatformBreakdown((data.platformOrders?.breakdown || []).map((b: any) => ({
             name: b.platform,
@@ -172,7 +189,7 @@ export default function AnalyticsPage() {
       }
     }
     fetchAnalyticsData();
-  }, [toast]);
+  }, [toast, timeRange]);
 
   const platformChartConfig = {
     value: { label: "Orders" },
@@ -229,14 +246,26 @@ export default function AnalyticsPage() {
 
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
             <div className="lg:col-span-3 bg-white/40 dark:bg-black/20 backdrop-blur-xl rounded-[2.5rem] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-white/30 dark:border-white/10 text-black dark:text-white transition-all duration-500 hover:shadow-indigo-500/5">
-                <div className="flex justify-between items-center mb-8">
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
                     <div>
-                        <h3 className="font-black text-2xl tracking-tight font-headline">Daily Revenue Trend</h3>
-                        <p className="text-sm opacity-60 font-medium">Revenue and volume performance over time</p>
+                        <h3 className="font-black text-2xl tracking-tight font-headline">Revenue Trends</h3>
+                        <p className="text-sm opacity-60 font-medium">Visualizing growth and volume performance</p>
                     </div>
-                    <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-black uppercase tracking-wider">
-                        <TrendingUp className="h-3 w-3" />
-                        Live Tracking
+                    <div className="flex items-center gap-3">
+                        <Select value={timeRange} onValueChange={setTimeRange}>
+                            <SelectTrigger className="w-[140px] h-9 text-[10px] font-bold uppercase tracking-widest bg-white/50 dark:bg-white/5 border-white/20 rounded-xl focus:ring-primary/20">
+                                <SelectValue placeholder="Time Range" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="7d" className="text-[10px] font-bold uppercase">Last 7 Days</SelectItem>
+                                <SelectItem value="monthly" className="text-[10px] font-bold uppercase">Monthly</SelectItem>
+                                <SelectItem value="yearly" className="text-[10px] font-bold uppercase">Yearly</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-black uppercase tracking-wider">
+                            <TrendingUp className="h-3 w-3" />
+                            Live
+                        </div>
                     </div>
                 </div>
                 <div className="h-[350px] w-full">

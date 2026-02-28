@@ -5,12 +5,56 @@ export const revalidate = 0;
 
 export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
+    const range = searchParams.get('range') || '7d';
     const accountId = request.headers.get("x-account-id");
+    
     if (!accountId) {
       return NextResponse.json({ success: false, message: "Account not selected" }, { status: 400 });
     }
 
-    // 1. Parallel dynamic calculations from raw tables
+    // Determine the trend query based on selected range
+    let trendQuery;
+    if (range === 'monthly') {
+      trendQuery = sql`
+        SELECT 
+          DATE(order_date) as date, 
+          SUM(total_amount)::numeric as revenue,
+          COUNT(id)::int as orders
+        FROM orders 
+        WHERE account_id = ${accountId} AND is_deleted = false
+          AND DATE_TRUNC('month', order_date) = DATE_TRUNC('month', CURRENT_DATE)
+        GROUP BY DATE(order_date)
+        ORDER BY date ASC
+      `;
+    } else if (range === 'yearly') {
+      trendQuery = sql`
+        SELECT 
+          DATE_TRUNC('month', order_date) as date, 
+          SUM(total_amount)::numeric as revenue,
+          COUNT(id)::int as orders
+        FROM orders 
+        WHERE account_id = ${accountId} AND is_deleted = false
+          AND DATE_TRUNC('year', order_date) = DATE_TRUNC('year', CURRENT_DATE)
+        GROUP BY date
+        ORDER BY date ASC
+      `;
+    } else {
+      // Default: Last 7 Days
+      trendQuery = sql`
+        SELECT 
+          DATE(order_date) as date, 
+          SUM(total_amount)::numeric as revenue,
+          COUNT(id)::int as orders
+        FROM orders 
+        WHERE account_id = ${accountId} AND is_deleted = false
+          AND order_date >= CURRENT_DATE - INTERVAL '6 days'
+        GROUP BY DATE(order_date)
+        ORDER BY date ASC
+      `;
+    }
+
+    // Parallel dynamic calculations from raw tables
     const [
       salesRes,
       ordersCountRes,
@@ -44,17 +88,8 @@ export async function GET(request: Request) {
       // Total Return Loss (Aggregated damage/shipping losses)
       sql`SELECT COALESCE(SUM(total_loss), 0) as total FROM returns WHERE account_id = ${accountId} AND is_deleted = false`,
       
-      // Daily Sales Trend with Order Count
-      sql`
-        SELECT 
-          DATE(order_date) as date, 
-          SUM(total_amount)::numeric as revenue,
-          COUNT(id)::int as orders
-        FROM orders 
-        WHERE account_id = ${accountId} AND is_deleted = false
-        GROUP BY DATE(order_date)
-        ORDER BY date ASC
-      `,
+      // Dynamic Sales Trend based on range
+      trendQuery,
       
       // Platform Breakdown for Orders
       sql`
@@ -92,7 +127,7 @@ export async function GET(request: Request) {
     const returnLoss = Number(returnLossRes[0]?.total || 0);
     const netProfit = totalSales - cogs - returnLoss;
 
-    // 2. Return percentage relative to total orders (Units ratio)
+    // Return percentage relative to total orders (Units ratio)
     const returnRate = totalOrderUnits > 0 ? (totalReturnsUnits / totalOrderUnits) * 100 : 0;
 
     return NextResponse.json({
