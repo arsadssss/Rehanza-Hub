@@ -44,47 +44,46 @@ const KpiCard = ({
     isTrendUp?: boolean
 }) => {
     return (
-        <div className="group relative overflow-hidden bg-white/60 dark:bg-slate-900/40 backdrop-blur-2xl rounded-[2.5rem] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-white/50 dark:border-white/5 hover:-translate-y-2 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]">
+        <div className="group relative overflow-hidden bg-white/60 dark:bg-slate-900/40 backdrop-blur-2xl rounded-[2rem] p-6 shadow-[0_10px_40px_rgba(0,0,0,0.04)] border border-white/50 dark:border-white/5 hover:-translate-y-1 transition-all duration-300">
             <div className="flex justify-between items-start relative z-10">
-                <div className="flex-1 space-y-1">
-                    <p className="text-[11px] font-black uppercase tracking-[0.25em] text-muted-foreground/70">{title}</p>
+                <div className="flex-1">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/80 mb-1">{title}</p>
                     {loading ? (
-                        <div className="pt-4 space-y-2">
-                            <Skeleton className="h-10 w-40 bg-muted/40 rounded-xl" />
-                            <Skeleton className="h-4 w-24 bg-muted/30 rounded-lg" />
+                        <div className="pt-2 space-y-2">
+                            <Skeleton className="h-8 w-32 bg-muted/40 rounded-lg" />
+                            <Skeleton className="h-3 w-20 bg-muted/30 rounded-md" />
                         </div>
                     ) : (
-                        <div className="pt-4">
-                            <h2 className="text-4xl font-black font-headline tracking-tighter text-foreground">
+                        <div className="pt-1">
+                            <h2 className="text-3xl font-black font-headline tracking-tighter text-foreground">
                                 {value}
                             </h2>
                             {description && (
-                                <div className="flex items-center gap-1.5 mt-3">
+                                <div className="flex items-center gap-1.5 mt-2">
                                     <div className={cn(
-                                        "flex items-center justify-center w-5 h-5 rounded-full",
+                                        "flex items-center justify-center w-4 h-4 rounded-full",
                                         isTrendUp ? "bg-emerald-500/10 text-emerald-600" : "bg-rose-500/10 text-rose-600"
                                     )}>
-                                        {isTrendUp ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                                        {isTrendUp ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
                                     </div>
-                                    <span className="text-[11px] font-bold text-muted-foreground/80">{description}</span>
+                                    <span className="text-[10px] font-bold text-muted-foreground/70">{description}</span>
                                 </div>
                             )}
                         </div>
                     )}
                 </div>
                 <div className={cn(
-                    "p-5 rounded-[1.75rem] bg-gradient-to-br shadow-2xl transition-all duration-700 group-hover:scale-110 group-hover:rotate-[15deg]", 
-                    gradient,
-                    "shadow-indigo-500/20"
+                    "w-12 h-12 flex items-center justify-center rounded-2xl bg-gradient-to-br shadow-lg transition-all duration-500 group-hover:scale-110 group-hover:rotate-6", 
+                    gradient
                 )}>
-                    <Icon className="h-7 w-7 text-white" strokeWidth={2.5} />
+                    <Icon className="h-5 w-5 text-white" strokeWidth={2.5} />
                 </div>
             </div>
             
             {/* Background decorative elements */}
-            <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:bg-white/20 transition-colors duration-700" />
+            <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-24 h-24 bg-white/5 rounded-full blur-2xl group-hover:bg-white/10 transition-colors duration-500" />
             <div className={cn(
-                "absolute -bottom-8 -left-8 w-24 h-24 blur-3xl opacity-20 rounded-full transition-opacity duration-700",
+                "absolute -bottom-10 -left-10 w-20 h-20 blur-3xl opacity-10 rounded-full transition-opacity duration-500",
                 gradient.includes('violet') ? 'bg-indigo-500' : 
                 gradient.includes('blue') ? 'bg-cyan-500' :
                 gradient.includes('orange') ? 'bg-rose-500' : 'bg-emerald-500'
@@ -189,7 +188,7 @@ export default function AnalyticsPage() {
             <p className="text-muted-foreground font-medium mt-1">Advanced operational report and performance summary.</p>
         </div>
 
-        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
             <KpiCard 
                 title="Total Sales" 
                 value={isMounted ? formatINR(totalSales) : '...'} 
