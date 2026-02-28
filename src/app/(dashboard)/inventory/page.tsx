@@ -1,16 +1,17 @@
 "use client"
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { formatINR } from '@/lib/format';
 import { useRouter } from 'next/navigation';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Input } from '@/components/ui/input';
 import { InventoryValueCard } from '@/components/InventoryValueCard';
 import { apiFetch } from '@/lib/apiFetch';
-import { ShoppingCart, Undo2, ArrowUpRight, PackageSearch } from 'lucide-react';
+import { ShoppingCart, Undo2, ArrowUpRight, PackageSearch, Search } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 type InventoryItem = {
@@ -27,6 +28,7 @@ type InventoryItem = {
 export default function InventoryPage() {
   const [data, setData] = useState<{ inventoryInvestment: number; items: InventoryItem[] } | null>(null);
   const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
   const router = useRouter();
 
@@ -58,6 +60,17 @@ export default function InventoryPage() {
     fetchData();
   }, [toast]);
 
+  const filteredItems = useMemo(() => {
+    if (!data?.items) return [];
+    if (!searchTerm.trim()) return data.items;
+    
+    const query = searchTerm.toLowerCase();
+    return data.items.filter(item => 
+      item.sku.toLowerCase().includes(query) || 
+      item.productName.toLowerCase().includes(query)
+    );
+  }, [data?.items, searchTerm]);
+
   const getStockColorClass = (stock: number, threshold: number) => {
     if (stock === 0) return "border-red-500 text-red-600 bg-red-50 dark:bg-red-950/20";
     if (stock <= threshold) return "border-amber-500 text-amber-600 bg-amber-50 dark:bg-amber-950/20";
@@ -79,11 +92,21 @@ export default function InventoryPage() {
         )}
       </div>
 
-      <div className="space-y-4">
-        <div className="flex items-center justify-between">
+      <div className="space-y-6">
+        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
           <div>
             <h2 className="text-2xl font-bold font-headline tracking-tight">Stock Summary</h2>
             <p className="text-sm text-muted-foreground">Track inventory health and SKU performance.</p>
+          </div>
+          
+          <div className="relative w-full md:w-80">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input 
+              placeholder="Search SKU, Product Name..." 
+              className="pl-10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm border-border/50 focus-visible:ring-primary/20"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
           </div>
         </div>
 
@@ -92,8 +115,8 @@ export default function InventoryPage() {
             Array.from({ length: 6 }).map((_, i) => (
               <Skeleton key={i} className="h-48 w-full rounded-2xl" />
             ))
-          ) : data?.items && data.items.length > 0 ? (
-            data.items.map((item) => (
+          ) : filteredItems.length > 0 ? (
+            filteredItems.map((item) => (
               <Card key={item.id} className="group overflow-hidden rounded-2xl shadow-sm hover:shadow-md transition-all border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-sm">
                 <CardContent className="p-6">
                   {/* Header: SKU & Stock Circle */}
@@ -146,7 +169,7 @@ export default function InventoryPage() {
                       className="w-full text-xs font-bold rounded-xl h-9 hover:bg-primary hover:text-primary-foreground group/btn"
                       onClick={() => router.push(`/products?tab=variants&search=${item.sku}`)}
                     >
-                      Explore SKU <ArrowUpRight className="ml-2 h-3.5 w-3.5 transition-transform group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5" />
+                      Update Stock <ArrowUpRight className="ml-2 h-3.5 w-3.5 transition-transform group-hover/btn:translate-x-0.5 group-hover/btn:-translate-y-0.5" />
                     </Button>
                   </div>
                 </CardContent>
@@ -155,8 +178,8 @@ export default function InventoryPage() {
           ) : (
             <div className="col-span-full py-20 flex flex-col items-center justify-center text-muted-foreground opacity-50">
               <PackageSearch className="h-16 w-16 mb-4" />
-              <p className="text-xl font-headline">No inventory data found</p>
-              <p className="text-sm">Start by adding products and stock variants.</p>
+              <p className="text-xl font-headline">{searchTerm ? "No matches found" : "No inventory data found"}</p>
+              <p className="text-sm">{searchTerm ? "Try a different SKU or product name." : "Start by adding products and stock variants."}</p>
             </div>
           )}
         </div>
