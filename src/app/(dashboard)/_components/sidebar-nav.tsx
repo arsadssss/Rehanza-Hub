@@ -89,10 +89,10 @@ export function SidebarNav() {
   const firstLetter = userName.charAt(0).toUpperCase();
 
   return (
-    <Sidebar className="border-none bg-gradient-to-b from-[#1E1B4B] via-[#1E293B] to-[#0F172A] text-slate-300 shadow-2xl">
+    <Sidebar className="border-none bg-black/40 backdrop-blur-2xl text-white/70 shadow-2xl">
       <SidebarHeader className="p-8">
         <div className="flex items-center gap-3 px-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500 shadow-lg shadow-indigo-500/20">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/10 shadow-lg border border-white/10">
             <Package className="h-6 w-6 text-white" />
           </div>
           <h1 className="text-xl font-bold text-white tracking-tight font-headline">
@@ -102,7 +102,7 @@ export function SidebarNav() {
 
         {/* Account Switcher */}
         <div className="mt-8 px-2 relative group">
-          <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-slate-400">
+          <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-white/40">
             <ChevronDown className="h-4 w-4" />
           </div>
           <select
@@ -112,11 +112,11 @@ export function SidebarNav() {
               setSelectedAccount(e.target.value);
               window.location.reload();
             }}
-            className="w-full appearance-none rounded-xl bg-white/5 border border-white/10 p-3 pr-10 text-xs font-medium text-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500/20 transition-all cursor-pointer hover:bg-white/10"
+            className="w-full appearance-none rounded-xl bg-white/5 border border-white/10 p-3 pr-10 text-xs font-medium text-white/80 focus:outline-none focus:ring-2 focus:ring-white/20 transition-all cursor-pointer hover:bg-white/10"
           >
-            {accounts.length === 0 && <option value="" className="bg-[#0F172A]">Loading accounts...</option>}
+            {accounts.length === 0 && <option value="" className="bg-slate-900">Loading accounts...</option>}
             {accounts.map((acc) => (
-              <option key={acc.id} value={acc.id} className="bg-[#0F172A] text-white">
+              <option key={acc.id} value={acc.id} className="bg-slate-900 text-white">
                 {acc.name}
               </option>
             ))}
@@ -136,13 +136,13 @@ export function SidebarNav() {
                   className={cn(
                     "flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-medium transition-all duration-200 ease-in-out group",
                     isActive 
-                      ? "bg-gradient-to-r from-indigo-500 to-purple-500 text-white shadow-lg shadow-indigo-500/40 animate-glow" 
-                      : "text-slate-300 hover:bg-white/10 hover:text-white hover:translate-x-1"
+                      ? "bg-white/15 text-white shadow-lg backdrop-blur-md border border-white/10" 
+                      : "text-white/70 hover:bg-white/10 hover:text-white hover:translate-x-1"
                   )}
                 >
                   <item.icon className={cn(
                     "h-5 w-5 transition-colors",
-                    isActive ? "text-white" : "text-slate-400 group-hover:text-white"
+                    isActive ? "text-white" : "text-white/60 group-hover:text-white"
                   )} />
                   <span>{item.label}</span>
                 </Link>
@@ -163,7 +163,7 @@ export function SidebarNav() {
             <span className="text-sm font-semibold text-white truncate">
               {userName}
             </span>
-            <span className="text-[10px] text-slate-400 uppercase tracking-widest font-bold">
+            <span className="text-[10px] text-white/40 uppercase tracking-widest font-bold">
               {session?.user?.role || 'Member'}
             </span>
           </div>

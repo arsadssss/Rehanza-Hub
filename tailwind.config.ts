@@ -76,14 +76,6 @@ export default {
         '2xl': 'calc(var(--radius) + 4px)', // For rounded-2xl cards
       },
       keyframes: {
-        glowPulse: {
-          '0%, 100%': {
-            boxShadow: '0 0 15px rgba(99,102,241,0.4)'
-          },
-          '50%': {
-            boxShadow: '0 0 25px rgba(139,92,246,0.6)'
-          }
-        },
         'accordion-down': {
           from: {
             height: '0',
@@ -102,7 +94,6 @@ export default {
         },
       },
       animation: {
-        glow: 'glowPulse 2.5s ease-in-out infinite',
         'accordion-down': 'accordion-down 0.2s ease-out',
         'accordion-up': 'accordion-up 0.2s ease-out',
       },
