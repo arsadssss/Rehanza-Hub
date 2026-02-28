@@ -12,6 +12,7 @@ import { apiFetch } from '@/lib/apiFetch';
 import { TaskPerformanceCard, type TrackRecordEntry } from '@/components/TaskPerformanceCard';
 import { SalesSummaryCards } from '@/components/SalesSummaryCards';
 import { AnalyticsSection } from '@/components/AnalyticsSection';
+import { SalesKpiSection } from '@/components/SalesKpiSection';
 
 export default function DashboardPage() {
   const { toast } = useToast();
@@ -90,17 +91,17 @@ export default function DashboardPage() {
 
   return (
     <div className="p-6 md:p-8 space-y-8 bg-gray-50/50 dark:bg-black/50">
-      {/* 1. Sales summary cards (Total Sales, Orders, Returns, Net Profit) */}
-      <SalesSummaryCards 
-        totalSales={salesData?.totalSales || 0}
-        totalOrders={salesData?.totalOrders || 0}
-        totalReturns={salesData?.totalReturns || 0}
-        netProfit={salesData?.netProfit || 0}
-        loading={loadingAnalytics}
+      {/* 1. Sales Intelligence KPI Section */}
+      <SalesKpiSection 
+        totalUnits={summary?.total_units || 0}
+        grossRevenue={summary?.gross_revenue || 0}
+        netProfit={summary?.net_profit || 0}
+        returnRate={summary?.return_rate || 0}
+        loading={loading}
       />
 
-       {/* 2. Vendor + Inventory summary cards (Due, Investment) */}
-       <div className="grid gap-6 md:grid-cols-2">
+      {/* 2. Vendor + Inventory summary cards (Due, Investment) */}
+      <div className="grid gap-6 md:grid-cols-2">
         <div className="bg-gradient-to-r from-red-500 to-orange-600 text-white rounded-2xl p-6 shadow-lg">
           {loading ? <Skeleton className="h-20 w-full bg-white/20" /> : (
             <div className="flex items-center justify-between">
@@ -125,7 +126,16 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 3. Analytics Section (Trends + Platform Distribution) */}
+      {/* 3. Sales Summary Cards (Legacy Drill-down metrics) */}
+      <SalesSummaryCards 
+        totalSales={salesData?.totalSales || 0}
+        totalOrders={salesData?.totalOrders || 0}
+        totalReturns={salesData?.totalReturns || 0}
+        netProfit={salesData?.netProfit || 0}
+        loading={loadingAnalytics}
+      />
+
+      {/* 4. Analytics Section (Trends + Platform Distribution) */}
       <AnalyticsSection 
         salesTrendRaw={salesData?.salesTrend || []}
         platformBreakdownRaw={salesData?.platformOrders?.breakdown || []}
@@ -135,10 +145,10 @@ export default function DashboardPage() {
         loading={loadingAnalytics}
       />
 
-      {/* 4. Task Performance section */}
+      {/* 5. Task Performance section */}
       <TaskPerformanceCard data={trackRecord} loading={loadingTrackRecord} title="Task Performance" />
       
-      {/* 5. Recent Orders Table */}
+      {/* 6. Recent Orders Table */}
       <Card className="rounded-2xl shadow-md border-0">
         <CardHeader><CardTitle>Recent Orders</CardTitle></CardHeader>
         <CardContent>
