@@ -90,6 +90,7 @@ function ProductsContent() {
   const [summary, setSummary] = useState<any>(null);
   const [pagination, setPagination] = useState({ total: 0, totalPages: 0 });
   const [loading, setLoading] = useState(true);
+  const [outOfStockVariantCount, setOutOfStockVariantCount] = useState(0);
   
   // UI State
   const [searchTerm, setSearchTerm] = useState(search);
@@ -136,7 +137,16 @@ function ProductsContent() {
       const sRes = await apiFetch('/api/products/summary');
       if (sRes.ok) setSummary(await sRes.json());
 
-      // 2. Main Data based on View
+      // 2. Fetch Global Out of Stock Variants Count (Unique variant_sku where stock is 0)
+      // We use a high limit to get all OOS variants for unique counting
+      const oosRes = await apiFetch('/api/variants?health=out_of_stock&limit=1000');
+      if (oosRes.ok) {
+        const oosJson = await oosRes.json();
+        const uniqueSkus = new Set((oosJson.data || []).map((v: any) => v.variant_sku)).size;
+        setOutOfStockVariantCount(uniqueSkus);
+      }
+
+      // 3. Main Data based on View
       if (view === 'products') {
         const params = new URLSearchParams({
           page: page.toString(),
@@ -224,11 +234,6 @@ function ProductsContent() {
     router.push(`?tab=${view}`);
   };
 
-  // Compute out of stock count for the current visible items
-  const outOfStockPageCount = view === 'products' 
-    ? products.filter(p => p.total_stock === 0).length 
-    : variants.filter(v => v.stock === 0).length;
-
   return (
     <div className="p-6 w-full space-y-6">
       <AddProductModal 
@@ -283,7 +288,7 @@ function ProductsContent() {
         <SummaryStatCard title="Products In Stock" value={summary?.inStockProducts || 0} icon={<ShoppingCart className="h-5 w-5" />} loading={loading} />
         <SummaryStatCard title="Out of Stock" value={summary?.outOfStockProducts || 0} icon={<Ban className="h-5 w-5" />} loading={loading} />
         <SummaryStatCard title="Inventory Units" value={summary?.totalInventoryUnits || 0} icon={<Warehouse className="h-5 w-5" />} loading={loading} />
-        <SummaryStatCard title="OUT OF STOCK SKUs" value={outOfStockPageCount} icon={<AlertCircle className="h-5 w-5" />} loading={loading} />
+        <SummaryStatCard title="OUT OF STOCK SKUs" value={outOfStockVariantCount} icon={<AlertCircle className="h-5 w-5" />} loading={loading} />
       </div>
 
       <Card className="w-full shadow-md border-0">
