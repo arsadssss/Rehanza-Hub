@@ -90,7 +90,17 @@ export default function DashboardPage() {
 
   return (
     <div className="p-6 md:p-8 space-y-8 bg-gray-50/50 dark:bg-black/50">
-       {/* 1. Vendor + Inventory summary cards */}
+      {/* 1. Analytics Section (Trends + Platform Distribution) */}
+      <AnalyticsSection 
+        salesTrendRaw={salesData?.salesTrend || []}
+        platformBreakdownRaw={salesData?.platformOrders?.breakdown || []}
+        totalPlatformOrders={salesData?.platformOrders?.totalOrders || 0}
+        timeRange={timeRange}
+        onTimeRangeChange={setTimeRange}
+        loading={loadingAnalytics}
+      />
+
+       {/* 2. Vendor + Inventory summary cards */}
        <div className="grid gap-6 md:grid-cols-2">
         <div className="bg-gradient-to-r from-red-500 to-orange-600 text-white rounded-2xl p-6 shadow-lg">
           {loading ? <Skeleton className="h-20 w-full bg-white/20" /> : (
@@ -116,20 +126,7 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 2. Analytics Section (Trends + Platform Distribution) */}
-      <AnalyticsSection 
-        salesTrendRaw={salesData?.salesTrend || []}
-        platformBreakdownRaw={salesData?.platformOrders?.breakdown || []}
-        totalPlatformOrders={salesData?.platformOrders?.totalOrders || 0}
-        timeRange={timeRange}
-        onTimeRangeChange={setTimeRange}
-        loading={loadingAnalytics}
-      />
-
-      {/* 3. Task Performance section */}
-      <TaskPerformanceCard data={trackRecord} loading={loadingTrackRecord} title="Task Performance" />
-      
-      {/* 4. Sales summary cards */}
+      {/* 3. Sales summary cards */}
       <SalesSummaryCards 
         totalSales={salesData?.totalSales || 0}
         totalOrders={salesData?.totalOrders || 0}
@@ -138,6 +135,9 @@ export default function DashboardPage() {
         loading={loadingAnalytics}
       />
 
+      {/* 4. Task Performance section */}
+      <TaskPerformanceCard data={trackRecord} loading={loadingTrackRecord} title="Task Performance" />
+      
       {/* 5. Recent Orders Table */}
       <Card className="rounded-2xl shadow-md border-0">
         <CardHeader><CardTitle>Recent Orders</CardTitle></CardHeader>
