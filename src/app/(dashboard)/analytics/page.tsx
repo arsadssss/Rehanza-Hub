@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { useEffect, useState } from 'react';
@@ -20,24 +21,74 @@ import {
   ChartContainer,
   ChartTooltipContent,
 } from '@/components/ui/chart';
-import { DollarSign, ShoppingCart, Undo2, TrendingUp, ArrowUpRight, ChevronRight } from 'lucide-react';
+import { DollarSign, ShoppingCart, Undo2, TrendingUp, TrendingDown, ArrowUpRight, ChevronRight, Sparkles } from 'lucide-react';
 import { formatINR } from '@/lib/format';
 import { apiFetch } from '@/lib/apiFetch';
+import { cn } from '@/lib/utils';
 
-const KpiCard = ({ title, value, icon: Icon, loading, gradient }: { title: string, value: string, icon: React.ElementType, loading: boolean, gradient: string }) => {
+const KpiCard = ({ 
+    title, 
+    value, 
+    icon: Icon, 
+    loading, 
+    gradient, 
+    description,
+    isTrendUp 
+}: { 
+    title: string, 
+    value: string, 
+    icon: React.ElementType, 
+    loading: boolean, 
+    gradient: string,
+    description?: string,
+    isTrendUp?: boolean
+}) => {
     return (
-        <div className={`bg-white/40 dark:bg-black/20 backdrop-blur-lg rounded-3xl p-6 shadow-xl border border-white/30 dark:border-white/10 hover:-translate-y-1 transition-transform duration-300`}>
-            <div className="flex justify-between items-start text-black dark:text-white">
-                <div className="flex-1">
-                    <p className="font-bold text-lg">{title}</p>
-                    {loading ? <Skeleton className="h-12 w-3/4 mt-2 bg-black/10 dark:bg-white/10" /> : (
-                        <p className="font-headline text-5xl font-bold mt-2">{value}</p>
+        <div className="group relative overflow-hidden bg-white/60 dark:bg-slate-900/40 backdrop-blur-2xl rounded-[2.5rem] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-white/50 dark:border-white/5 hover:-translate-y-2 transition-all duration-500 ease-[cubic-bezier(0.34,1.56,0.64,1)]">
+            <div className="flex justify-between items-start relative z-10">
+                <div className="flex-1 space-y-1">
+                    <p className="text-[11px] font-black uppercase tracking-[0.25em] text-muted-foreground/70">{title}</p>
+                    {loading ? (
+                        <div className="pt-4 space-y-2">
+                            <Skeleton className="h-10 w-40 bg-muted/40 rounded-xl" />
+                            <Skeleton className="h-4 w-24 bg-muted/30 rounded-lg" />
+                        </div>
+                    ) : (
+                        <div className="pt-4">
+                            <h2 className="text-4xl font-black font-headline tracking-tighter text-foreground">
+                                {value}
+                            </h2>
+                            {description && (
+                                <div className="flex items-center gap-1.5 mt-3">
+                                    <div className={cn(
+                                        "flex items-center justify-center w-5 h-5 rounded-full",
+                                        isTrendUp ? "bg-emerald-500/10 text-emerald-600" : "bg-rose-500/10 text-rose-600"
+                                    )}>
+                                        {isTrendUp ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                                    </div>
+                                    <span className="text-[11px] font-bold text-muted-foreground/80">{description}</span>
+                                </div>
+                            )}
+                        </div>
                     )}
                 </div>
-                <div className={`p-3 rounded-lg bg-gradient-to-br ${gradient}`}>
-                    <Icon className="h-6 w-6 text-white" />
+                <div className={cn(
+                    "p-5 rounded-[1.75rem] bg-gradient-to-br shadow-2xl transition-all duration-700 group-hover:scale-110 group-hover:rotate-[15deg]", 
+                    gradient,
+                    "shadow-indigo-500/20"
+                )}>
+                    <Icon className="h-7 w-7 text-white" strokeWidth={2.5} />
                 </div>
             </div>
+            
+            {/* Background decorative elements */}
+            <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-32 h-32 bg-white/10 rounded-full blur-2xl group-hover:bg-white/20 transition-colors duration-700" />
+            <div className={cn(
+                "absolute -bottom-8 -left-8 w-24 h-24 blur-3xl opacity-20 rounded-full transition-opacity duration-700",
+                gradient.includes('violet') ? 'bg-indigo-500' : 
+                gradient.includes('blue') ? 'bg-cyan-500' :
+                gradient.includes('orange') ? 'bg-rose-500' : 'bg-emerald-500'
+            )} />
         </div>
     );
 };
@@ -132,33 +183,65 @@ export default function AnalyticsPage() {
   } as const;
 
   return (
-    <div className="p-8 space-y-8 bg-gradient-to-br from-gray-100 to-blue-100 dark:from-gray-900 dark:to-slate-800 min-h-full">
+    <div className="p-8 space-y-10 bg-gray-50/50 dark:bg-black/50 min-h-full">
         <div>
-            <h1 className="text-3xl font-bold tracking-tight">Sales Report</h1>
-            <p className="text-muted-foreground">Here's a summary of your sales performance.</p>
+            <h1 className="text-4xl font-black tracking-tighter font-headline">Sales Intelligence</h1>
+            <p className="text-muted-foreground font-medium mt-1">Advanced operational report and performance summary.</p>
         </div>
 
-        <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-            <KpiCard title="Total Sales" value={isMounted ? formatINR(totalSales) : '...'} icon={DollarSign} loading={loading} gradient="from-purple-400 to-indigo-500" />
-            <KpiCard title="Total Orders" value={isMounted ? totalOrders.toLocaleString('en-IN') : '...'} icon={ShoppingCart} loading={loading} gradient="from-cyan-400 to-blue-500" />
-            <KpiCard title="Total Returns" value={isMounted ? totalReturns.toLocaleString('en-IN') : '...'} icon={Undo2} loading={loading} gradient="from-amber-500 to-orange-500" />
-            <KpiCard title="Net Profit" value={isMounted ? formatINR(netProfit) : '...'} icon={TrendingUp} loading={loading} gradient="from-emerald-500 to-green-500" />
+        <div className="grid gap-8 md:grid-cols-2 lg:grid-cols-4">
+            <KpiCard 
+                title="Total Sales" 
+                value={isMounted ? formatINR(totalSales) : '...'} 
+                icon={Sparkles} 
+                loading={loading} 
+                gradient="from-violet-500 to-indigo-600" 
+                description="Cumulative revenue"
+                isTrendUp={true}
+            />
+            <KpiCard 
+                title="Total Orders" 
+                value={isMounted ? totalOrders.toLocaleString('en-IN') : '...'} 
+                icon={ShoppingCart} 
+                loading={loading} 
+                gradient="from-blue-400 to-cyan-500" 
+                description="Orders processed"
+                isTrendUp={true}
+            />
+            <KpiCard 
+                title="Total Returns" 
+                value={isMounted ? totalReturns.toLocaleString('en-IN') : '...'} 
+                icon={Undo2} 
+                loading={loading} 
+                gradient="from-orange-400 to-rose-500" 
+                description="Inbound units"
+                isTrendUp={false}
+            />
+            <KpiCard 
+                title="Net Profit" 
+                value={isMounted ? formatINR(netProfit) : '...'} 
+                icon={netProfit >= 0 ? TrendingUp : TrendingDown} 
+                loading={loading} 
+                gradient={netProfit >= 0 ? "from-emerald-400 to-teal-600" : "from-rose-400 to-red-600"} 
+                description={netProfit >= 0 ? "Profit margin reached" : "Loss margin detected"}
+                isTrendUp={netProfit >= 0}
+            />
         </div>
 
-        <div className="grid grid-cols-1 lg:grid-cols-5 gap-6">
-            <div className="lg:col-span-3 bg-white/40 dark:bg-black/20 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/30 dark:border-white/10 text-black dark:text-white transition-all duration-500 hover:shadow-indigo-500/5 hover:-translate-y-1">
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
+            <div className="lg:col-span-3 bg-white/40 dark:bg-black/20 backdrop-blur-xl rounded-[2.5rem] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-white/30 dark:border-white/10 text-black dark:text-white transition-all duration-500 hover:shadow-indigo-500/5">
                 <div className="flex justify-between items-center mb-8">
                     <div>
-                        <h3 className="font-bold text-2xl tracking-tight">Daily Revenue Trend</h3>
-                        <p className="text-sm opacity-60">Revenue growth over the past month</p>
+                        <h3 className="font-black text-2xl tracking-tight font-headline">Daily Revenue Trend</h3>
+                        <p className="text-sm opacity-60 font-medium">Revenue and volume performance over time</p>
                     </div>
-                    <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold">
+                    <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-black uppercase tracking-wider">
                         <TrendingUp className="h-3 w-3" />
-                        Live tracking
+                        Live Tracking
                     </div>
                 </div>
                 <div className="h-[350px] w-full">
-                    {loading ? <Skeleton className="h-full w-full bg-black/10 dark:bg-white/10 rounded-2xl" /> : (
+                    {loading ? <Skeleton className="h-full w-full bg-black/5 dark:bg-white/5 rounded-3xl" /> : (
                         <ResponsiveContainer width="100%" height={300}>
                             <AreaChart
                                 data={salesTrend}
@@ -166,36 +249,36 @@ export default function AnalyticsPage() {
                             >
                                 <defs>
                                     <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
-                                        <stop offset="5%" stopColor="#4f46e5" stopOpacity={0.3}/>
-                                        <stop offset="95%" stopColor="#4f46e5" stopOpacity={0}/>
+                                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
+                                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
                                     </linearGradient>
                                 </defs>
                                 <CartesianGrid strokeDasharray="3 3" vertical={false} stroke={"rgba(0,0,0,0.05)"} />
                                 <XAxis
                                     dataKey="label"
-                                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))", fontWeight: 600 }}
+                                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))", fontWeight: 700 }}
                                     axisLine={false}
                                     tickLine={false}
                                     dy={10}
                                 />
                                 <YAxis
-                                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))", fontWeight: 600 }}
+                                    tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))", fontWeight: 700 }}
                                     axisLine={false}
                                     tickLine={false}
                                     tickFormatter={(value) => `₹${value >= 1000 ? (value/1000).toFixed(0) + 'k' : value}`}
                                 />
                                 <Tooltip
                                     content={<SalesTooltip />}
-                                    cursor={{ stroke: '#4f46e5', strokeWidth: 2, strokeDasharray: '5 5' }}
+                                    cursor={{ stroke: '#6366f1', strokeWidth: 2, strokeDasharray: '5 5' }}
                                 />
                                 <Area
                                     type="monotone"
                                     dataKey="total_sales"
-                                    stroke="#4f46e5"
+                                    stroke="#6366f1"
                                     strokeWidth={4}
                                     fillOpacity={1}
                                     fill="url(#colorSales)"
-                                    activeDot={{ r: 8, strokeWidth: 0, fill: '#4f46e5' }}
+                                    activeDot={{ r: 8, strokeWidth: 0, fill: '#6366f1' }}
                                     animationDuration={2500}
                                 />
                             </AreaChart>
@@ -204,17 +287,17 @@ export default function AnalyticsPage() {
                 </div>
             </div>
 
-            <div className="lg:col-span-2 bg-white/40 dark:bg-black/20 backdrop-blur-xl rounded-3xl p-8 shadow-2xl border border-white/30 dark:border-white/10 text-black dark:text-white">
+            <div className="lg:col-span-2 bg-white/40 dark:bg-black/20 backdrop-blur-xl rounded-[2.5rem] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-white/30 dark:border-white/10 text-black dark:text-white">
                 <div className="flex justify-between items-center mb-6">
-                    <h3 className="font-bold text-xl">Platform Distribution</h3>
-                    <a href="#" className="text-xs font-bold opacity-70 flex items-center gap-1 hover:opacity-100 transition-opacity">Full View <ArrowUpRight className="h-3 w-3" /></a>
+                    <h3 className="font-black text-xl font-headline">Platform Distribution</h3>
+                    <a href="#" className="text-xs font-black uppercase tracking-wider opacity-70 flex items-center gap-1 hover:opacity-100 transition-opacity">Full View <ArrowUpRight className="h-3 w-3" /></a>
                 </div>
-                {loading ? <Skeleton className="h-[350px] w-full bg-black/10 dark:bg-white/10 mt-4 rounded-2xl" /> : (
+                {loading ? <Skeleton className="h-[350px] w-full bg-black/5 dark:bg-white/5 mt-4 rounded-3xl" /> : (
                     <div className="flex flex-col items-center gap-4 mt-4">
                         <div className="w-full h-[250px] relative">
                             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-center pointer-events-none">
                                 <p className="text-4xl font-black">{totalPlatformOrders}</p>
-                                <p className="text-[10px] font-bold uppercase tracking-widest opacity-50">Total Orders</p>
+                                <p className="text-[10px] font-black uppercase tracking-widest opacity-50">Total Orders</p>
                             </div>
                             <ChartContainer config={platformChartConfig} className="h-full w-full">
                                 <ResponsiveContainer>
@@ -240,12 +323,12 @@ export default function AnalyticsPage() {
                             </ChartContainer>
                         </div>
                         <div className="w-full">
-                            <ul className="flex flex-wrap justify-center items-center gap-x-6 gap-y-2">
+                            <ul className="flex flex-wrap justify-center items-center gap-x-6 gap-y-3">
                                 {platformBreakdown.map((platform) => (
                                     <li key={platform.name} className="flex items-center justify-start text-sm">
                                       <div className="flex items-center gap-2">
-                                          <span style={{ backgroundColor: platformChartConfig[platform.name as keyof typeof platformChartConfig]?.color }} className="h-2.5 w-2.5 rounded-full" />
-                                          <span className="text-xs font-medium">{platform.name} — <span className="font-bold">{platform.value}</span></span>
+                                          <span style={{ backgroundColor: platformChartConfig[platform.name as keyof typeof platformChartConfig]?.color }} className="h-3 w-3 rounded-lg shadow-lg" />
+                                          <span className="text-[11px] font-bold uppercase tracking-wider">{platform.name} — <span className="font-black text-xs">{platform.value}</span></span>
                                       </div>
                                     </li>
                                 ))}
