@@ -12,11 +12,14 @@ export async function GET(request: Request) {
 
     // 1. Calculate Inventory Investment Value Dynamically
     // Sum of (Variant Stock * Product Cost Price)
+    // CRITICAL: We must exclude soft-deleted variants and products
     const investmentRes = await sql`
       SELECT COALESCE(SUM(pv.stock * ap.cost_price), 0)::numeric as investment
       FROM product_variants pv
       JOIN allproducts ap ON pv.product_id = ap.id
       WHERE pv.account_id = ${accountId}
+      AND pv.is_deleted = false
+      AND ap.is_deleted = false
     `;
     const inventoryInvestment = Number(investmentRes[0]?.investment || 0);
 
@@ -47,6 +50,8 @@ export async function GET(request: Request) {
         GROUP BY variant_id
       ) ret ON pv.id = ret.variant_id
       WHERE pv.account_id = ${accountId}
+      AND pv.is_deleted = false
+      AND ap.is_deleted = false
       ORDER BY ap.product_name ASC, pv.variant_sku ASC
     `;
 

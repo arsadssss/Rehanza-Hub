@@ -42,6 +42,8 @@ export default function InventoryPage() {
             inventoryInvestment: json.inventoryInvestment,
             items: json.items
           });
+          // Temporary debug logging as requested
+          console.log("Calculated Inventory Value:", json.inventoryInvestment);
         }
       } catch (error: any) {
         toast({ 
