@@ -5,15 +5,11 @@ export const revalidate = 0;
 
 /**
  * GET /api/tasks/track-record
- * Aggregates task statistics by user for the active account.
+ * Aggregates task statistics by user.
+ * Note: Tasks are global in this implementation to match the main Tasks API.
  */
-export async function GET(request: Request) {
+export async function GET() {
   try {
-    const accountId = request.headers.get("x-account-id");
-    if (!accountId) {
-      return NextResponse.json({ success: false, message: "Account context missing" }, { status: 400 });
-    }
-
     // Aggregating performance metrics per user
     // We join with the users table to get display names
     const rows = await sql`
@@ -26,7 +22,7 @@ export async function GET(request: Request) {
         COUNT(t.id) FILTER (WHERE t.status = 'Completed')::int AS completed
       FROM tasks t
       JOIN users u ON t.created_by = u.id
-      WHERE t.account_id = ${accountId} AND t.is_deleted = false
+      WHERE t.is_deleted = false
       GROUP BY u.name, t.created_by
       ORDER BY total_tasks DESC;
     `;
