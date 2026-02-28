@@ -7,63 +7,10 @@ import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Package, CircleDollarSign, TrendingUp, Undo2, Wallet, Archive } from 'lucide-react';
-import { cn } from '@/lib/utils';
+import { TrendingUp, Wallet, Archive } from 'lucide-react';
 import { apiFetch } from '@/lib/apiFetch';
 import { TaskPerformanceCard, type TrackRecordEntry } from '@/components/TaskPerformanceCard';
-
-const KpiCard = ({ title, value, icon: Icon, gradient, loading }: { title: string; value: string; icon: React.ElementType; gradient: string; loading: boolean }) => (
-    <Card className={cn('text-white shadow-lg rounded-2xl border-0 overflow-hidden bg-gradient-to-br', gradient)}>
-        {loading ? (
-            <div className="p-6 flex items-center justify-between">
-                <div>
-                    <Skeleton className="h-5 w-32 bg-white/20" />
-                    <Skeleton className="h-10 w-40 mt-2 bg-white/20" />
-                </div>
-                <div className="p-3 bg-white/20 rounded-full opacity-20">
-                   <Icon className="h-6 w-6 text-white" />
-                </div>
-            </div>
-        ) : (
-            <div className="p-6 flex items-center justify-between">
-                <div>
-                    <h3 className="text-sm font-medium uppercase tracking-wider">{title}</h3>
-                    <p className="text-4xl font-bold font-headline mt-2">{value}</p>
-                </div>
-                <div className="p-3 bg-white/20 rounded-full">
-                    <Icon className="h-6 w-6 text-white" />
-                </div>
-            </div>
-        )}
-    </Card>
-);
-
-const ReturnRateCard = ({ rate, loading }: { rate: number; loading: boolean }) => {
-  const numericRate = Number(rate) || 0;
-  return (
-    <Card className="text-white shadow-lg rounded-2xl border-0 overflow-hidden bg-gradient-to-br from-amber-500 to-orange-600">
-      {loading ? (
-         <div className="p-6 h-full flex items-center justify-between">
-            <div>
-                <Skeleton className="h-5 w-32 bg-white/20" />
-                <Skeleton className="h-10 w-24 mt-2 bg-white/20" />
-            </div>
-            <Skeleton className="h-24 w-24 rounded-full bg-white/20" />
-          </div>
-      ) : (
-        <div className="p-6 h-full flex items-center justify-between">
-          <div className="flex-1">
-            <h3 className="text-sm font-medium uppercase tracking-wider">Return Rate</h3>
-            <p className="text-4xl font-bold font-headline mt-2">{numericRate.toFixed(1)}%</p>
-          </div>
-          <div className="relative w-24 h-24 flex items-center justify-center">
-             <Undo2 className="h-10 w-10 text-white/90" />
-          </div>
-        </div>
-      )}
-    </Card>
-  );
-};
+import { SalesSummaryCards } from '@/components/SalesSummaryCards';
 
 const PlatformPerformanceCard = ({ platform, revenue, units, loading, totalUnits }: { platform: 'Meesho' | 'Flipkart' | 'Amazon', revenue: number, units: number, loading: boolean, totalUnits: number }) => {
   const share = totalUnits > 0 ? (units / totalUnits) * 100 : 0;
@@ -91,11 +38,13 @@ const PlatformPerformanceCard = ({ platform, revenue, units, loading, totalUnits
 export default function DashboardPage() {
   const { toast } = useToast();
   const [summary, setSummary] = useState<any>(null);
+  const [salesData, setSalesData] = useState<any>(null);
   const [platformPerformance, setPlatformPerformance] = useState<any[]>([]);
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [trackRecord, setTrackRecord] = useState<TrackRecordEntry[]>([]);
   
   const [loading, setLoading] = useState(true);
+  const [loadingSales, setLoadingSales] = useState(true);
   const [loadingTrackRecord, setLoadingTrackRecord] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
   
@@ -106,12 +55,14 @@ export default function DashboardPage() {
     setIsMounted(true);
     async function fetchData() {
       setLoading(true);
+      setLoadingSales(true);
       setLoadingTrackRecord(true);
       try {
-        const [dashRes, vendorRes, trackRes] = await Promise.all([
+        const [dashRes, vendorRes, trackRes, salesRes] = await Promise.all([
           apiFetch('/api/dashboard'),
           apiFetch('/api/vendors/summary'),
-          apiFetch('/api/tasks/track-record')
+          apiFetch('/api/tasks/track-record'),
+          apiFetch('/api/analytics?range=7d')
         ]);
 
         if (dashRes.ok) {
@@ -131,10 +82,16 @@ export default function DashboardPage() {
           const tData = await trackRes.json();
           setTrackRecord(tData.data || []);
         }
+
+        if (salesRes.ok) {
+          const sData = await salesRes.json();
+          setSalesData(sData);
+        }
       } catch (error: any) {
         toast({ variant: 'destructive', title: 'Error', description: error.message });
       } finally {
         setLoading(false);
+        setLoadingSales(false);
         setLoadingTrackRecord(false);
       }
     }
@@ -173,12 +130,13 @@ export default function DashboardPage() {
       <TaskPerformanceCard data={trackRecord} loading={loadingTrackRecord} title="Task Performance" />
       
       {/* 3. Sales metric cards */}
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-4">
-        <KpiCard title="Total Units Sold" value={loading || !isMounted ? '...' : (summary?.total_units || 0).toLocaleString('en-IN')} icon={Package} gradient="from-purple-500 to-indigo-600" loading={loading} />
-        <KpiCard title="Gross Revenue" value={loading || !isMounted ? '...' : formatINR(summary?.gross_revenue || 0)} icon={CircleDollarSign} gradient="from-cyan-500 to-blue-600" loading={loading} />
-        <KpiCard title="Net Profit" value={loading || !isMounted ? '...' : formatINR(summary?.net_profit || 0)} icon={TrendingUp} gradient="from-emerald-500 to-green-600" loading={loading} />
-        <ReturnRateCard rate={summary?.return_rate || 0} loading={loading} />
-      </div>
+      <SalesSummaryCards 
+        totalSales={salesData?.totalSales || 0}
+        totalOrders={salesData?.totalOrders || 0}
+        totalReturns={salesData?.totalReturns || 0}
+        netProfit={salesData?.netProfit || 0}
+        loading={loadingSales}
+      />
 
       {/* 4. Platform Distribution cards */}
       <div className="grid gap-6 md:grid-cols-3">
