@@ -4,6 +4,7 @@ import React, { useEffect, useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { Skeleton } from '@/components/ui/skeleton';
+import Link from 'next/link';
 import {
   PieChart,
   Pie,
@@ -318,7 +319,7 @@ export default function AnalyticsPage() {
             <div className="lg:col-span-2 bg-white/40 dark:bg-black/20 backdrop-blur-xl rounded-[2.5rem] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-white/30 dark:border-white/10 text-black dark:text-white">
                 <div className="flex justify-between items-center mb-6">
                     <h3 className="font-black text-xl font-headline">Platform Distribution</h3>
-                    <a href="#" className="text-xs font-black uppercase tracking-wider opacity-70 flex items-center gap-1 hover:opacity-100 transition-opacity">Full View <ArrowUpRight className="h-3 w-3" /></a>
+                    <Link href="/orders" className="text-xs font-black uppercase tracking-wider opacity-70 flex items-center gap-1 hover:opacity-100 transition-opacity">Full View <ArrowUpRight className="h-3 w-3" /></Link>
                 </div>
                 {loading ? <Skeleton className="h-[350px] w-full bg-black/5 dark:bg-white/5 mt-4 rounded-3xl" /> : (
                     <div className="flex flex-col items-center gap-4 mt-4">
