@@ -19,7 +19,8 @@ import {
   ChevronLeft, 
   ChevronRight, 
   FilterX, 
-  Archive
+  Archive,
+  AlertCircle
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -223,6 +224,11 @@ function ProductsContent() {
     router.push(`?tab=${view}`);
   };
 
+  // Compute out of stock count for the current visible items
+  const outOfStockPageCount = view === 'products' 
+    ? products.filter(p => p.total_stock === 0).length 
+    : variants.filter(v => v.stock === 0).length;
+
   return (
     <div className="p-6 w-full space-y-6">
       <AddProductModal 
@@ -272,11 +278,12 @@ function ProductsContent() {
         </div>
       </div>
 
-      <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-4 w-full">
+      <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-5 w-full">
         <SummaryStatCard title="Total Products" value={summary?.totalProducts || 0} icon={<Package className="h-5 w-5" />} loading={loading} />
         <SummaryStatCard title="Products In Stock" value={summary?.inStockProducts || 0} icon={<ShoppingCart className="h-5 w-5" />} loading={loading} />
         <SummaryStatCard title="Out of Stock" value={summary?.outOfStockProducts || 0} icon={<Ban className="h-5 w-5" />} loading={loading} />
         <SummaryStatCard title="Inventory Units" value={summary?.totalInventoryUnits || 0} icon={<Warehouse className="h-5 w-5" />} loading={loading} />
+        <SummaryStatCard title="OUT OF STOCK SKUs" value={outOfStockPageCount} icon={<AlertCircle className="h-5 w-5" />} loading={loading} />
       </div>
 
       <Card className="w-full shadow-md border-0">
