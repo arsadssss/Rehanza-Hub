@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { useEffect, useState, useCallback, Suspense } from 'react';
@@ -20,7 +21,8 @@ import {
   ChevronRight, 
   FilterX, 
   Archive,
-  AlertCircle
+  AlertCircle,
+  FileUp
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -41,6 +43,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AddProductModal } from './components/add-product-modal';
 import { AddVariantModal } from './components/add-variant-modal';
 import { EditVariantModal } from './components/edit-variant-modal';
+import { BulkUploadProductsModal } from './components/bulk-upload-products-modal';
 import { cn } from '@/lib/utils';
 
 export type Product = {
@@ -95,6 +98,7 @@ function ProductsContent() {
   // UI State
   const [searchTerm, setSearchTerm] = useState(search);
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
+  const [isBulkUploadOpen, setIsBulkUploadOpen] = useState(false);
   const [isAddVariantOpen, setIsAddVariantOpen] = useState(false);
   const [productToEdit, setProductToEdit] = useState<Product | null>(null);
   const [variantToEdit, setVariantToEdit] = useState<Variant | null>(null);
@@ -242,6 +246,11 @@ function ProductsContent() {
         onSuccess={fetchData} 
         product={productToEdit} 
       />
+      <BulkUploadProductsModal 
+        isOpen={isBulkUploadOpen}
+        onClose={() => setIsBulkUploadOpen(false)}
+        onSuccess={fetchData}
+      />
       <AddVariantModal 
         isOpen={isAddVariantOpen} 
         onClose={() => setIsAddVariantOpen(false)} 
@@ -300,9 +309,14 @@ function ProductsContent() {
             </CardTitle>
             <div className="flex items-center gap-2">
               {view === 'products' ? (
-                <Button onClick={() => setIsAddProductOpen(true)}>
-                  <PlusCircle className="mr-2 h-4 w-4" /> Add Product
-                </Button>
+                <>
+                  <Button variant="outline" onClick={() => setIsBulkUploadOpen(true)}>
+                    <FileUp className="mr-2 h-4 w-4" /> Bulk Upload
+                  </Button>
+                  <Button onClick={() => setIsAddProductOpen(true)}>
+                    <PlusCircle className="mr-2 h-4 w-4" /> Add Product
+                  </Button>
+                </>
               ) : (
                 <Button onClick={() => setIsAddVariantOpen(true)}>
                   <PlusCircle className="mr-2 h-4 w-4" /> Add Variant
