@@ -44,6 +44,7 @@ import { AddProductModal } from './components/add-product-modal';
 import { AddVariantModal } from './components/add-variant-modal';
 import { EditVariantModal } from './components/edit-variant-modal';
 import { BulkImportModal } from './components/bulk-import-modal';
+import { BulkImportVariantsModal } from './components/bulk-import-variants-modal';
 import { cn } from '@/lib/utils';
 
 export type Product = {
@@ -100,6 +101,7 @@ function ProductsContent() {
   const [searchTerm, setSearchTerm] = useState(search);
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
   const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
+  const [isBulkImportVariantsOpen, setIsBulkImportVariantsOpen] = useState(false);
   const [isAddVariantOpen, setIsAddVariantOpen] = useState(false);
   const [productToEdit, setProductToEdit] = useState<Product | null>(null);
   const [variantToEdit, setVariantToEdit] = useState<Variant | null>(null);
@@ -258,6 +260,11 @@ function ProductsContent() {
         onClose={() => setIsBulkImportOpen(false)}
         onSuccess={fetchData}
       />
+      <BulkImportVariantsModal
+        isOpen={isBulkImportVariantsOpen}
+        onClose={() => setIsBulkImportVariantsOpen(false)}
+        onSuccess={fetchData}
+      />
       <AddVariantModal 
         isOpen={isAddVariantOpen} 
         onClose={() => setIsAddVariantOpen(false)} 
@@ -325,9 +332,14 @@ function ProductsContent() {
                   </Button>
                 </>
               ) : (
-                <Button onClick={() => setIsAddVariantOpen(true)}>
-                  <PlusCircle className="mr-2 h-4 w-4" /> Add Variant
-                </Button>
+                <>
+                  <Button variant="outline" onClick={() => setIsBulkImportVariantsOpen(true)}>
+                    <FileUp className="mr-2 h-4 w-4" /> Bulk Upload
+                  </Button>
+                  <Button onClick={() => setIsAddVariantOpen(true)}>
+                    <PlusCircle className="mr-2 h-4 w-4" /> Add Variant
+                  </Button>
+                </>
               )}
             </div>
           </div>
