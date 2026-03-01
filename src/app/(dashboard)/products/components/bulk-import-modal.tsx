@@ -1,3 +1,4 @@
+
 "use client"
 
 import * as React from "react"
@@ -152,7 +153,7 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
 
       toast({
         title: "Import Success",
-        description: `Successfully imported ${result.inserted} products.`,
+        description: `${result.inserted} inserted, ${result.updated} updated successfully.`,
       })
       onSuccess()
       handleClose()
@@ -185,7 +186,7 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
             Bulk Product Import
           </DialogTitle>
           <DialogDescription>
-            Upload a CSV file to add multiple products at once. Pricing is automatically calculated.
+            Upload a CSV file to add or update multiple products at once. Pricing is automatically calculated.
           </DialogDescription>
         </DialogHeader>
 

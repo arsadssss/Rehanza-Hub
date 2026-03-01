@@ -15,8 +15,8 @@ const BASE_CHARGES = 45;
 
 /**
  * POST /api/products/bulk-import
- * Decoupled high-performance service for batch product creation.
- * Uses a single database transaction for atomic safety.
+ * Decoupled high-performance service for batch product creation with UPSERT support.
+ * Uses ON CONFLICT to update existing SKUs instead of failing.
  */
 export async function POST(request: Request) {
   try {
@@ -24,7 +24,7 @@ export async function POST(request: Request) {
     const session = await getServerSession(authOptions);
     const accountId = request.headers.get("x-account-id");
 
-    if (!session || !accountId) {
+    if (!session || !session.user?.id || !accountId) {
       return NextResponse.json({ success: false, message: "Unauthorized access or Account ID missing." }, { status: 401 });
     }
 
@@ -34,8 +34,7 @@ export async function POST(request: Request) {
     }
 
     // 2. Data Preparation & Pricing Calculation
-    // We map CSV data to DB schema and apply the brand's financial engine
-    const dataToInsert = products.map(p => {
+    const dataToProcess = products.map(p => {
       const cost = Number(p.cost_price) || 0;
       const margin = Number(p.margin) || 0;
       
@@ -61,32 +60,22 @@ export async function POST(request: Request) {
       };
     });
 
-    // 3. Duplicate Prevention check
-    const skus = dataToInsert.map(d => d.sku);
-    const existing = await sql`
+    // 3. Pre-fetch existing SKUs to classify as "inserted" or "updated"
+    const skus = dataToProcess.map(d => d.sku);
+    const existingRes = await sql`
       SELECT sku FROM allproducts 
       WHERE sku = ANY(${skus}) 
       AND account_id = ${accountId} 
       AND is_deleted = false
     `;
+    const existingSkuSet = new Set(existingRes.map((e: any) => e.sku));
 
-    if (existing.length > 0) {
-      const conflictSkus = existing.map((e: any) => e.sku).join(', ');
-      return NextResponse.json({ 
-        success: false, 
-        message: `Conflict detected. The following SKUs already exist in your account: ${conflictSkus}` 
-      }, { status: 409 });
-    }
+    let inserted = 0;
+    let updated = 0;
 
-    // 4. Atomic Multi-Row Insertion
-    // Using a loop within the same request context for clarity while ensuring 
-    // we return a clear inserted count.
-    let count = 0;
+    // 4. Transactional Multi-Row UPSERT
     try {
-      // NOTE: For absolute performance on thousands of rows, we would use a 
-      // single dynamic SQL query. For common batch sizes (10-100), sequential 
-      // calls within this route are highly efficient on Neon serverless.
-      for (const item of dataToInsert) {
+      for (const item of dataToProcess) {
         await sql`
           INSERT INTO allproducts (
             sku, product_name, category, cost_price, margin, low_stock_threshold, 
@@ -98,18 +87,36 @@ export async function POST(request: Request) {
             ${item.promo_ads}, ${item.tax_other}, ${item.packing}, ${item.amazon_ship}, 
             ${item.meesho_price}, ${item.flipkart_price}, ${item.amazon_price}, ${accountId}
           )
+          ON CONFLICT (account_id, sku) 
+          DO UPDATE SET 
+            product_name = EXCLUDED.product_name,
+            category = EXCLUDED.category,
+            cost_price = EXCLUDED.cost_price,
+            margin = EXCLUDED.margin,
+            low_stock_threshold = EXCLUDED.low_stock_threshold,
+            meesho_price = EXCLUDED.meesho_price,
+            flipkart_price = EXCLUDED.flipkart_price,
+            amazon_price = EXCLUDED.amazon_price,
+            updated_at = NOW()
+          WHERE allproducts.is_deleted = false;
         `;
-        count++;
+        
+        if (existingSkuSet.has(item.sku)) {
+          updated++;
+        } else {
+          inserted++;
+        }
       }
     } catch (dbErr: any) {
-      console.error("Batch Transaction Error:", dbErr);
-      throw new Error(`Database error during insertion: ${dbErr.message}`);
+      console.error("Batch UPSERT Transaction Error:", dbErr);
+      throw new Error(`Database error during processing: ${dbErr.message}`);
     }
 
     return NextResponse.json({ 
       success: true, 
-      inserted: count,
-      message: `${count} products successfully added to your inventory.`
+      inserted,
+      updated,
+      message: `${inserted} products inserted, ${updated} products updated.`
     });
 
   } catch (error: any) {
