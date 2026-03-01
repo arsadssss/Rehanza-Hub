@@ -96,8 +96,7 @@ export async function POST(request: Request) {
             low_stock_threshold = EXCLUDED.low_stock_threshold,
             meesho_price = EXCLUDED.meesho_price,
             flipkart_price = EXCLUDED.flipkart_price,
-            amazon_price = EXCLUDED.amazon_price,
-            updated_at = NOW()
+            amazon_price = EXCLUDED.amazon_price
           WHERE allproducts.is_deleted = false;
         `;
         
