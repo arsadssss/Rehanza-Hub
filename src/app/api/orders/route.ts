@@ -26,6 +26,7 @@ export async function GET(request: Request) {
 
     // Filter params
     const platform = searchParams.get('platform');
+    const status = searchParams.get('status');
     const fromDate = searchParams.get('fromDate');
     const toDate = searchParams.get('toDate');
     const search = searchParams.get('search');
@@ -37,6 +38,11 @@ export async function GET(request: Request) {
     if (platform && platform !== 'all') {
       whereClauses.push(`o.platform = $${paramIndex++}`);
       params.push(platform);
+    }
+
+    if (status && status !== 'all') {
+      whereClauses.push(`o.status = $${paramIndex++}`);
+      params.push(status);
     }
 
     if (fromDate) {

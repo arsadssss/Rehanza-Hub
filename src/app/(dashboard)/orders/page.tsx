@@ -1,9 +1,9 @@
 "use client";
 
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback } from "react";
 import { formatINR } from "@/lib/format";
 import { format, parseISO, isValid } from 'date-fns';
-import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from "@/components/ui/table";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Badge } from "@/components/ui/badge";
@@ -93,21 +93,31 @@ export default function OrdersPage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
+    // Added log to verify selected status
+    console.log("Orders Fetch: Selected Status =", statusFilter);
     try {
       const params = new URLSearchParams({
         page: page.toString(),
         pageSize: pageSize.toString(),
         platform: platformFilter,
+        status: statusFilter, // Include status in API call
         search: searchTerm,
         fromDate,
         toDate,
       });
 
       const endpoint = activeTab === "orders" ? "/api/orders" : "/api/returns";
+      
+      // Added log to verify request URL
+      console.log("Orders Fetch: Request URL =", `${endpoint}?${params.toString()}`);
+
       const res = await apiFetch(`${endpoint}?${params.toString()}`);
       
       if (!res.ok) throw new Error(`Failed to fetch ${activeTab}`);
       const json = await res.json();
+      
+      // Added log to verify response
+      console.log("Orders Fetch: Response Count =", json.data?.length || 0);
       
       setData(json.data || []);
       setSummary(json.summary || null);
@@ -117,17 +127,11 @@ export default function OrdersPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, page, platformFilter, searchTerm, fromDate, toDate, toast]);
+  }, [activeTab, page, platformFilter, statusFilter, searchTerm, fromDate, toDate, toast]);
 
   useEffect(() => {
     fetchData();
   }, [fetchData]);
-
-  // Local filtering for status as requested
-  const filteredData = useMemo(() => {
-    if (activeTab !== 'orders' || statusFilter === 'all') return data;
-    return data.filter(o => o.status?.toUpperCase() === statusFilter.toUpperCase());
-  }, [data, statusFilter, activeTab]);
 
   const handleTabChange = (val: string) => {
     setData([]);
@@ -357,8 +361,8 @@ export default function OrdersPage() {
                     Array.from({ length: 5 }).map((_, i) => (
                       <TableRow key={i}><TableCell colSpan={7}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
                     ))
-                  ) : (activeTab === "orders" && filteredData.length > 0) ? (
-                    filteredData.map((o) => (
+                  ) : (activeTab === "orders" && data.length > 0) ? (
+                    data.map((o) => (
                       <TableRow key={o.id}>
                         <TableCell className="font-medium">{safeFormatDate(o.order_date)}</TableCell>
                         <TableCell><Badge variant="outline">{o.platform}</Badge></TableCell>
