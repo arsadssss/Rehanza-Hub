@@ -93,6 +93,7 @@ export async function GET(request: Request) {
         o.quantity,
         o.selling_price,
         o.total_amount,
+        o.status,
         pv.variant_sku,
         ap.product_name
       FROM orders o
@@ -138,7 +139,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { order_date, platform, variant_id, quantity, selling_price } = body;
+    const { order_date, platform, variant_id, quantity, selling_price, status } = body;
 
     if (!order_date || !platform || !variant_id || !quantity || selling_price === undefined) {
       return NextResponse.json({ success: false, message: "Missing required order fields" }, { status: 400 });
@@ -154,7 +155,8 @@ export async function POST(request: Request) {
         quantity, 
         selling_price, 
         total_amount, 
-        account_id
+        account_id,
+        status
       )
       VALUES (
         ${order_date}, 
@@ -163,7 +165,8 @@ export async function POST(request: Request) {
         ${quantity}, 
         ${selling_price}, 
         ${total_amount}, 
-        ${accountId}
+        ${accountId},
+        ${status || "PENDING"}
       )
       RETURNING *;
     `;
@@ -190,7 +193,7 @@ export async function PUT(request: Request) {
     }
 
     const body = await request.json();
-    const { id, order_date, platform, variant_id, quantity, selling_price } = body;
+    const { id, order_date, platform, variant_id, quantity, selling_price, status } = body;
 
     if (!id || !order_date || !platform || !variant_id || !quantity || selling_price === undefined) {
       return NextResponse.json({ success: false, message: "Missing required update fields" }, { status: 400 });
@@ -206,7 +209,8 @@ export async function PUT(request: Request) {
         variant_id = ${variant_id},
         quantity = ${quantity},
         selling_price = ${selling_price},
-        total_amount = ${total_amount}
+        total_amount = ${total_amount},
+        status = ${status}
       WHERE id = ${id} 
       AND account_id = ${accountId} 
       AND is_deleted = false

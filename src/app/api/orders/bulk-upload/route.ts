@@ -3,6 +3,12 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = "force-dynamic";
 
+const VALID_STATUSES = [
+  "DELIVERED", "SHIPPED", "READY_TO_SHIP", "CANCELLED", "RTO_INITIATED", "RTO_LOCKED", 
+  "RTO_COMPLETE", "DOOR_STEP_EXCHANGED", "HOLD", "RETURNED", "RETURN_REQUESTED", 
+  "APPROVED", "UNSHIPPED", "PENDING", "REFUND_APPLIED"
+];
+
 /**
  * POST /api/orders/bulk-upload
  * Clean implementation of bulk order import with transactional stock management.
@@ -47,6 +53,7 @@ export async function POST(request: Request) {
       sku: headers.indexOf('variant_sku'),
       qty: headers.indexOf('quantity'),
       price: headers.indexOf('selling_price'),
+      status: headers.indexOf('status'),
     };
 
     const dataRows = lines.slice(1);
@@ -71,6 +78,15 @@ export async function POST(request: Request) {
         continue;
       }
 
+      const statusVal = hIdx.status !== -1 ? cols[hIdx.status]?.toUpperCase() : "PENDING";
+      const finalStatus = statusVal || "PENDING";
+
+      if (!VALID_STATUSES.includes(finalStatus)) {
+        result.skipped++;
+        result.errors.push(`Row ${rowNum}: Invalid status "${finalStatus}"`);
+        continue;
+      }
+
       const row = {
         ext_id: cols[hIdx.ext_id],
         date: cols[hIdx.date],
@@ -78,6 +94,7 @@ export async function POST(request: Request) {
         sku: cols[hIdx.sku],
         qty: parseInt(cols[hIdx.qty]),
         price: parseFloat(cols[hIdx.price]),
+        status: finalStatus,
         rowNum
       };
 
@@ -137,8 +154,8 @@ export async function POST(request: Request) {
         for (const item of finalQueue) {
           await sql`
             WITH inserted_order AS (
-              INSERT INTO orders (external_order_id, order_date, platform, variant_id, quantity, selling_price, account_id)
-              VALUES (${item.ext_id}, ${item.date}, ${item.platform}, ${item.variant_id}, ${item.qty}, ${item.price}, ${accountId})
+              INSERT INTO orders (external_order_id, order_date, platform, variant_id, quantity, selling_price, account_id, status)
+              VALUES (${item.ext_id}, ${item.date}, ${item.platform}, ${item.variant_id}, ${item.qty}, ${item.price}, ${accountId}, ${item.status})
               RETURNING variant_id, quantity
             )
             UPDATE product_variants 

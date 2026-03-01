@@ -14,12 +14,31 @@ import { formatINR } from "@/lib/format"
 import { format } from "date-fns"
 import { apiFetch } from "@/lib/apiFetch"
 
+const ORDER_STATUSES = [
+  "DELIVERED",
+  "SHIPPED",
+  "READY_TO_SHIP",
+  "CANCELLED",
+  "RTO_INITIATED",
+  "RTO_LOCKED",
+  "RTO_COMPLETE",
+  "DOOR_STEP_EXCHANGED",
+  "HOLD",
+  "RETURNED",
+  "RETURN_REQUESTED",
+  "APPROVED",
+  "UNSHIPPED",
+  "PENDING",
+  "REFUND_APPLIED"
+] as const;
+
 const formSchema = z.object({
   order_date: z.string().min(1, "Order date is required"),
   platform: z.enum(["Meesho", "Flipkart", "Amazon"], { required_error: "Platform is required" }),
   variant_id: z.string().min(1, "Variant is required"),
   quantity: z.coerce.number().min(1, "Quantity must be at least 1"),
   selling_price: z.coerce.number().min(0, "Selling price must be positive"),
+  status: z.string().default("PENDING"),
 })
 
 export function AddOrderModal({ isOpen, onClose, onSuccess, order }: any) {
@@ -32,7 +51,8 @@ export function AddOrderModal({ isOpen, onClose, onSuccess, order }: any) {
     defaultValues: { 
       quantity: 1, 
       order_date: format(new Date(), 'yyyy-MM-dd'),
-      selling_price: 0
+      selling_price: 0,
+      status: "PENDING"
     }
   })
 
@@ -52,12 +72,14 @@ export function AddOrderModal({ isOpen, onClose, onSuccess, order }: any) {
           variant_id: order.variant_id,
           quantity: order.quantity,
           selling_price: order.selling_price,
+          status: order.status || "PENDING",
         });
       } else {
         form.reset({
           quantity: 1,
           order_date: format(new Date(), 'yyyy-MM-dd'),
-          selling_price: 0
+          selling_price: 0,
+          status: "PENDING"
         });
       }
     }
@@ -89,6 +111,18 @@ export function AddOrderModal({ isOpen, onClose, onSuccess, order }: any) {
             
             <FormField control={form.control} name="variant_id" render={({ field }) => <FormItem><FormLabel>Variant</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a variant" /></SelectTrigger></FormControl><SelectContent>{variants.map(v => <SelectItem key={v.id} value={v.id}>{v.variant_sku}</SelectItem>)}</SelectContent></Select></FormItem>} />
             
+            <FormField control={form.control} name="status" render={({ field }) => (
+              <FormItem>
+                <FormLabel>Order Status</FormLabel>
+                <Select onValueChange={field.onChange} value={field.value}>
+                  <FormControl><SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger></FormControl>
+                  <SelectContent>
+                    {ORDER_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </FormItem>
+            )} />
+
             <div className="grid grid-cols-2 gap-4">
               <FormField control={form.control} name="quantity" render={({ field }) => <FormItem><FormLabel>Quantity</FormLabel><Input type="number" {...field} /></FormItem>} />
               <FormField control={form.control} name="selling_price" render={({ field }) => <FormItem><FormLabel>Unit Price (₹)</FormLabel><Input type="number" step="0.01" {...field} /></FormItem>} />

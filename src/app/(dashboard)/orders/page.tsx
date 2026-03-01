@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import { formatINR } from "@/lib/format";
 import { format, parseISO, isValid } from 'date-fns';
 import { Card, CardHeader, CardTitle, CardContent, CardDescription } from "@/components/ui/card";
@@ -20,6 +20,23 @@ import { BulkUploadModal } from "./components/bulk-upload-modal";
 import { BulkUploadReturnsModal } from "../returns/components/bulk-upload-returns-modal";
 import { apiFetch } from "@/lib/apiFetch";
 import { cn } from "@/lib/utils";
+
+const ORDER_STATUSES = [
+  "DELIVERED", "SHIPPED", "READY_TO_SHIP", "CANCELLED", "RTO_INITIATED", "RTO_LOCKED", 
+  "RTO_COMPLETE", "DOOR_STEP_EXCHANGED", "HOLD", "RETURNED", "RETURN_REQUESTED", 
+  "APPROVED", "UNSHIPPED", "PENDING", "REFUND_APPLIED"
+];
+
+const getStatusBadge = (status: string) => {
+  const s = status?.toUpperCase();
+  if (["DELIVERED", "DOOR_STEP_EXCHANGED"].includes(s)) return "bg-emerald-500 hover:bg-emerald-600 border-none text-white";
+  if (["SHIPPED", "READY_TO_SHIP", "PENDING", "UNSHIPPED"].includes(s)) return "bg-blue-500 hover:bg-blue-600 border-none text-white";
+  if (["CANCELLED", "HOLD"].includes(s)) return "bg-rose-500 hover:bg-rose-600 border-none text-white";
+  if (["RTO_INITIATED", "RTO_LOCKED", "RTO_COMPLETE"].includes(s)) return "bg-orange-500 hover:bg-orange-600 border-none text-white";
+  if (["RETURN_REQUESTED", "RETURNED", "REFUND_APPLIED"].includes(s)) return "bg-amber-500 hover:bg-amber-600 border-none text-white";
+  if (["APPROVED"].includes(s)) return "bg-indigo-500 hover:bg-indigo-600 border-none text-white";
+  return "bg-slate-500 hover:bg-slate-600 border-none text-white";
+};
 
 const SummaryCard = ({ title, value, icon: Icon, gradient, loading }: { title: string; value: string; icon: React.ElementType; gradient: string; loading: boolean }) => (
     <Card className={cn('text-white shadow-lg rounded-2xl border-0 overflow-hidden bg-gradient-to-br', gradient)}>
@@ -62,6 +79,7 @@ export default function OrdersPage() {
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
   const [platformFilter, setPlatformFilter] = useState("all");
+  const [statusFilter, setStatusFilter] = useState("all");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
 
@@ -105,6 +123,12 @@ export default function OrdersPage() {
     fetchData();
   }, [fetchData]);
 
+  // Local filtering for status as requested
+  const filteredData = useMemo(() => {
+    if (activeTab !== 'orders' || statusFilter === 'all') return data;
+    return data.filter(o => o.status?.toUpperCase() === statusFilter.toUpperCase());
+  }, [data, statusFilter, activeTab]);
+
   const handleTabChange = (val: string) => {
     setData([]);
     setSummary(null);
@@ -130,6 +154,7 @@ export default function OrdersPage() {
   const resetFilters = () => {
     setSearchTerm("");
     setPlatformFilter("all");
+    setStatusFilter("all");
     setFromDate("");
     setToDate("");
   };
@@ -261,7 +286,7 @@ export default function OrdersPage() {
 
         {/* Global Filters */}
         <Card className="mt-6 border-0 shadow-sm bg-muted/30">
-          <CardContent className="p-4 grid grid-cols-1 md:grid-cols-6 gap-4 items-end">
+          <CardContent className="p-4 grid grid-cols-1 md:grid-cols-6 lg:grid-cols-7 gap-4 items-end">
             <div className="space-y-1.5 md:col-span-2">
               <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Search</label>
               <div className="relative">
@@ -286,6 +311,18 @@ export default function OrdersPage() {
                 </SelectContent>
               </Select>
             </div>
+            {activeTab === "orders" && (
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Status</label>
+                <Select value={statusFilter} onValueChange={setStatusFilter}>
+                  <SelectTrigger className="bg-background"><SelectValue placeholder="Status" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Status</SelectItem>
+                    {ORDER_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">From</label>
               <Input type="date" className="bg-background" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
@@ -294,7 +331,7 @@ export default function OrdersPage() {
               <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">To</label>
               <Input type="date" className="bg-background" value={toDate} onChange={(e) => setToDate(e.target.value)} />
             </div>
-            <Button variant="ghost" onClick={resetFilters} className="h-10 text-xs font-bold uppercase md:col-start-6">
+            <Button variant="ghost" onClick={resetFilters} className="h-10 text-xs font-bold uppercase md:col-start-6 lg:col-start-7">
               <FilterX className="mr-2 h-4 w-4" /> Reset
             </Button>
           </CardContent>
@@ -310,8 +347,8 @@ export default function OrdersPage() {
                     <TableHead>Platform</TableHead>
                     <TableHead>SKU / Product</TableHead>
                     <TableHead className="text-right">Qty</TableHead>
-                    <TableHead className="text-right">Price</TableHead>
                     <TableHead className="text-right">Total</TableHead>
+                    <TableHead className="text-center">Status</TableHead>
                     <TableHead className="text-right w-[100px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -320,8 +357,8 @@ export default function OrdersPage() {
                     Array.from({ length: 5 }).map((_, i) => (
                       <TableRow key={i}><TableCell colSpan={7}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
                     ))
-                  ) : (activeTab === "orders" && data.length > 0) ? (
-                    data.map((o) => (
+                  ) : (activeTab === "orders" && filteredData.length > 0) ? (
+                    filteredData.map((o) => (
                       <TableRow key={o.id}>
                         <TableCell className="font-medium">{safeFormatDate(o.order_date)}</TableCell>
                         <TableCell><Badge variant="outline">{o.platform}</Badge></TableCell>
@@ -332,8 +369,12 @@ export default function OrdersPage() {
                           </div>
                         </TableCell>
                         <TableCell className="text-right">{o.quantity}</TableCell>
-                        <TableCell className="text-right text-xs opacity-70">{formatINR(o.selling_price)}</TableCell>
                         <TableCell className="text-right font-bold text-primary">{formatINR(o.total_amount)}</TableCell>
+                        <TableCell className="text-center">
+                          <Badge className={cn("text-[10px] font-black tracking-tighter uppercase", getStatusBadge(o.status))}>
+                            {o.status || "PENDING"}
+                          </Badge>
+                        </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
                             <Button variant="ghost" size="icon" onClick={() => { setItemToEdit(o); setIsOrderModalOpen(true); }}>
