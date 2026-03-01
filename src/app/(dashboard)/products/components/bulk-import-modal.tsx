@@ -15,8 +15,7 @@ import {
 import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { apiFetch } from "@/lib/apiFetch"
-import { Download, FileUp, AlertCircle, CheckCircle2, Table as TableIcon } from "lucide-react"
-import { ScrollArea } from "@/components/ui/scroll-area"
+import { Download, FileUp, CheckCircle2, Table as TableIcon } from "lucide-react"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 
@@ -56,6 +55,8 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
         if (lines.length < 2) throw new Error("File is empty or missing data.");
 
         const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+        
+        // Exact header check
         const hIdx = {
           sku: headers.indexOf('sku'),
           name: headers.indexOf('name'),
@@ -66,11 +67,13 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
         };
 
         if (hIdx.sku === -1 || hIdx.name === -1 || hIdx.cost === -1 || hIdx.margin === -1) {
-          throw new Error("CSV headers do not match required template. Required: SKU, Name, Cost Price, Margin.");
+          throw new Error("CSV headers do not match template. Required: SKU, Name, Category, Cost Price, Margin, Low Stock Threshold");
         }
 
-        const rows = lines.slice(1, 11).map(line => {
+        const rows = lines.slice(1).map(line => {
           const cols = line.split(',').map(c => c.trim());
+          if (cols.length < 4) return null; // Skip malformed short rows
+          
           return {
             sku: cols[hIdx.sku],
             name: cols[hIdx.name],
@@ -79,9 +82,9 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
             margin: parseFloat(cols[hIdx.margin]),
             low_stock_threshold: cols[hIdx.lowStock] ? parseInt(cols[hIdx.lowStock]) : 5
           };
-        });
+        }).filter(row => row !== null && row.sku !== "");
 
-        setPreviewData(rows as ParsedProduct[]);
+        setPreviewData(rows.slice(0, 10) as ParsedProduct[]);
       } catch (err: any) {
         toast({ variant: "destructive", title: "Parsing Error", description: err.message });
         setFile(null);
@@ -97,7 +100,7 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = 'products_bulk_import_template.csv';
+    a.download = 'products_rehanza_template.csv';
     a.click();
   }
 
@@ -123,6 +126,8 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
 
       const products = lines.slice(1).map(line => {
         const cols = line.split(',').map(c => c.trim());
+        if (cols.length < 4) return null;
+        
         return {
           sku: cols[hIdx.sku],
           name: cols[hIdx.name],
@@ -131,21 +136,24 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
           margin: parseFloat(cols[hIdx.margin]),
           low_stock_threshold: cols[hIdx.lowStock] ? parseInt(cols[hIdx.lowStock]) : 5
         };
-      });
+      }).filter(p => p && p.sku && p.name && !isNaN(p.cost_price) && !isNaN(p.margin));
 
-      // Filter out invalid rows before sending
-      const validProducts = products.filter(p => p.sku && p.name && !isNaN(p.cost_price) && !isNaN(p.margin));
+      // Internal duplicate check
+      const skus = products.map(p => p!.sku.toUpperCase());
+      if (new Set(skus).size !== skus.length) {
+        throw new Error("CSV contains duplicate SKUs. Each row must be unique.");
+      }
       
       setUploadProgress(50)
 
       const res = await apiFetch('/api/products/bulk-import', {
         method: 'POST',
-        body: JSON.stringify({ products: validProducts }),
+        body: JSON.stringify({ products }),
       });
 
       if (!res.ok) {
         const errorData = await res.json();
-        throw new Error(errorData.message || "Failed to process batch import.");
+        throw new Error(errorData.message || "Failed to process import.");
       }
 
       const result = await res.json();
@@ -153,7 +161,7 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
 
       toast({
         title: "Import Success",
-        description: `${result.inserted} inserted, ${result.updated} updated successfully.`,
+        description: `Inserted: ${result.inserted} | Updated: ${result.updated}`,
       })
       onSuccess()
       handleClose()
@@ -183,17 +191,17 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <FileUp className="h-5 w-5 text-primary" />
-            Bulk Product Import
+            Bulk Product Upload
           </DialogTitle>
           <DialogDescription>
-            Upload a CSV file to add or update multiple products at once. Pricing is automatically calculated.
+            Upload a CSV to add new products or update existing ones by SKU.
           </DialogDescription>
         </DialogHeader>
 
         <div className="space-y-6 py-4">
           <div className="flex justify-between items-center p-4 bg-muted/30 rounded-xl border border-dashed">
             <div className="space-y-1">
-              <p className="text-sm font-bold">Import Template</p>
+              <p className="text-sm font-bold">Standard Template</p>
               <p className="text-[10px] text-muted-foreground uppercase font-black">6 Columns Required</p>
             </div>
             <Button variant="outline" size="sm" onClick={downloadTemplate} className="h-8 text-xs font-bold">
@@ -219,7 +227,7 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
                   <TableIcon className="h-3 w-3" /> Data Preview (First 10 Rows)
                 </p>
                 <Badge variant="secondary" className="text-[10px] uppercase font-black tracking-tighter">
-                  {previewData.length} rows detected
+                  Verified format
                 </Badge>
               </div>
               <div className="rounded-lg border overflow-hidden">

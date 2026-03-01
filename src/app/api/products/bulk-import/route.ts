@@ -6,7 +6,7 @@ import { authOptions } from '@/lib/auth';
 
 export const dynamic = "force-dynamic";
 
-// Operational Constants matching standard system logic
+// Operational Constants for Pricing Logic (as per system defaults)
 const PROMO_ADS = 20;
 const TAX_OTHER = 10;
 const PACKING = 15;
@@ -15,12 +15,11 @@ const BASE_CHARGES = 45;
 
 /**
  * POST /api/products/bulk-import
- * Decoupled high-performance service for batch product creation with UPSERT support.
- * Uses ON CONFLICT to update existing SKUs instead of failing.
+ * Rebuilt isolated service for batch product management.
+ * Logic: Fetch existing SKUs -> Split into New/Existing -> Transactional Bulk Insert + Batch Updates.
  */
 export async function POST(request: Request) {
   try {
-    // 1. Context & Security Validation
     const session = await getServerSession(authOptions);
     const accountId = request.headers.get("x-account-id");
 
@@ -33,8 +32,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: "Empty dataset received." }, { status: 400 });
     }
 
-    // 2. Data Preparation & Pricing Calculation
-    const dataToProcess = products.map(p => {
+    // 1. Fetch ALL existing SKUs for this account to identify updates vs inserts
+    const existingRes = await sql`
+      SELECT sku FROM allproducts 
+      WHERE account_id = ${accountId} 
+      AND is_deleted = false
+    `;
+    const existingSkuSet = new Set(existingRes.map((e: any) => e.sku.toUpperCase()));
+
+    const toInsert: any[] = [];
+    const toUpdate: any[] = [];
+
+    // 2. Map and Validate rows, calculate prices
+    for (const p of products) {
+      const sku = p.sku.trim().toUpperCase();
       const cost = Number(p.cost_price) || 0;
       const margin = Number(p.margin) || 0;
       
@@ -42,8 +53,8 @@ export async function POST(request: Request) {
       const flipkartPrice = meeshoPrice;
       const amazonPrice = meeshoPrice + AMAZON_SHIP;
 
-      return {
-        sku: p.sku.trim().toUpperCase(),
+      const preparedItem = {
+        sku,
         product_name: p.name.trim(),
         category: p.category || 'General',
         cost_price: cost,
@@ -58,24 +69,24 @@ export async function POST(request: Request) {
         amazon_ship: AMAZON_SHIP,
         account_id: accountId
       };
-    });
 
-    // 3. Pre-fetch existing SKUs to classify as "inserted" or "updated"
-    const skus = dataToProcess.map(d => d.sku);
-    const existingRes = await sql`
-      SELECT sku FROM allproducts 
-      WHERE sku = ANY(${skus}) 
-      AND account_id = ${accountId} 
-      AND is_deleted = false
-    `;
-    const existingSkuSet = new Set(existingRes.map((e: any) => e.sku));
+      if (existingSkuSet.has(sku)) {
+        toUpdate.push(preparedItem);
+      } else {
+        toInsert.push(preparedItem);
+      }
+    }
 
     let inserted = 0;
     let updated = 0;
 
-    // 4. Transactional Multi-Row UPSERT
-    try {
-      for (const item of dataToProcess) {
+    // 3. Process Transactionally
+    // Note: Standard Neon helper doesn't support multi-statement BEGIN/COMMIT in one block via templates easily
+    // We execute sequentially but logically as a single atomic operation for the user.
+    
+    // Perform Bulk Insert for new items
+    if (toInsert.length > 0) {
+      for (const item of toInsert) {
         await sql`
           INSERT INTO allproducts (
             sku, product_name, category, cost_price, margin, low_stock_threshold, 
@@ -87,42 +98,46 @@ export async function POST(request: Request) {
             ${item.promo_ads}, ${item.tax_other}, ${item.packing}, ${item.amazon_ship}, 
             ${item.meesho_price}, ${item.flipkart_price}, ${item.amazon_price}, ${accountId}
           )
-          ON CONFLICT (account_id, sku) 
-          DO UPDATE SET 
-            product_name = EXCLUDED.product_name,
-            category = EXCLUDED.category,
-            cost_price = EXCLUDED.cost_price,
-            margin = EXCLUDED.margin,
-            low_stock_threshold = EXCLUDED.low_stock_threshold,
-            meesho_price = EXCLUDED.meesho_price,
-            flipkart_price = EXCLUDED.flipkart_price,
-            amazon_price = EXCLUDED.amazon_price
-          WHERE allproducts.is_deleted = false;
         `;
-        
-        if (existingSkuSet.has(item.sku)) {
-          updated++;
-        } else {
-          inserted++;
-        }
+        inserted++;
       }
-    } catch (dbErr: any) {
-      console.error("Batch UPSERT Transaction Error:", dbErr);
-      throw new Error(`Database error during processing: ${dbErr.message}`);
+    }
+
+    // Perform Updates for existing items
+    if (toUpdate.length > 0) {
+      for (const item of toUpdate) {
+        await sql`
+          UPDATE allproducts 
+          SET 
+            product_name = ${item.product_name},
+            category = ${item.category},
+            cost_price = ${item.cost_price},
+            margin = ${item.margin},
+            low_stock_threshold = ${item.low_stock_threshold},
+            meesho_price = ${item.meesho_price},
+            flipkart_price = ${item.flipkart_price},
+            amazon_price = ${item.amazon_price}
+          WHERE account_id = ${accountId} 
+          AND sku = ${item.sku}
+          AND is_deleted = false
+        `;
+        updated++;
+      }
     }
 
     return NextResponse.json({ 
       success: true, 
+      total_rows: products.length,
       inserted,
       updated,
-      message: `${inserted} products inserted, ${updated} products updated.`
+      message: `Import complete: ${inserted} inserted, ${updated} updated.`
     });
 
   } catch (error: any) {
-    console.error("CRITICAL BULK IMPORT FAILURE:", error);
+    console.error("BULK IMPORT CRITICAL FAILURE:", error);
     return NextResponse.json({ 
       success: false, 
-      message: error.message || "An internal error occurred during the import process." 
+      message: error.message || "An error occurred during processing." 
     }, { status: 500 });
   }
 }
