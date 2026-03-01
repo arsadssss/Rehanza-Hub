@@ -3,6 +3,8 @@ import { NextResponse } from 'next/server';
 
 export const dynamic = "force-dynamic";
 
+const VALID_STATUSES = ["Delivered", "Courier Return", "RTO", "Cancelled", "Pending", "Shipped", "Processing"];
+
 /**
  * POST /api/orders/bulk-upload
  * Clean implementation of bulk order import with transactional stock management.
@@ -46,7 +48,8 @@ export async function POST(request: Request) {
       platform: headers.indexOf('platform'),
       sku: headers.indexOf('variant_sku'),
       qty: headers.indexOf('quantity'),
-      price: headers.indexOf('selling_price')
+      price: headers.indexOf('selling_price'),
+      status: headers.indexOf('status')
     };
 
     const dataRows = lines.slice(1);
@@ -71,6 +74,14 @@ export async function POST(request: Request) {
         continue;
       }
 
+      const rowStatus = hIdx.status !== -1 ? cols[hIdx.status] : "Pending";
+
+      if (rowStatus && !VALID_STATUSES.includes(rowStatus)) {
+        result.skipped++;
+        result.errors.push(`Row ${rowNum}: Invalid status "${rowStatus}"`);
+        continue;
+      }
+
       const row = {
         ext_id: cols[hIdx.ext_id],
         date: cols[hIdx.date],
@@ -78,6 +89,7 @@ export async function POST(request: Request) {
         sku: cols[hIdx.sku],
         qty: parseInt(cols[hIdx.qty]),
         price: parseFloat(cols[hIdx.price]),
+        status: rowStatus || "Pending",
         rowNum
       };
 
@@ -133,17 +145,12 @@ export async function POST(request: Request) {
 
     // 5. Transactional Phase (Atomic Insert + Stock Update)
     if (finalQueue.length > 0) {
-      // Note: Using a block of queries for atomicity. 
-      // Neon 'sql' tagged template executes multiple statements if provided.
-      // We'll perform each pair sequentially within this handler if a standard 'begin' isn't available.
       try {
         for (const item of finalQueue) {
-          // Double check stock one last time inside the loop context if necessary, 
-          // but here we execute the pair.
           await sql`
             WITH inserted_order AS (
-              INSERT INTO orders (external_order_id, order_date, platform, variant_id, quantity, selling_price, account_id)
-              VALUES (${item.ext_id}, ${item.date}, ${item.platform}, ${item.variant_id}, ${item.qty}, ${item.price}, ${accountId})
+              INSERT INTO orders (external_order_id, order_date, platform, variant_id, quantity, selling_price, account_id, status)
+              VALUES (${item.ext_id}, ${item.date}, ${item.platform}, ${item.variant_id}, ${item.qty}, ${item.price}, ${accountId}, ${item.status})
               RETURNING variant_id, quantity
             )
             UPDATE product_variants 

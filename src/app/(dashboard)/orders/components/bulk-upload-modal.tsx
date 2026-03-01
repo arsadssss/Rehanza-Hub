@@ -39,7 +39,7 @@ export function BulkUploadModal({ isOpen, onClose, onSuccess }: BulkUploadModalP
   }
 
   const downloadSample = () => {
-    const csvContent = "external_order_id,order_date,platform,variant_sku,quantity,selling_price\nORD-WH-101,2024-08-01,Amazon,SKU-SAMPLE-RED,2,499\nORD-WH-102,2024-08-01,Meesho,SKU-SAMPLE-BLUE,1,299";
+    const csvContent = "external_order_id,order_date,platform,variant_sku,quantity,selling_price,status\nORD-WH-101,2024-08-01,Amazon,SKU-SAMPLE-RED,2,499,Shipped\nORD-WH-102,2024-08-01,Meesho,SKU-SAMPLE-BLUE,1,299,Delivered";
     const blob = new Blob([csvContent], { type: 'text/csv' });
     const url = window.URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -114,7 +114,7 @@ export function BulkUploadModal({ isOpen, onClose, onSuccess }: BulkUploadModalP
             <div className="flex justify-between items-center p-4 bg-muted/50 rounded-xl border">
               <div className="space-y-1">
                 <p className="text-sm font-bold">Standard Template</p>
-                <p className="text-xs text-muted-foreground">Ensure columns match exactly.</p>
+                <p className="text-xs text-muted-foreground">Ensure columns match exactly. Status column is optional.</p>
               </div>
               <Button variant="outline" size="sm" onClick={downloadSample}>
                 <Download className="mr-2 h-4 w-4" /> Download
