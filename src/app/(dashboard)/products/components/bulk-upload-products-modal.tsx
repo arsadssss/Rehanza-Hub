@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -62,7 +61,9 @@ export function BulkUploadProductsModal({ isOpen, onClose, onSuccess }: BulkUplo
         throw new Error("CSV file is empty or missing data rows.");
       }
 
+      // Trim whitespace and handle case-insensitivity
       const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+      console.log("Parsed Headers:", headers);
       
       // Expected Headers: sku, product name, category, cost price, margin, low stock threshold
       const hIdx = {
@@ -74,8 +75,9 @@ export function BulkUploadProductsModal({ isOpen, onClose, onSuccess }: BulkUplo
         lowStock: headers.indexOf('low stock threshold')
       };
 
-      if (hIdx.sku === -1 || hIdx.name === -1 || hIdx.cost === -1 || hIdx.margin === -1) {
-        throw new Error("CSV structure invalid. Ensure columns match template exactly: SKU, Product Name, Category, Cost Price, Margin, Low Stock Threshold");
+      // Strict header validation
+      if (hIdx.sku === -1 || hIdx.name === -1 || hIdx.cost === -1 || hIdx.margin === -1 || hIdx.lowStock === -1) {
+        throw new Error("CSV headers do not match required template. Expected: SKU, Product Name, Category, Cost Price, Margin, Low Stock Threshold");
       }
 
       const rows = lines.slice(1).map(line => {
@@ -83,17 +85,17 @@ export function BulkUploadProductsModal({ isOpen, onClose, onSuccess }: BulkUplo
         return {
           sku: cols[hIdx.sku],
           product_name: cols[hIdx.name],
-          category: cols[hIdx.category],
+          category: cols[hIdx.category] || 'General',
           cost_price: parseFloat(cols[hIdx.cost]),
           margin: parseFloat(cols[hIdx.margin]),
           low_stock_threshold: cols[hIdx.lowStock] ? parseInt(cols[hIdx.lowStock]) : 5
         };
       });
 
-      // Basic frontend validation
+      // Validating rows
       const invalidRows = rows.filter(r => !r.sku || !r.product_name || isNaN(r.cost_price) || isNaN(r.margin));
       if (invalidRows.length > 0) {
-        throw new Error(`Found ${invalidRows.length} rows with missing or invalid data. Please check SKU, Name, and Price columns.`);
+        throw new Error(`Found ${invalidRows.length} rows with missing or invalid data. Please check SKU, Product Name, Cost Price, and Margin columns.`);
       }
 
       // Check for duplicate SKUs within the CSV itself
