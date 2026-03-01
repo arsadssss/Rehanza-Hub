@@ -46,6 +46,7 @@ import { apiFetch } from '@/lib/apiFetch';
 
 export default function PaymentsPage() {
   const { toast } = useToast();
+  const [isMounted, setIsMounted] = useState(false);
 
   const [payouts, setPayouts] = useState<any[]>([]);
   const [totalReceived, setTotalReceived] = useState(0);
@@ -88,6 +89,7 @@ export default function PaymentsPage() {
   }, [toast, page, pageSize, platformFilter, dateFrom, dateTo]);
 
   useEffect(() => {
+    setIsMounted(true);
     fetchData();
   }, [fetchData]);
 
@@ -118,6 +120,10 @@ export default function PaymentsPage() {
     setDateFrom('');
     setDateTo('');
   };
+
+  if (!isMounted) {
+    return <div className="p-6 space-y-6"><Skeleton className="h-32 w-full" /><Skeleton className="h-64 w-full" /></div>;
+  }
 
   return (
     <div className="w-full px-6 py-6 space-y-8">

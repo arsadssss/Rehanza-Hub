@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 
@@ -64,6 +64,7 @@ const ProgressCard = ({ title, stats, gradient, loading }: { title: string; stat
 
 export default function TasksPage() {
     const { toast } = useToast();
+    const [isMounted, setIsMounted] = useState(false);
 
     const [tasks, setTasks] = useState<Task[]>([]);
     const [progressStats, setProgressStats] = useState({
@@ -121,7 +122,6 @@ export default function TasksPage() {
             setTotalRows(count);
             setProgressStats(progress);
             
-            // Also refresh track record whenever task data changes
             fetchTrackRecord();
         } catch(error: any) {
             toast({ variant: 'destructive', title: 'Error', description: error.message });
@@ -131,7 +131,10 @@ export default function TasksPage() {
         }
     }, [page, pageSize, groupFilter, statusFilter, toast, fetchTrackRecord]);
 
-    useEffect(() => { fetchPageData(); }, [fetchPageData]);
+    useEffect(() => { 
+        setIsMounted(true);
+        fetchPageData(); 
+    }, [fetchPageData]);
     
     useEffect(() => { setPage(1); }, [groupFilter, statusFilter]);
     
@@ -182,6 +185,10 @@ export default function TasksPage() {
             default: return 'bg-gray-400';
         }
     };
+
+    if (!isMounted) {
+        return <div className="p-6 space-y-6"><Skeleton className="h-32 w-full" /><Skeleton className="h-64 w-full" /></div>;
+    }
 
     return (
         <div className="w-full px-6 py-6 space-y-8">

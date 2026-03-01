@@ -40,6 +40,7 @@ const StatCard = ({ title, value, icon: Icon, gradient, loading }: { title: stri
 
 export default function ExpensesPage() {
   const { toast } = useToast();
+  const [isMounted, setIsMounted] = useState(false);
   const [expenses, setExpenses] = useState<BusinessExpense[]>([]);
   const [loading, setLoading] = useState(true);
   const [totalExpenses, setTotalExpenses] = useState(0);
@@ -79,7 +80,11 @@ export default function ExpensesPage() {
     }
   }, [toast, page, searchTerm]);
 
-  useEffect(() => { fetchFinanceSummary(); fetchExpenses(); }, [fetchFinanceSummary, fetchExpenses]);
+  useEffect(() => {
+    setIsMounted(true);
+    fetchFinanceSummary(); 
+    fetchExpenses(); 
+  }, [fetchFinanceSummary, fetchExpenses]);
 
   const handleConfirmDelete = async () => {
     if (!itemToDelete) return;
@@ -96,6 +101,10 @@ export default function ExpensesPage() {
         setItemToDelete(null);
     }
   };
+
+  if (!isMounted) {
+    return <div className="p-6 space-y-6"><Skeleton className="h-20 w-full" /><Skeleton className="h-64 w-full" /></div>;
+  }
 
   return (
     <div className="w-full px-6 py-6 space-y-6">

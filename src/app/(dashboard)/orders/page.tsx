@@ -66,6 +66,7 @@ const SummaryCard = ({ title, value, icon: Icon, gradient, loading }: { title: s
 
 export default function OrdersPage() {
   const { toast } = useToast();
+  const [isMounted, setIsMounted] = useState(false);
   const [activeTab, setActiveTab] = useState("orders");
   const [loading, setLoading] = useState(true);
   
@@ -93,22 +94,19 @@ export default function OrdersPage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    // Added log to verify selected status
     console.log("Orders Fetch: Selected Status =", statusFilter);
     try {
       const params = new URLSearchParams({
         page: page.toString(),
         pageSize: pageSize.toString(),
         platform: platformFilter,
-        status: statusFilter, // Include status in API call
+        status: statusFilter,
         search: searchTerm,
         fromDate,
         toDate,
       });
 
       const endpoint = activeTab === "orders" ? "/api/orders" : "/api/returns";
-      
-      // Added log to verify request URL
       console.log("Orders Fetch: Request URL =", `${endpoint}?${params.toString()}`);
 
       const res = await apiFetch(`${endpoint}?${params.toString()}`);
@@ -116,7 +114,6 @@ export default function OrdersPage() {
       if (!res.ok) throw new Error(`Failed to fetch ${activeTab}`);
       const json = await res.json();
       
-      // Added log to verify response
       console.log("Orders Fetch: Response Count =", json.data?.length || 0);
       
       setData(json.data || []);
@@ -130,6 +127,7 @@ export default function OrdersPage() {
   }, [activeTab, page, platformFilter, statusFilter, searchTerm, fromDate, toDate, toast]);
 
   useEffect(() => {
+    setIsMounted(true);
     fetchData();
   }, [fetchData]);
 
@@ -172,6 +170,10 @@ export default function OrdersPage() {
       return "Invalid Date";
     }
   };
+
+  if (!isMounted) {
+    return <div className="p-6 space-y-6"><Skeleton className="h-20 w-full" /><Skeleton className="h-64 w-full" /></div>;
+  }
 
   return (
     <div className="p-6 space-y-6">

@@ -61,6 +61,7 @@ type WholesaleTier = {
 
 export function WholesalePricingClient() {
   const { toast } = useToast();
+  const [isMounted, setIsMounted] = useState(false);
   const [products, setProducts] = useState<{ id: string; sku: string; product_name: string }[]>([]);
   const [tiers, setTiers] = useState<WholesaleTier[]>([]);
   const [loading, setLoading] = useState(true);
@@ -96,6 +97,7 @@ export function WholesalePricingClient() {
   }, [toast]);
 
   useEffect(() => {
+    setIsMounted(true);
     fetchData();
   }, [fetchData]);
 
@@ -150,11 +152,14 @@ export function WholesalePricingClient() {
     }
   }
 
-  // UPDATED CALCULATION: Sum of (Wholesale Price * Total Product Stock) per tier
   const totalWholesaleValue = tiers.reduce(
     (sum, tier) => sum + (Number(tier.wholesale_price || 0) * Number(tier.total_stock || 0)), 
     0
   );
+
+  if (!isMounted) {
+    return <div className="p-6 space-y-6"><Skeleton className="h-32 w-full" /><Skeleton className="h-64 w-full" /></div>;
+  }
 
   return (
     <div className="p-6 space-y-6 bg-gray-50/50 dark:bg-black/50 min-h-full">

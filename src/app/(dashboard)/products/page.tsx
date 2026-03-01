@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useEffect, useState, useCallback, Suspense } from 'react';
@@ -75,6 +74,7 @@ export type Variant = {
 
 function ProductsContent() {
   const { toast } = useToast();
+  const [isMounted, setIsMounted] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
   
@@ -142,7 +142,6 @@ function ProductsContent() {
       if (sRes.ok) setSummary(await sRes.json());
 
       // 2. Fetch Global Out of Stock Variants Count (Unique variant_sku where stock is 0)
-      // We use a high limit to get all OOS variants for unique counting
       const oosRes = await apiFetch('/api/variants?health=out_of_stock&limit=1000');
       if (oosRes.ok) {
         const oosJson = await oosRes.json();
@@ -191,7 +190,10 @@ function ProductsContent() {
     }
   }, [toast, view, page, limit, search, categoryFilter, stockFilter, healthFilter]);
 
-  useEffect(() => { fetchData(); }, [fetchData]);
+  useEffect(() => {
+    setIsMounted(true);
+    fetchData();
+  }, [fetchData]);
 
   const handleEditProduct = (product: Product) => {
     setProductToEdit(product);
@@ -237,6 +239,10 @@ function ProductsContent() {
     setSearchTerm('');
     router.push(`?tab=${view}`);
   };
+
+  if (!isMounted) {
+    return <div className="p-6 space-y-6"><Skeleton className="h-32 w-full" /><Skeleton className="h-64 w-full" /></div>;
+  }
 
   return (
     <div className="p-6 w-full space-y-6">

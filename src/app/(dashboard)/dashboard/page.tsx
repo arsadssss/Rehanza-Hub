@@ -100,17 +100,6 @@ export default function DashboardPage() {
         loading={loading}
       />
 
-      
-
-      {/* 3. Sales Summary Cards (Legacy Drill-down metrics) */}
-      {/* <SalesSummaryCards 
-        totalSales={salesData?.totalSales || 0}
-        totalOrders={salesData?.totalOrders || 0}
-        totalReturns={salesData?.totalReturns || 0}
-        netProfit={salesData?.netProfit || 0}
-        loading={loadingAnalytics}
-      /> */}
-
       {/* 4. Analytics Section (Trends + Platform Distribution) */}
       <AnalyticsSection 
         salesTrendRaw={salesData?.salesTrend || []}
@@ -120,11 +109,12 @@ export default function DashboardPage() {
         onTimeRangeChange={setTimeRange}
         loading={loadingAnalytics}
       />
+      
       {/* 5. Task Performance section */}
       <TaskPerformanceCard data={trackRecord} loading={loadingTrackRecord} title="Task Performance" />
       
-{/* 2. Vendor + Inventory summary cards (Due, Investment) */}
-<div className="grid gap-6 md:grid-cols-2">
+      {/* 2. Vendor + Inventory summary cards (Due, Investment) */}
+      <div className="grid gap-6 md:grid-cols-2">
         <div className="bg-gradient-to-r from-red-500 to-orange-600 text-white rounded-2xl p-6 shadow-lg">
           {loading ? <Skeleton className="h-20 w-full bg-white/20" /> : (
             <div className="flex items-center justify-between">
@@ -158,7 +148,7 @@ export default function DashboardPage() {
             <TableBody>
               {loading ? Array.from({ length: 5 }).map((_, i) => <TableRow key={i}><TableCell colSpan={5}><Skeleton className="h-8 w-full" /></TableCell></TableRow>) : recentOrders.map((o) => (
                 <TableRow key={o.id}>
-                  <TableCell>{new Date(o.created_at).toLocaleDateString('en-IN')}</TableCell>
+                  <TableCell>{isMounted ? new Date(o.created_at).toLocaleDateString('en-IN') : '...'}</TableCell>
                   <TableCell><Badge variant="secondary">{o.platform}</Badge></TableCell>
                   <TableCell className="font-medium">{o.variant_sku || 'N/A'}</TableCell>
                   <TableCell>{o.quantity}</TableCell>
