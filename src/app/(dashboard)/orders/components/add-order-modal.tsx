@@ -20,7 +20,6 @@ const formSchema = z.object({
   variant_id: z.string().min(1, "Variant is required"),
   quantity: z.coerce.number().min(1, "Quantity must be at least 1"),
   selling_price: z.coerce.number().min(0, "Selling price must be positive"),
-  status: z.enum(["Delivered", "Courier Return", "RTO", "Cancelled", "Pending", "Shipped", "Processing"]).default("Pending"),
 })
 
 export function AddOrderModal({ isOpen, onClose, onSuccess, order }: any) {
@@ -33,7 +32,6 @@ export function AddOrderModal({ isOpen, onClose, onSuccess, order }: any) {
     defaultValues: { 
       quantity: 1, 
       order_date: format(new Date(), 'yyyy-MM-dd'),
-      status: "Pending",
       selling_price: 0
     }
   })
@@ -54,13 +52,11 @@ export function AddOrderModal({ isOpen, onClose, onSuccess, order }: any) {
           variant_id: order.variant_id,
           quantity: order.quantity,
           selling_price: order.selling_price,
-          status: order.status || "Pending"
         });
       } else {
         form.reset({
           quantity: 1,
           order_date: format(new Date(), 'yyyy-MM-dd'),
-          status: "Pending",
           selling_price: 0
         });
       }
@@ -97,25 +93,6 @@ export function AddOrderModal({ isOpen, onClose, onSuccess, order }: any) {
               <FormField control={form.control} name="quantity" render={({ field }) => <FormItem><FormLabel>Quantity</FormLabel><Input type="number" {...field} /></FormItem>} />
               <FormField control={form.control} name="selling_price" render={({ field }) => <FormItem><FormLabel>Unit Price (₹)</FormLabel><Input type="number" step="0.01" {...field} /></FormItem>} />
             </div>
-
-            <FormField control={form.control} name="status" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Order Status</FormLabel>
-                <Select onValueChange={field.onChange} value={field.value}>
-                  <FormControl><SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger></FormControl>
-                  <SelectContent>
-                    <SelectItem value="Delivered">Delivered</SelectItem>
-                    <SelectItem value="Courier Return">Courier Return</SelectItem>
-                    <SelectItem value="RTO">RTO</SelectItem>
-                    <SelectItem value="Cancelled">Cancelled</SelectItem>
-                    <SelectItem value="Pending">Pending</SelectItem>
-                    <SelectItem value="Shipped">Shipped</SelectItem>
-                    <SelectItem value="Processing">Processing</SelectItem>
-                  </SelectContent>
-                </Select>
-                <FormMessage />
-              </FormItem>
-            )} />
 
             <DialogFooter>
               <Button type="submit" className="w-full">Save Order</Button>

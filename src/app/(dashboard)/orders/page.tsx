@@ -47,19 +47,6 @@ const SummaryCard = ({ title, value, icon: Icon, gradient, loading }: { title: s
     </Card>
 );
 
-const getStatusStyles = (status: string) => {
-  switch (status) {
-    case 'Delivered': return 'bg-emerald-100 text-emerald-700 border-emerald-200 dark:bg-emerald-950/20 dark:text-emerald-400';
-    case 'RTO': return 'bg-orange-100 text-orange-700 border-orange-200 dark:bg-orange-950/20 dark:text-orange-400';
-    case 'Cancelled': return 'bg-rose-100 text-rose-700 border-rose-200 dark:bg-rose-950/20 dark:text-rose-400';
-    case 'Pending': return 'bg-blue-100 text-blue-700 border-blue-200 dark:bg-blue-950/20 dark:text-blue-400';
-    case 'Courier Return': return 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-950/20 dark:text-amber-400';
-    case 'Shipped': return 'bg-indigo-100 text-indigo-700 border-indigo-200 dark:bg-indigo-950/20 dark:text-indigo-400';
-    case 'Processing': return 'bg-purple-100 text-purple-700 border-purple-200 dark:bg-purple-950/20 dark:text-purple-400';
-    default: return 'bg-slate-100 text-slate-700 border-slate-200 dark:bg-slate-800 dark:text-slate-400';
-  }
-}
-
 export default function OrdersPage() {
   const { toast } = useToast();
   const [activeTab, setActiveTab] = useState("orders");
@@ -75,7 +62,6 @@ export default function OrdersPage() {
   // Filters
   const [searchTerm, setSearchTerm] = useState("");
   const [platformFilter, setPlatformFilter] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("all");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
 
@@ -94,7 +80,6 @@ export default function OrdersPage() {
         page: page.toString(),
         pageSize: pageSize.toString(),
         platform: platformFilter,
-        status: statusFilter,
         search: searchTerm,
         fromDate,
         toDate,
@@ -114,7 +99,7 @@ export default function OrdersPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, page, platformFilter, statusFilter, searchTerm, fromDate, toDate, toast]);
+  }, [activeTab, page, platformFilter, searchTerm, fromDate, toDate, toast]);
 
   useEffect(() => {
     fetchData();
@@ -145,7 +130,6 @@ export default function OrdersPage() {
   const resetFilters = () => {
     setSearchTerm("");
     setPlatformFilter("all");
-    setStatusFilter("all");
     setFromDate("");
     setToDate("");
   };
@@ -302,24 +286,6 @@ export default function OrdersPage() {
                 </SelectContent>
               </Select>
             </div>
-            {activeTab === "orders" && (
-              <div className="space-y-1.5">
-                <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Status</label>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="bg-background"><SelectValue placeholder="Status" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="Delivered">Delivered</SelectItem>
-                    <SelectItem value="Courier Return">Courier Return</SelectItem>
-                    <SelectItem value="RTO">RTO</SelectItem>
-                    <SelectItem value="Cancelled">Cancelled</SelectItem>
-                    <SelectItem value="Pending">Pending</SelectItem>
-                    <SelectItem value="Shipped">Shipped</SelectItem>
-                    <SelectItem value="Processing">Processing</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">From</label>
               <Input type="date" className="bg-background" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
@@ -346,14 +312,13 @@ export default function OrdersPage() {
                     <TableHead className="text-right">Qty</TableHead>
                     <TableHead className="text-right">Price</TableHead>
                     <TableHead className="text-right">Total</TableHead>
-                    <TableHead>Status</TableHead>
                     <TableHead className="text-right w-[100px]">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading ? (
                     Array.from({ length: 5 }).map((_, i) => (
-                      <TableRow key={i}><TableCell colSpan={8}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
+                      <TableRow key={i}><TableCell colSpan={7}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
                     ))
                   ) : (activeTab === "orders" && data.length > 0) ? (
                     data.map((o) => (
@@ -369,11 +334,6 @@ export default function OrdersPage() {
                         <TableCell className="text-right">{o.quantity}</TableCell>
                         <TableCell className="text-right text-xs opacity-70">{formatINR(o.selling_price)}</TableCell>
                         <TableCell className="text-right font-bold text-primary">{formatINR(o.total_amount)}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline" className={cn("text-[10px] py-0", getStatusStyles(o.status))}>
-                            {o.status}
-                          </Badge>
-                        </TableCell>
                         <TableCell className="text-right">
                           <div className="flex justify-end gap-1">
                             <Button variant="ghost" size="icon" onClick={() => { setItemToEdit(o); setIsOrderModalOpen(true); }}>
@@ -387,7 +347,7 @@ export default function OrdersPage() {
                       </TableRow>
                     ))
                   ) : (
-                    <TableRow><TableCell colSpan={8} className="h-24 text-center text-muted-foreground">No orders found.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={7} className="h-24 text-center text-muted-foreground">No orders found.</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>

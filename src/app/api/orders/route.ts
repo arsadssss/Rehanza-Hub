@@ -26,7 +26,6 @@ export async function GET(request: Request) {
 
     // Filter params
     const platform = searchParams.get('platform');
-    const status = searchParams.get('status');
     const fromDate = searchParams.get('fromDate');
     const toDate = searchParams.get('toDate');
     const search = searchParams.get('search');
@@ -38,11 +37,6 @@ export async function GET(request: Request) {
     if (platform && platform !== 'all') {
       whereClauses.push(`o.platform = $${paramIndex++}`);
       params.push(platform);
-    }
-
-    if (status && status !== 'all') {
-      whereClauses.push(`o.status = $${paramIndex++}`);
-      params.push(status);
     }
 
     if (fromDate) {
@@ -96,7 +90,6 @@ export async function GET(request: Request) {
         o.id,
         o.order_date,
         o.platform,
-        o.status,
         o.quantity,
         o.selling_price,
         o.total_amount,
@@ -119,7 +112,6 @@ export async function GET(request: Request) {
         quantity: Number(o.quantity || 0),
         selling_price: Number(o.selling_price || 0),
         total_amount: Number(o.total_amount || 0),
-        status: o.status || 'Pending'
       })),
       totalRows,
       page,
@@ -146,7 +138,7 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { order_date, platform, variant_id, quantity, selling_price, status } = body;
+    const { order_date, platform, variant_id, quantity, selling_price } = body;
 
     if (!order_date || !platform || !variant_id || !quantity || selling_price === undefined) {
       return NextResponse.json({ success: false, message: "Missing required order fields" }, { status: 400 });
@@ -162,8 +154,7 @@ export async function POST(request: Request) {
         quantity, 
         selling_price, 
         total_amount, 
-        account_id,
-        status
+        account_id
       )
       VALUES (
         ${order_date}, 
@@ -172,8 +163,7 @@ export async function POST(request: Request) {
         ${quantity}, 
         ${selling_price}, 
         ${total_amount}, 
-        ${accountId},
-        ${status || 'Pending'}
+        ${accountId}
       )
       RETURNING *;
     `;
@@ -200,7 +190,7 @@ export async function PUT(request: Request) {
     }
 
     const body = await request.json();
-    const { id, order_date, platform, variant_id, quantity, selling_price, status } = body;
+    const { id, order_date, platform, variant_id, quantity, selling_price } = body;
 
     if (!id || !order_date || !platform || !variant_id || !quantity || selling_price === undefined) {
       return NextResponse.json({ success: false, message: "Missing required update fields" }, { status: 400 });
@@ -216,8 +206,7 @@ export async function PUT(request: Request) {
         variant_id = ${variant_id},
         quantity = ${quantity},
         selling_price = ${selling_price},
-        total_amount = ${total_amount},
-        status = ${status}
+        total_amount = ${total_amount}
       WHERE id = ${id} 
       AND account_id = ${accountId} 
       AND is_deleted = false
