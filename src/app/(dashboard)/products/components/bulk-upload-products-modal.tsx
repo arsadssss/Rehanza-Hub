@@ -62,16 +62,31 @@ export function BulkUploadProductsModal({ isOpen, onClose, onSuccess }: BulkUplo
         throw new Error("CSV file is empty or missing data rows.");
       }
 
-      const headers = lines[0].split(',').map(h => h.trim());
+      const headers = lines[0].split(',').map(h => h.trim().toLowerCase());
+      
+      // Expected Headers: sku, product name, category, cost price, margin, low stock threshold
+      const hIdx = {
+        sku: headers.indexOf('sku'),
+        name: headers.indexOf('product name'),
+        category: headers.indexOf('category'),
+        cost: headers.indexOf('cost price'),
+        margin: headers.indexOf('margin'),
+        lowStock: headers.indexOf('low stock threshold')
+      };
+
+      if (hIdx.sku === -1 || hIdx.name === -1 || hIdx.cost === -1 || hIdx.margin === -1) {
+        throw new Error("CSV structure invalid. Ensure columns match template exactly: SKU, Product Name, Category, Cost Price, Margin, Low Stock Threshold");
+      }
+
       const rows = lines.slice(1).map(line => {
         const cols = line.split(',').map(c => c.trim());
         return {
-          sku: cols[0],
-          product_name: cols[1],
-          category: cols[2],
-          cost_price: parseFloat(cols[3]),
-          margin: parseFloat(cols[4]),
-          low_stock_threshold: parseInt(cols[5] || "5")
+          sku: cols[hIdx.sku],
+          product_name: cols[hIdx.name],
+          category: cols[hIdx.category],
+          cost_price: parseFloat(cols[hIdx.cost]),
+          margin: parseFloat(cols[hIdx.margin]),
+          low_stock_threshold: cols[hIdx.lowStock] ? parseInt(cols[hIdx.lowStock]) : 5
         };
       });
 
@@ -174,12 +189,12 @@ export function BulkUploadProductsModal({ isOpen, onClose, onSuccess }: BulkUplo
           <div className="space-y-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div className="p-4 rounded-xl border bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400">
-                <p className="text-xs font-bold uppercase">Successful</p>
-                <p className="text-3xl font-black">{result.inserted}</p>
+                <p className="text-xs font-bold uppercase text-center">Successful</p>
+                <p className="text-3xl font-black text-center">{result.inserted}</p>
               </div>
               <div className="p-4 rounded-xl border bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400">
-                <p className="text-xs font-bold uppercase">Skipped</p>
-                <p className="text-3xl font-black">{result.skipped}</p>
+                <p className="text-xs font-bold uppercase text-center">Skipped</p>
+                <p className="text-3xl font-black text-center">{result.skipped}</p>
               </div>
             </div>
 
