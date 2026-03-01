@@ -1,4 +1,3 @@
-
 "use client"
 
 import * as React from "react"
@@ -18,6 +17,7 @@ import { apiFetch } from "@/lib/apiFetch"
 import { Download, FileUp, AlertCircle, CheckCircle2, Table as TableIcon } from "lucide-react"
 import { ScrollArea } from "@/components/ui/scroll-area"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
+import { Badge } from "@/components/ui/badge"
 
 interface BulkImportModalProps {
   isOpen: boolean
