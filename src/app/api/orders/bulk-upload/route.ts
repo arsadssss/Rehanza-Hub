@@ -87,11 +87,15 @@ export async function POST(request: Request) {
         continue;
       }
 
+      // Normalizing SKU to uppercase to handle case-sensitivity issues
+      const rawSku = cols[hIdx.sku] || "";
+      const normalizedSku = rawSku.trim().toUpperCase();
+
       const row = {
         ext_id: cols[hIdx.ext_id],
         date: cols[hIdx.date],
         platform: cols[hIdx.platform],
-        sku: cols[hIdx.sku],
+        sku: normalizedSku,
         qty: parseInt(cols[hIdx.qty]),
         price: parseFloat(cols[hIdx.price]),
         status: finalStatus,
@@ -120,7 +124,7 @@ export async function POST(request: Request) {
       sql`SELECT external_order_id FROM orders WHERE external_order_id = ANY(${Array.from(extIds)}) AND account_id = ${accountId} AND is_deleted = false`
     ]);
 
-    const variantMap = new Map(variantsRes.map((v: any) => [v.variant_sku, v]));
+    const variantMap = new Map(variantsRes.map((v: any) => [v.variant_sku.toUpperCase(), v]));
     const existingIds = new Set(existingOrdersRes.map((o: any) => o.external_order_id));
 
     const finalQueue: any[] = [];
