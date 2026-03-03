@@ -7,69 +7,46 @@ export const revalidate = 0;
 
 /**
  * GET /api/wholesale
- * Consolidated endpoint for Wholesale page:
- * 1. Fetches non-archived products belonging to account (for dropdown)
- * 2. Fetches wholesale tiers with aggregated non-archived stock
+ * Returns all wholesale pricing tiers for the active account.
+ * Scoped by account_id and ordered by most recent.
  */
 export async function GET(request: Request) {
   try {
     const accountId = request.headers.get("x-account-id");
     if (!accountId) {
-      return NextResponse.json({ success: false, message: "Account not selected" }, { status: 400 });
+      return NextResponse.json({ success: false, message: "Account context missing" }, { status: 400 });
     }
 
-    const [products, tiers] = await Promise.all([
-      // 1. Fetch Products for Dropdown (Exclude archived)
-      sql`
-        SELECT id, sku, product_name 
-        FROM allproducts 
-        WHERE account_id = ${accountId} 
-        AND is_deleted = false
-        ORDER BY product_name ASC
-      `,
-      // 2. Fetch Wholesale Tiers with joined data and live total stock sum
-      sql`
-        SELECT 
-          wp.id,
-          ap.product_name,
-          wp.min_quantity,
-          wp.wholesale_price,
-          u.name AS added_by,
-          (
-            SELECT COALESCE(SUM(pv.stock), 0)::int
-            FROM product_variants pv
-            WHERE pv.product_id = wp.product_id 
-            AND pv.account_id = ${accountId} 
-            AND pv.is_deleted = false
-          ) as total_stock
-        FROM wholesale_prices wp
-        JOIN allproducts ap ON wp.product_id = ap.id
-        LEFT JOIN users u ON wp.created_by = u.id
-        WHERE wp.account_id = ${accountId}
-        AND ap.is_deleted = false
-        ORDER BY ap.product_name ASC, wp.min_quantity ASC
-      `
-    ]);
+    const tiers = await sql`
+      SELECT 
+        id, 
+        product_name, 
+        min_quantity, 
+        wholesale_price, 
+        (SELECT name FROM users WHERE id = created_by) as added_by,
+        created_at
+      FROM wholesale_prices
+      WHERE account_id = ${accountId}
+      ORDER BY created_at DESC
+    `;
 
     return NextResponse.json({
       success: true,
-      products: products || [],
       tiers: (tiers || []).map((t: any) => ({
         ...t,
-        wholesale_price: Number(t.wholesale_price || 0),
-        total_stock: Number(t.total_stock || 0)
+        wholesale_price: Number(t.wholesale_price || 0)
       }))
     });
 
   } catch (error: any) {
     console.error("Wholesale GET API Error:", error);
-    return NextResponse.json({ success: false, message: "Failed to fetch wholesale data", error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, message: "Failed to fetch wholesale data" }, { status: 500 });
   }
 }
 
 /**
  * POST /api/wholesale
- * Adds a new pricing tier, restricted by account isolation.
+ * Creates a new wholesale tier. Injects account_id and created_by from auth context.
  */
 export async function POST(request: Request) {
   try {
@@ -77,45 +54,52 @@ export async function POST(request: Request) {
     const accountId = request.headers.get("x-account-id");
     
     if (!session || !session.user?.id || !accountId) {
-      return NextResponse.json({ success: false, message: "Unauthorized or Account missing" }, { status: 401 });
+      return NextResponse.json({ success: false, message: "Unauthorized access" }, { status: 401 });
     }
 
     const body = await request.json();
-    const { product_id, min_quantity, wholesale_price } = body;
+    const { product_name, min_quantity, wholesale_price } = body;
 
-    if (!product_id || min_quantity === undefined || wholesale_price === undefined) {
-      return NextResponse.json({ success: false, message: "Missing required fields" }, { status: 400 });
+    // Field-level validation
+    if (!product_name || product_name.trim() === "") {
+      return NextResponse.json({ success: false, message: "Product name is required" }, { status: 400 });
+    }
+    if (min_quantity === undefined || Number(min_quantity) <= 0) {
+      return NextResponse.json({ success: false, message: "Minimum quantity must be greater than 0" }, { status: 400 });
+    }
+    if (wholesale_price === undefined || Number(wholesale_price) <= 0) {
+      return NextResponse.json({ success: false, message: "Wholesale price must be greater than 0" }, { status: 400 });
     }
 
-    // Uniqueness check: (product_id, min_quantity, account_id)
+    // Manual duplicate check for (account_id, product_name, min_quantity)
     const existing = await sql`
       SELECT id FROM wholesale_prices 
-      WHERE product_id = ${product_id} 
-      AND min_quantity = ${min_quantity} 
-      AND account_id = ${accountId}
+      WHERE account_id = ${accountId} 
+      AND LOWER(product_name) = LOWER(${product_name.trim()}) 
+      AND min_quantity = ${min_quantity}
     `;
 
     if (existing.length > 0) {
-      return NextResponse.json({ success: false, message: "A pricing tier for this product and quantity already exists." }, { status: 409 });
+      return NextResponse.json({ success: false, message: "Duplicate tier for this product and quantity" }, { status: 409 });
     }
 
     const result = await sql`
-      INSERT INTO wholesale_prices (product_id, min_quantity, wholesale_price, created_by, account_id)
-      VALUES (${product_id}, ${min_quantity}, ${wholesale_price}, ${session.user.id}, ${accountId})
+      INSERT INTO wholesale_prices (product_name, min_quantity, wholesale_price, account_id, created_by)
+      VALUES (${product_name.trim()}, ${min_quantity}, ${wholesale_price}, ${accountId}, ${session.user.id})
       RETURNING *;
     `;
 
-    return NextResponse.json({ success: true, message: "Tier added successfully", data: result[0] }, { status: 201 });
+    return NextResponse.json({ success: true, data: result[0] }, { status: 201 });
 
   } catch (error: any) {
     console.error("Wholesale POST API Error:", error);
-    return NextResponse.json({ success: false, message: "Failed to create tier", error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, message: "Failed to create wholesale tier" }, { status: 500 });
   }
 }
 
 /**
  * DELETE /api/wholesale
- * Securely deletes a tier by ID and account_id.
+ * Removes a tier. Enforces account ownership to prevent cross-account deletions.
  */
 export async function DELETE(request: Request) {
   try {
@@ -124,7 +108,7 @@ export async function DELETE(request: Request) {
     const accountId = request.headers.get("x-account-id");
 
     if (!id || !accountId) {
-      return NextResponse.json({ success: false, message: "Tier ID and Account required" }, { status: 400 });
+      return NextResponse.json({ success: false, message: "ID and Account context required" }, { status: 400 });
     }
 
     const result = await sql`
@@ -138,10 +122,10 @@ export async function DELETE(request: Request) {
       return NextResponse.json({ success: false, message: "Tier not found or access denied" }, { status: 404 });
     }
 
-    return NextResponse.json({ success: true, message: "Tier removed successfully" });
+    return NextResponse.json({ success: true, message: "Wholesale tier deleted successfully" });
 
   } catch (error: any) {
     console.error("Wholesale DELETE API Error:", error);
-    return NextResponse.json({ success: false, message: "Failed to delete tier", error: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, message: "Failed to delete tier" }, { status: 500 });
   }
 }
