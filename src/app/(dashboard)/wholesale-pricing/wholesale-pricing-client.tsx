@@ -36,7 +36,6 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Trash2, PlusCircle, Tag, TrendingDown } from 'lucide-react';
 import { apiFetch } from '@/lib/apiFetch';
 
-// Zod schema matching the required payload
 const formSchema = z.object({
   product_name: z.string().min(1, "Product name is required"),
   min_quantity: z.coerce.number().min(1, "Minimum quantity must be at least 1"),
@@ -56,9 +55,8 @@ export function WholesalePricingClient() {
   const [isMounted, setIsMounted] = useState(false);
   const [tiers, setTiers] = useState<WholesaleTier[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting] = false;
 
-  // Initialize form with react-hook-form and zod
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -68,7 +66,6 @@ export function WholesalePricingClient() {
     },
   });
 
-  // Fetch all wholesale tiers for the active account
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -91,15 +88,12 @@ export function WholesalePricingClient() {
     }
   }, [toast]);
 
-  // Handle client-side mount to prevent hydration errors
   useEffect(() => {
     setIsMounted(true);
     fetchData();
   }, [fetchData]);
 
-  // Handle form submission
   async function onSubmit(values: z.infer<typeof formSchema>) {
-    setIsSubmitting(true);
     try {
       const res = await apiFetch('/api/wholesale', {
         method: 'POST',
@@ -121,7 +115,6 @@ export function WholesalePricingClient() {
         description: 'Wholesale pricing tier added successfully.',
       });
       
-      // Reset form and refresh list
       form.reset({ product_name: "", min_quantity: 1, wholesale_price: 0 });
       fetchData();
     } catch (error: any) {
@@ -130,12 +123,9 @@ export function WholesalePricingClient() {
         title: 'Error',
         description: error.message,
       });
-    } finally {
-      setIsSubmitting(false);
     }
   }
 
-  // Handle tier deletion
   async function onDelete(id: string) {
     try {
       const res = await apiFetch(`/api/wholesale?id=${id}`, {
@@ -161,29 +151,28 @@ export function WholesalePricingClient() {
     }
   }
 
-  // Hydration guard
   if (!isMounted) {
     return (
       <div className="p-6 space-y-6">
         <Skeleton className="h-10 w-1/4" />
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="space-y-8">
           <Skeleton className="h-64 w-full" />
-          <Skeleton className="lg:col-span-2 h-64 w-full" />
+          <Skeleton className="h-96 w-full" />
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 space-y-6 bg-gray-50/50 dark:bg-black/50 min-h-full font-body">
+    <div className="p-6 space-y-8 bg-gray-50/50 dark:bg-black/50 min-h-full font-body">
       <div className="flex flex-col gap-1">
         <h1 className="text-3xl font-bold tracking-tight font-headline text-foreground">Wholesale Pricing</h1>
         <p className="text-muted-foreground text-sm font-medium">Manage volume-based discount tiers independently from your main catalog.</p>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Add New Tier Form */}
-        <Card className="lg:col-span-1 h-fit shadow-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-[2rem] overflow-hidden">
+      <div className="flex flex-col gap-8">
+        {/* Add New Tier Form Section */}
+        <Card className="w-full shadow-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-[2rem] overflow-hidden">
           <CardHeader className="pt-8 px-8">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-primary/10 rounded-xl">
@@ -197,34 +186,17 @@ export function WholesalePricingClient() {
           </CardHeader>
           <CardContent className="px-8 pb-10 mt-2">
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
-                <FormField
-                  control={form.control}
-                  name="product_name"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1">Product Name</FormLabel>
-                      <FormControl>
-                        <Input 
-                          placeholder="e.g. Bulk Cotton T-Shirts" 
-                          className="bg-gray-100/50 dark:bg-white/5 border-0 focus-visible:ring-primary/20 h-12 rounded-xl text-sm font-medium" 
-                          {...field} 
-                        />
-                      </FormControl>
-                      <FormMessage className="text-[10px] font-bold" />
-                    </FormItem>
-                  )}
-                />
-                <div className="grid grid-cols-2 gap-4">
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <FormField
                     control={form.control}
-                    name="min_quantity"
+                    name="product_name"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1">Min. Quantity</FormLabel>
+                        <FormLabel className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1">Product Name</FormLabel>
                         <FormControl>
                           <Input 
-                            type="number" 
+                            placeholder="e.g. Bulk Cotton T-Shirts" 
                             className="bg-gray-100/50 dark:bg-white/5 border-0 focus-visible:ring-primary/20 h-12 rounded-xl text-sm font-medium" 
                             {...field} 
                           />
@@ -233,39 +205,59 @@ export function WholesalePricingClient() {
                       </FormItem>
                     )}
                   />
-                  <FormField
-                    control={form.control}
-                    name="wholesale_price"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1">Unit Price (₹)</FormLabel>
-                        <FormControl>
-                          <Input 
-                            type="number" 
-                            step="0.01" 
-                            className="bg-gray-100/50 dark:bg-white/5 border-0 focus-visible:ring-primary/20 h-12 rounded-xl text-sm font-medium" 
-                            {...field} 
-                          />
-                        </FormControl>
-                        <FormMessage className="text-[10px] font-bold" />
-                      </FormItem>
-                    )}
-                  />
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="min_quantity"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1">Min. Quantity</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="number" 
+                              className="bg-gray-100/50 dark:bg-white/5 border-0 focus-visible:ring-primary/20 h-12 rounded-xl text-sm font-medium" 
+                              {...field} 
+                            />
+                          </FormControl>
+                          <FormMessage className="text-[10px] font-bold" />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="wholesale_price"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-[10px] font-bold uppercase tracking-[0.2em] text-muted-foreground ml-1">Unit Price (₹)</FormLabel>
+                          <FormControl>
+                            <Input 
+                              type="number" 
+                              step="0.01" 
+                              className="bg-gray-100/50 dark:bg-white/5 border-0 focus-visible:ring-primary/20 h-12 rounded-xl text-sm font-medium" 
+                              {...field} 
+                            />
+                          </FormControl>
+                          <FormMessage className="text-[10px] font-bold" />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
                 </div>
-                <Button 
-                  type="submit" 
-                  className="w-full h-12 rounded-xl font-bold tracking-tight shadow-lg shadow-primary/20 hover:scale-[1.02] transition-transform bg-primary text-primary-foreground" 
-                  disabled={isSubmitting}
-                >
-                  {isSubmitting ? "Processing..." : "Add Pricing Tier"}
-                </Button>
+                <div className="flex justify-end">
+                  <Button 
+                    type="submit" 
+                    className="w-full md:w-auto px-12 h-12 rounded-xl font-bold tracking-tight shadow-lg shadow-primary/20 hover:scale-[1.02] transition-transform bg-primary text-primary-foreground"
+                  >
+                    Add Pricing Tier
+                  </Button>
+                </div>
               </form>
             </Form>
           </CardContent>
         </Card>
 
-        {/* Wholesale Tiers Table */}
-        <Card className="lg:col-span-2 shadow-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-[2rem] overflow-hidden">
+        {/* Wholesale Tiers Registry Section */}
+        <Card className="w-full shadow-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-[2rem] overflow-hidden">
           <CardHeader className="pt-8 px-8">
             <div className="flex flex-row items-center justify-between">
               <div className="flex items-center gap-3">
