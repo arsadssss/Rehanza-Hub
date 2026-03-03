@@ -32,37 +32,27 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Trash2, PlusCircle, Tag, TrendingDown } from 'lucide-react';
 import { apiFetch } from '@/lib/apiFetch';
 
 const formSchema = z.object({
-  product_id: z.string().min(1, "Product is required"),
+  product_name: z.string().min(1, "Product name is required"),
   min_quantity: z.coerce.number().min(1, "Minimum quantity must be at least 1"),
   wholesale_price: z.coerce.number().positive("Price must be positive"),
 });
 
 type WholesaleTier = {
   id: string;
-  product_id: string;
   product_name: string;
   min_quantity: number;
   wholesale_price: number;
-  total_stock: number;
   added_by: string;
 };
 
 export function WholesalePricingClient() {
   const { toast } = useToast();
   const [isMounted, setIsMounted] = useState(false);
-  const [products, setProducts] = useState<{ id: string; sku: string; product_name: string }[]>([]);
   const [tiers, setTiers] = useState<WholesaleTier[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -70,7 +60,7 @@ export function WholesalePricingClient() {
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
-      product_id: "",
+      product_name: "",
       min_quantity: 1,
       wholesale_price: 0,
     },
@@ -83,7 +73,6 @@ export function WholesalePricingClient() {
       if (!res.ok) throw new Error('Failed to fetch wholesale data');
       
       const json = await res.json();
-      setProducts(json.products || []);
       setTiers(json.tiers || []);
     } catch (error: any) {
       toast({
@@ -119,7 +108,7 @@ export function WholesalePricingClient() {
         title: 'Success',
         description: 'Wholesale pricing tier added successfully.',
       });
-      form.reset({ product_id: "", min_quantity: 1, wholesale_price: 0 });
+      form.reset({ product_name: "", min_quantity: 1, wholesale_price: 0 });
       fetchData();
     } catch (error: any) {
       toast({
@@ -152,11 +141,6 @@ export function WholesalePricingClient() {
     }
   }
 
-  const totalWholesaleValue = tiers.reduce(
-    (sum, tier) => sum + (Number(tier.wholesale_price || 0) * Number(tier.total_stock || 0)), 
-    0
-  );
-
   if (!isMounted) {
     return <div className="p-6 space-y-6"><Skeleton className="h-32 w-full" /><Skeleton className="h-64 w-full" /></div>;
   }
@@ -183,24 +167,13 @@ export function WholesalePricingClient() {
               <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
                 <FormField
                   control={form.control}
-                  name="product_id"
+                  name="product_name"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Select Product</FormLabel>
-                      <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                          <SelectTrigger className="bg-background/50">
-                            <SelectValue placeholder="Choose a product SKU" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          {products.map(p => (
-                            <SelectItem key={p.id} value={p.id}>
-                              {p.sku} — {p.product_name}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+                      <FormLabel>Product Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="Enter product name" className="bg-background/50" {...field} />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -250,12 +223,6 @@ export function WholesalePricingClient() {
                 Wholesale Price List
               </CardTitle>
               <CardDescription>All currently active wholesale discount levels.</CardDescription>
-            </div>
-            <div className="text-right">
-              <p className="text-[10px] font-bold uppercase text-muted-foreground tracking-widest">Total Wholesale Value</p>
-              <p className="text-2xl font-black text-emerald-600 dark:text-emerald-400">
-                {formatINR(totalWholesaleValue)}
-              </p>
             </div>
           </CardHeader>
           <CardContent>
