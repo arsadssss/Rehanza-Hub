@@ -15,7 +15,6 @@ import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { apiFetch } from "@/lib/apiFetch"
 import { Download, FileUp, AlertCircle, CheckCircle2 } from "lucide-react"
-import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert"
 import { ScrollArea } from "@/components/ui/scroll-area"
 
 interface BulkUploadModalProps {
@@ -53,22 +52,33 @@ export function BulkUploadModal({ isOpen, onClose, onSuccess }: BulkUploadModalP
 
     setIsUploading(true)
     setUploadProgress(30)
+    setResult(null)
     
     try {
       const formData = new FormData()
       formData.append('file', file)
 
-      // apiFetch automatically handles the x-account-id and FormData boundaries correctly now
       const res = await apiFetch('/api/orders/bulk-upload', {
         method: 'POST',
         body: formData,
       });
 
-      setUploadProgress(100)
       const data = await res.json()
+      setUploadProgress(100)
 
       if (!res.ok) {
-        throw new Error(data.error || data.details || "Upload failed")
+        // Even if the response is not OK (400/500), the backend might return row-level errors
+        if (data.errors && data.errors.length > 0) {
+          setResult(data)
+          toast({
+            variant: "destructive",
+            title: "Validation Failed",
+            description: `Found ${data.errors.length} issues in the file.`,
+          })
+        } else {
+          throw new Error(data.error || data.details || "Upload failed")
+        }
+        return;
       }
 
       setResult(data)
@@ -123,11 +133,11 @@ export function BulkUploadModal({ isOpen, onClose, onSuccess }: BulkUploadModalP
 
             <div className="space-y-2">
               <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground ml-1">Select CSV File</label>
-              <Input 
+              <input 
                 type="file" 
                 accept=".csv" 
                 onChange={handleFileChange} 
-                className="cursor-pointer"
+                className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm file:border-0 file:bg-transparent file:text-sm file:font-medium cursor-pointer"
                 disabled={isUploading}
               />
             </div>
@@ -135,7 +145,7 @@ export function BulkUploadModal({ isOpen, onClose, onSuccess }: BulkUploadModalP
             {isUploading && (
               <div className="space-y-2">
                 <Progress value={uploadProgress} className="h-2" />
-                <p className="text-[10px] text-center text-muted-foreground animate-pulse">Processing database transactions...</p>
+                <p className="text-[10px] text-center text-muted-foreground animate-pulse">Analyzing file and verifying inventory...</p>
               </div>
             )}
           </div>
@@ -144,15 +154,15 @@ export function BulkUploadModal({ isOpen, onClose, onSuccess }: BulkUploadModalP
             <div className="grid grid-cols-2 gap-4">
               <div className="p-4 rounded-xl border bg-emerald-50 dark:bg-emerald-950/20 text-emerald-700 dark:text-emerald-400">
                 <p className="text-xs font-bold uppercase">Success</p>
-                <p className="text-3xl font-black">{result.inserted}</p>
+                <p className="text-3xl font-black">{result.inserted || 0}</p>
               </div>
               <div className="p-4 rounded-xl border bg-rose-50 dark:bg-rose-950/20 text-rose-700 dark:text-rose-400">
-                <p className="text-xs font-bold uppercase">Skipped</p>
-                <p className="text-3xl font-black">{result.skipped}</p>
+                <p className="text-xs font-bold uppercase">Failed/Skipped</p>
+                <p className="text-3xl font-black">{result.skipped || 0}</p>
               </div>
             </div>
 
-            {result.errors.length > 0 && (
+            {result.errors && result.errors.length > 0 && (
               <div className="space-y-2">
                 <p className="text-xs font-bold uppercase text-muted-foreground ml-1">Error Details</p>
                 <ScrollArea className="h-48 rounded-xl border bg-muted/30 p-4">
