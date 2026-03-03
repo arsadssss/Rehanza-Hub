@@ -7,25 +7,14 @@ export const revalidate = 0;
 
 /**
  * GET /api/wholesale
- * Returns all wholesale pricing tiers for the active account with search and sort.
+ * Returns all wholesale pricing tiers for the active account.
  */
 export async function GET(request: Request) {
   try {
-    const { searchParams } = new URL(request.url);
     const accountId = request.headers.get("x-account-id");
-    const search = searchParams.get('search') || '';
-    const sort = searchParams.get('sort') || 'latest';
 
     if (!accountId) {
       return NextResponse.json({ success: false, message: "Account context missing" }, { status: 400 });
-    }
-
-    let orderBy = 'created_at DESC';
-    switch (sort) {
-      case 'price_asc': orderBy = 'wholesale_price ASC'; break;
-      case 'price_desc': orderBy = 'wholesale_price DESC'; break;
-      case 'qty_desc': orderBy = 'min_quantity DESC'; break;
-      case 'latest': default: orderBy = 'created_at DESC'; break;
     }
 
     const tiers = await sql`
@@ -38,8 +27,7 @@ export async function GET(request: Request) {
         created_at
       FROM wholesale_prices
       WHERE account_id = ${accountId}
-      AND (product_name ILIKE ${'%' + search + '%'})
-      ORDER BY ${sql.raw(orderBy)}
+      ORDER BY created_at DESC
     `;
 
     return NextResponse.json({
@@ -104,49 +92,6 @@ export async function POST(request: Request) {
   } catch (error: any) {
     console.error("Wholesale POST API Error:", error);
     return NextResponse.json({ success: false, message: "Failed to create wholesale tier" }, { status: 500 });
-  }
-}
-
-/**
- * PUT /api/wholesale
- * Updates an existing wholesale tier.
- */
-export async function PUT(request: Request) {
-  try {
-    const session = await getServerSession(authOptions);
-    const accountId = request.headers.get("x-account-id");
-    
-    if (!session || !session.user?.id || !accountId) {
-      return NextResponse.json({ success: false, message: "Unauthorized access" }, { status: 401 });
-    }
-
-    const body = await request.json();
-    const { id, product_name, min_quantity, wholesale_price } = body;
-
-    if (!id || !product_name || Number(min_quantity) <= 0 || Number(wholesale_price) <= 0) {
-      return NextResponse.json({ success: false, message: "Invalid update data" }, { status: 400 });
-    }
-
-    const result = await sql`
-      UPDATE wholesale_prices
-      SET 
-        product_name = ${product_name.trim()},
-        min_quantity = ${min_quantity},
-        wholesale_price = ${wholesale_price},
-        updated_at = NOW()
-      WHERE id = ${id} AND account_id = ${accountId}
-      RETURNING *;
-    `;
-
-    if (result.length === 0) {
-      return NextResponse.json({ success: false, message: "Tier not found or access denied" }, { status: 404 });
-    }
-
-    return NextResponse.json({ success: true, data: result[0] });
-
-  } catch (error: any) {
-    console.error("Wholesale PUT API Error:", error);
-    return NextResponse.json({ success: false, message: "Failed to update wholesale tier" }, { status: 500 });
   }
 }
 
