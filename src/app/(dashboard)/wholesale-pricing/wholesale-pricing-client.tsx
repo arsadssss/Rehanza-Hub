@@ -55,7 +55,7 @@ export function WholesalePricingClient() {
   const [isMounted, setIsMounted] = useState(false);
   const [tiers, setTiers] = useState<WholesaleTier[]>([]);
   const [loading, setLoading] = useState(true);
-  const [isSubmitting, setIsSubmitting] = false;
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -94,6 +94,7 @@ export function WholesalePricingClient() {
   }, [fetchData]);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
+    setIsSubmitting(true);
     try {
       const res = await apiFetch('/api/wholesale', {
         method: 'POST',
@@ -123,6 +124,8 @@ export function WholesalePricingClient() {
         title: 'Error',
         description: error.message,
       });
+    } finally {
+      setIsSubmitting(false);
     }
   }
 
@@ -246,9 +249,10 @@ export function WholesalePricingClient() {
                 <div className="flex justify-end">
                   <Button 
                     type="submit" 
+                    disabled={isSubmitting}
                     className="w-full md:w-auto px-12 h-12 rounded-xl font-bold tracking-tight shadow-lg shadow-primary/20 hover:scale-[1.02] transition-transform bg-primary text-primary-foreground"
                   >
-                    Add Pricing Tier
+                    {isSubmitting ? "Processing..." : "Add Pricing Tier"}
                   </Button>
                 </div>
               </form>
