@@ -26,6 +26,7 @@ import {
   Tag,
   Wallet,
   ChevronDown,
+  Image as ImageIcon,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -44,6 +45,7 @@ const navItems = [
   { href: '/expenses', icon: CreditCard, label: 'Expenses' },
   { href: '/payments', icon: Wallet, label: 'Payments' },
   { href: '/wholesale-pricing', icon: Tag, label: 'Wholesale' },
+  { href: '/image-tool', icon: ImageIcon, label: 'Image Tool' },
   { href: '/profile', icon: User, label: 'Profile' },
   { href: '/settings', icon: Settings, label: 'Settings' },
 ];
