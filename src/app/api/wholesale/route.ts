@@ -7,17 +7,49 @@ export const revalidate = 0;
 
 /**
  * GET /api/wholesale
- * Returns all wholesale pricing tiers for the active account.
+ * Returns wholesale pricing tiers for the active account with search, sort, and pagination.
  */
 export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
     const accountId = request.headers.get("x-account-id");
 
     if (!accountId) {
       return NextResponse.json({ success: false, message: "Account context missing" }, { status: 400 });
     }
 
-    const tiers = await sql`
+    const search = searchParams.get('search') || '';
+    const sort = searchParams.get('sort') || 'latest';
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
+    const offset = (page - 1) * pageSize;
+
+    // Build dynamic where clause components
+    let whereClauses = ['account_id = $1'];
+    let params: any[] = [accountId];
+    let paramIndex = 2;
+
+    if (search) {
+      whereClauses.push(`product_name ILIKE $${paramIndex}`);
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+
+    const whereString = `WHERE ${whereClauses.join(' AND ')}`;
+
+    // Handle sorting logic
+    let orderClause = 'ORDER BY created_at DESC';
+    if (sort === 'price_asc') orderClause = 'ORDER BY wholesale_price ASC';
+    else if (sort === 'price_desc') orderClause = 'ORDER BY wholesale_price DESC';
+    else if (sort === 'qty_desc') orderClause = 'ORDER BY min_quantity DESC';
+
+    // Fetch Count
+    const countQuery = `SELECT COUNT(*) FROM wholesale_prices ${whereString}`;
+    const totalRes = await sql(countQuery, params);
+    const total = Number(totalRes[0]?.count || 0);
+
+    // Fetch Data
+    const dataQuery = `
       SELECT 
         id, 
         product_name, 
@@ -26,16 +58,25 @@ export async function GET(request: Request) {
         (SELECT name FROM users WHERE id = created_by) as added_by,
         created_at
       FROM wholesale_prices
-      WHERE account_id = ${accountId}
-      ORDER BY created_at DESC
+      ${whereString}
+      ${orderClause}
+      LIMIT ${pageSize} OFFSET ${offset}
     `;
+    
+    const tiers = await sql(dataQuery, params);
 
     return NextResponse.json({
       success: true,
       tiers: (tiers || []).map((t: any) => ({
         ...t,
         wholesale_price: Number(t.wholesale_price || 0)
-      }))
+      })),
+      pagination: {
+        total,
+        page,
+        pageSize,
+        totalPages: Math.ceil(total / pageSize)
+      }
     });
 
   } catch (error: any) {

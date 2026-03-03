@@ -32,8 +32,15 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Trash2, PlusCircle, Tag, TrendingDown } from 'lucide-react';
+import { Trash2, PlusCircle, Tag, TrendingDown, Search, FilterX, ChevronLeft, ChevronRight } from 'lucide-react';
 import { apiFetch } from '@/lib/apiFetch';
 
 const formSchema = z.object({
@@ -57,6 +64,14 @@ export function WholesalePricingClient() {
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  // Search & Filter State
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortOrder, setSortOrder] = useState('latest');
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  const [totalRecords, setTotalRows] = useState(0);
+  const pageSize = 10;
+
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -66,10 +81,17 @@ export function WholesalePricingClient() {
     },
   });
 
-  const fetchData = useCallback(async () => {
+  const fetchData = useCallback(async (currentSearch: string, currentSort: string, currentPage: number) => {
     setLoading(true);
     try {
-      const res = await apiFetch('/api/wholesale');
+      const params = new URLSearchParams({
+        search: currentSearch,
+        sort: currentSort,
+        page: currentPage.toString(),
+        pageSize: pageSize.toString()
+      });
+
+      const res = await apiFetch(`/api/wholesale?${params.toString()}`);
       const json = await res.json();
       
       if (!res.ok) {
@@ -77,6 +99,8 @@ export function WholesalePricingClient() {
       }
       
       setTiers(json.tiers || []);
+      setTotalPages(json.pagination?.totalPages || 1);
+      setTotalRows(json.pagination?.total || 0);
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -88,10 +112,15 @@ export function WholesalePricingClient() {
     }
   }, [toast]);
 
+  // Handle Initial Load and Search Debounce
   useEffect(() => {
     setIsMounted(true);
-    fetchData();
-  }, [fetchData]);
+    const handler = setTimeout(() => {
+      fetchData(searchTerm, sortOrder, page);
+    }, 300);
+
+    return () => clearTimeout(handler);
+  }, [searchTerm, sortOrder, page, fetchData]);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
@@ -113,7 +142,8 @@ export function WholesalePricingClient() {
       });
       
       form.reset({ product_name: "", min_quantity: 1, wholesale_price: 0 });
-      fetchData();
+      fetchData(searchTerm, sortOrder, 1);
+      setPage(1);
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -140,7 +170,7 @@ export function WholesalePricingClient() {
         title: 'Success',
         description: 'Pricing tier removed successfully.',
       });
-      fetchData();
+      fetchData(searchTerm, sortOrder, page);
     } catch (error: any) {
       toast({
         variant: 'destructive',
@@ -149,6 +179,12 @@ export function WholesalePricingClient() {
       });
     }
   }
+
+  const resetFilters = () => {
+    setSearchTerm('');
+    setSortOrder('latest');
+    setPage(1);
+  };
 
   if (!isMounted) {
     return (
@@ -258,7 +294,7 @@ export function WholesalePricingClient() {
 
         {/* Wholesale Tiers Registry Section */}
         <Card className="w-full shadow-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-[2rem] overflow-hidden">
-          <CardHeader className="pt-8 px-8">
+          <CardHeader className="pt-8 px-8 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <div className="p-2 bg-primary/10 rounded-xl">
                 <Tag className="h-5 w-5 text-primary" />
@@ -267,6 +303,36 @@ export function WholesalePricingClient() {
                 <CardTitle className="text-xl font-headline font-bold">Price Registry</CardTitle>
                 <CardDescription className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Active Wholesale Tiers</CardDescription>
               </div>
+            </div>
+
+            {/* Filter Bar */}
+            <div className="flex flex-col sm:flex-row items-center gap-3">
+              <div className="relative w-full sm:w-64">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input 
+                  placeholder="Search products..." 
+                  className="pl-9 h-10 rounded-xl bg-background border-border/50 text-xs font-medium"
+                  value={searchTerm}
+                  onChange={(e) => {
+                    setSearchTerm(e.target.value);
+                    setPage(1);
+                  }}
+                />
+              </div>
+              <Select value={sortOrder} onValueChange={(v) => { setSortOrder(v); setPage(1); }}>
+                <SelectTrigger className="w-full sm:w-40 h-10 rounded-xl bg-background border-border/50 text-xs font-bold uppercase">
+                  <SelectValue placeholder="Sort By" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="latest" className="text-xs uppercase font-bold">Latest</SelectItem>
+                  <SelectItem value="price_asc" className="text-xs uppercase font-bold">Price (Low)</SelectItem>
+                  <SelectItem value="price_desc" className="text-xs uppercase font-bold">Price (High)</SelectItem>
+                  <SelectItem value="qty_desc" className="text-xs uppercase font-bold">Qty (High)</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="ghost" size="icon" onClick={resetFilters} className="h-10 w-10 rounded-xl hover:bg-destructive/10 hover:text-destructive">
+                <FilterX className="h-4 w-4" />
+              </Button>
             </div>
           </CardHeader>
           <CardContent className="px-8 pb-10">
@@ -331,7 +397,7 @@ export function WholesalePricingClient() {
                           </div>
                           <div className="space-y-1">
                             <p className="text-sm font-black uppercase tracking-widest">No tiers found</p>
-                            <p className="text-xs font-medium">Add your first wholesale price level using the form above.</p>
+                            <p className="text-xs font-medium">Add your first wholesale price level or try a different search.</p>
                           </div>
                         </div>
                       </TableCell>
@@ -340,6 +406,55 @@ export function WholesalePricingClient() {
                 </TableBody>
               </Table>
             </div>
+
+            {/* Pagination Controls */}
+            {!loading && totalRecords > 0 && (
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 mt-8 px-2">
+                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                  Showing <span className="text-foreground">{(page - 1) * pageSize + 1}</span> to <span className="text-foreground">{Math.min(page * pageSize, totalRecords)}</span> of <span className="text-foreground">{totalRecords}</span> entries
+                </p>
+                <div className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setPage(p => Math.max(1, p - 1))} 
+                    disabled={page === 1}
+                    className="h-9 px-4 rounded-xl font-bold text-[10px] uppercase tracking-tighter"
+                  >
+                    <ChevronLeft className="mr-1 h-3 w-3" /> Previous
+                  </Button>
+                  <div className="flex items-center gap-1">
+                    {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => {
+                      // Basic logic to show limited page numbers if there are many
+                      if (totalPages > 5 && (pageNum < page - 1 || pageNum > page + 1) && pageNum !== 1 && pageNum !== totalPages) {
+                        if (pageNum === page - 2 || pageNum === page + 2) return <span key={pageNum} className="px-1 opacity-30">...</span>;
+                        return null;
+                      }
+                      return (
+                        <Button
+                          key={pageNum}
+                          variant={page === pageNum ? "default" : "ghost"}
+                          size="sm"
+                          onClick={() => setPage(pageNum)}
+                          className={`h-8 w-8 rounded-lg font-black text-xs ${page === pageNum ? 'shadow-md shadow-primary/20' : ''}`}
+                        >
+                          {pageNum}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={() => setPage(p => Math.min(totalPages, p + 1))} 
+                    disabled={page >= totalPages}
+                    className="h-9 px-4 rounded-xl font-bold text-[10px] uppercase tracking-tighter"
+                  >
+                    Next <ChevronRight className="ml-1 h-3 w-3" />
+                  </Button>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
