@@ -95,7 +95,11 @@ export function WholesalePricingClient() {
     try {
       const res = await apiFetch('/api/wholesale', {
         method: 'POST',
-        body: JSON.stringify(values),
+        body: JSON.stringify({
+          product_name: values.product_name,
+          min_quantity: values.min_quantity,
+          wholesale_price: values.wholesale_price
+        }),
       });
 
       const json = await res.json();
@@ -142,7 +146,15 @@ export function WholesalePricingClient() {
   }
 
   if (!isMounted) {
-    return <div className="p-6 space-y-6"><Skeleton className="h-32 w-full" /><Skeleton className="h-64 w-full" /></div>;
+    return (
+      <div className="p-6 space-y-6">
+        <Skeleton className="h-10 w-1/4" />
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+          <Skeleton className="h-64 w-full" />
+          <Skeleton className="lg:col-span-2 h-64 w-full" />
+        </div>
+      </div>
+    );
   }
 
   return (
