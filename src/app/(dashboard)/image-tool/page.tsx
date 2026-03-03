@@ -1,31 +1,24 @@
 
 "use client";
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Image as ImageIcon, Upload, Download, Sparkles, RefreshCcw, AlertCircle } from 'lucide-react';
+import { Image as ImageIcon, Upload, Download, Sparkles, RefreshCcw, AlertCircle, Grid, Layers } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function ImageToolPage() {
   const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [variants, setVariants] = useState<string[]>([]);
   const [options, setOptions] = useState({
-    addBorder: false,
+    addBorder: true,
     addIcon: false,
   });
-
-  // Cleanup object URL to prevent memory leaks
-  useEffect(() => {
-    return () => {
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-    };
-  }, [previewUrl]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
@@ -39,7 +32,7 @@ export default function ImageToolPage() {
         return;
       }
       setFile(selectedFile);
-      setPreviewUrl(null); // Reset preview when new file is chosen
+      setVariants([]); 
     }
   };
 
@@ -60,18 +53,15 @@ export default function ImageToolPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || 'Failed to process image');
+        throw new Error(errorData.error || 'Failed to process images');
       }
 
-      const blob = await response.blob();
-      const url = URL.createObjectURL(blob);
-      
-      if (previewUrl) URL.revokeObjectURL(previewUrl);
-      setPreviewUrl(url);
+      const data = await response.json();
+      setVariants(data.images);
       
       toast({
         title: 'Normalization Complete',
-        description: 'Your image has been optimized and resized to 1118x1630.',
+        description: `Generated 10 unique branded variants at 1118x1630.`,
       });
     } catch (error: any) {
       toast({
@@ -84,11 +74,10 @@ export default function ImageToolPage() {
     }
   };
 
-  const handleDownload = () => {
-    if (!previewUrl) return;
+  const handleDownload = (dataUrl: string, index: number) => {
     const link = document.createElement('a');
-    link.href = previewUrl;
-    link.download = `rehanza-normalized-${new Date().getTime()}.jpg`;
+    link.href = dataUrl;
+    link.download = `rehanza-variant-${index + 1}-${new Date().getTime()}.jpg`;
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
@@ -96,28 +85,31 @@ export default function ImageToolPage() {
 
   const reset = () => {
     setFile(null);
-    setPreviewUrl(null);
-    setOptions({ addBorder: false, addIcon: false });
+    setVariants([]);
+    setOptions({ addBorder: true, addIcon: false });
   };
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-8 font-body">
+    <div className="p-6 max-w-7xl mx-auto space-y-8 font-body">
       <div className="flex flex-col gap-1">
         <h1 className="text-3xl font-bold tracking-tight font-headline text-foreground flex items-center gap-2">
           <ImageIcon className="h-8 w-8 text-primary" />
           Image Intelligence
         </h1>
         <p className="text-muted-foreground text-sm font-medium">
-          Normalize product photography to standard 1118x1630 templates instantly.
+          Normalize product photography into 10 unique branded templates instantly.
         </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
         {/* Controls Section */}
-        <div className="lg:col-span-5 space-y-6">
-          <Card className="shadow-xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-[2rem] overflow-hidden">
+        <div className="lg:col-span-4 space-y-6">
+          <Card className="shadow-xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-[2rem] overflow-hidden sticky top-6">
             <CardHeader>
-              <CardTitle className="text-lg font-headline">Normalization Settings</CardTitle>
+              <CardTitle className="text-lg font-headline flex items-center gap-2">
+                <Layers className="h-4 w-4 text-primary" />
+                Settings
+              </CardTitle>
               <CardDescription>Upload a raw product shot to begin.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
@@ -140,17 +132,17 @@ export default function ImageToolPage() {
                   <Upload className="h-6 w-6 text-primary" />
                 </div>
                 <div>
-                  <p className="text-sm font-bold">{file ? file.name : "Click to select image"}</p>
-                  <p className="text-xs text-muted-foreground mt-1">Supports JPG, PNG, WEBP (Max 15MB)</p>
+                  <p className="text-sm font-bold truncate max-w-[200px]">{file ? file.name : "Select Image"}</p>
+                  <p className="text-[10px] text-muted-foreground mt-1 uppercase font-black tracking-tighter">JPG, PNG, WEBP (Max 15MB)</p>
                 </div>
               </div>
 
               {/* Toggles */}
-              <div className="space-y-4 pt-2">
+              <div className="grid grid-cols-1 gap-3">
                 <div className="flex items-center justify-between p-4 rounded-2xl bg-gray-100/50 dark:bg-white/5 border border-transparent">
                   <div className="space-y-0.5">
-                    <Label className="text-xs font-bold uppercase tracking-widest">Brand Border</Label>
-                    <p className="text-[10px] text-muted-foreground">Add template border overlay</p>
+                    <Label className="text-xs font-bold uppercase tracking-widest">Branded Borders</Label>
+                    <p className="text-[10px] text-muted-foreground">Generate 10 color variants</p>
                   </div>
                   <Switch 
                     checked={options.addBorder} 
@@ -160,8 +152,8 @@ export default function ImageToolPage() {
 
                 <div className="flex items-center justify-between p-4 rounded-2xl bg-gray-100/50 dark:bg-white/5 border border-transparent">
                   <div className="space-y-0.5">
-                    <Label className="text-xs font-bold uppercase tracking-widest">Template Icon</Label>
-                    <p className="text-[10px] text-muted-foreground">Apply standard branding icons</p>
+                    <Label className="text-xs font-bold uppercase tracking-widest">Icon Positions</Label>
+                    <p className="text-[10px] text-muted-foreground">Apply 10 dynamic placements</p>
                   </div>
                   <Switch 
                     checked={options.addIcon} 
@@ -171,7 +163,7 @@ export default function ImageToolPage() {
               </div>
 
               {/* Action Buttons */}
-              <div className="grid grid-cols-2 gap-3 pt-4">
+              <div className="grid grid-cols-2 gap-3 pt-2">
                 <Button 
                   variant="outline" 
                   onClick={reset} 
@@ -187,11 +179,11 @@ export default function ImageToolPage() {
                 >
                   {isProcessing ? (
                     <span className="flex items-center gap-2">
-                      <Sparkles className="h-4 w-4 animate-spin" /> Processing...
+                      <Sparkles className="h-4 w-4 animate-spin" /> ...
                     </span>
                   ) : (
                     <span className="flex items-center gap-2">
-                      <Sparkles className="h-4 w-4" /> Generate
+                      <Grid className="h-4 w-4" /> Generate
                     </span>
                   )}
                 </Button>
@@ -202,52 +194,52 @@ export default function ImageToolPage() {
           <div className="p-4 rounded-2xl border border-amber-500/20 bg-amber-500/5 flex gap-3 text-[11px] leading-relaxed text-amber-700 dark:text-amber-400 font-medium">
             <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
             <p>
-              Output is strictly normalized to 1118x1630 (96 DPI) for marketplace compatibility. 
-              Images are processed in RAM and destroyed upon refresh.
+              Processing generates 10 high-resolution variants simultaneously. 
+              Images are temporary and only exist in your current session.
             </p>
           </div>
         </div>
 
-        {/* Preview Section */}
-        <div className="lg:col-span-7">
-          <Card className="h-full shadow-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-[2rem] overflow-hidden flex flex-col">
-            <CardHeader className="flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-lg font-headline">Live Preview</CardTitle>
-                <CardDescription>Processed output visualization</CardDescription>
-              </div>
-              {previewUrl && (
-                <Button 
-                  size="sm" 
-                  onClick={handleDownload}
-                  className="rounded-full bg-emerald-600 hover:bg-emerald-700 text-white font-black uppercase text-[10px] tracking-widest px-6"
-                >
-                  <Download className="mr-2 h-3 w-3" /> Download Result
-                </Button>
-              )}
-            </CardHeader>
-            <CardContent className="flex-1 flex items-center justify-center p-8 bg-muted/30">
-              <div className="relative w-full max-w-[400px] aspect-[1118/1630] bg-white shadow-inner rounded-md overflow-hidden border border-border/50 group">
-                {previewUrl ? (
-                  <img 
-                    src={previewUrl} 
-                    alt="Processed Preview" 
-                    className="w-full h-full object-contain"
-                  />
-                ) : (
-                  <div className="absolute inset-0 flex flex-col items-center justify-center text-muted-foreground opacity-30 gap-4">
-                    <ImageIcon className="h-16 w-16" />
-                    <p className="text-xs font-bold uppercase tracking-widest">No preview available</p>
+        {/* Results Section */}
+        <div className="lg:col-span-8">
+          {variants.length > 0 ? (
+            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+              {variants.map((img, idx) => (
+                <Card key={idx} className="group overflow-hidden border-0 shadow-lg bg-white dark:bg-slate-900 rounded-2xl">
+                  <div className="aspect-[1118/1630] relative bg-muted">
+                    <img 
+                      src={img} 
+                      alt={`Variant ${idx + 1}`}
+                      className="w-full h-full object-cover"
+                    />
+                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-4">
+                      <Button 
+                        size="sm" 
+                        variant="secondary"
+                        className="w-full font-black text-[10px] uppercase tracking-tighter"
+                        onClick={() => handleDownload(img, idx)}
+                      >
+                        <Download className="mr-1.5 h-3 w-3" /> Save Jpeg
+                      </Button>
+                    </div>
+                    <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md px-2 py-0.5 rounded-full text-white text-[8px] font-black uppercase">
+                      v.{idx + 1}
+                    </div>
                   </div>
-                )}
-                
-                {/* Dimensions Badge */}
-                <div className="absolute bottom-4 left-1/2 -translate-x-1/2 px-3 py-1 bg-black/60 backdrop-blur-md text-white text-[9px] font-black rounded-full tracking-tighter uppercase opacity-0 group-hover:opacity-100 transition-opacity">
-                  Standard Resolution: 1118 x 1630
-                </div>
+                </Card>
+              ))}
+            </div>
+          ) : (
+            <Card className="h-full min-h-[600px] shadow-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-[2rem] flex flex-col items-center justify-center text-center p-12">
+              <div className="p-8 bg-muted rounded-full mb-6">
+                <ImageIcon className="h-16 w-16 text-muted-foreground opacity-20" />
               </div>
-            </CardContent>
-          </Card>
+              <h3 className="text-xl font-headline font-bold text-foreground">No Variants Generated</h3>
+              <p className="text-sm text-muted-foreground max-w-md mt-2">
+                Upload a product image and click generate to see 10 unique branded templates here.
+              </p>
+            </Card>
+          )}
         </div>
       </div>
     </div>

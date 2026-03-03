@@ -1,7 +1,6 @@
 
 import { NextResponse } from 'next/server';
-import { processImage } from '@/lib/imageProcessor';
-import { v4 as uuidv4 } from 'uuid';
+import { generateVariants } from '@/lib/imageProcessor';
 
 export const dynamic = 'force-dynamic';
 
@@ -27,31 +26,27 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'File too large. Max 15MB allowed.' }, { status: 400 });
     }
 
-    // Convert file to Buffer for Sharp
     const arrayBuffer = await file.arrayBuffer();
     const buffer = Buffer.from(arrayBuffer);
 
-    // Process the image in memory
-    const processedBuffer = await processImage({
+    // Process the image into 10 variants
+    const variantBuffers = await generateVariants({
       buffer,
       addBorder,
       addIcon,
     });
 
-    const filename = `normalized-${uuidv4().slice(0, 8)}.jpg`;
+    // Convert buffers to Base64 data URIs for the frontend
+    const images = variantBuffers.map(buf => `data:image/jpeg;base64,${buf.toString('base64')}`);
 
-    // Return the processed buffer directly as a JPEG response
-    return new NextResponse(processedBuffer, {
-      headers: {
-        'Content-Type': 'image/jpeg',
-        'Content-Disposition': `attachment; filename="${filename}"`,
-        'Cache-Control': 'no-store, max-age=0',
-      },
+    return NextResponse.json({
+      success: true,
+      images,
     });
   } catch (error: any) {
     console.error('Image Processing API Error:', error);
     return NextResponse.json(
-      { error: 'Failed to process image', details: error.message },
+      { error: 'Failed to process variants', details: error.message },
       { status: 500 }
     );
   }
