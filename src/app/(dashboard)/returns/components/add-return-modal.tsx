@@ -31,21 +31,18 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select"
-import { Switch } from "@/components/ui/switch"
 import { Textarea } from "@/components/ui/textarea"
 import type { Return } from "../page"
 import { format } from "date-fns"
 import { apiFetch } from "@/lib/apiFetch"
 
 const formSchema = z.object({
+  external_return_id: z.string().min(1, "Return ID is required"),
   return_date: z.string().min(1, "Return date is required"),
   platform: z.enum(["Meesho", "Flipkart", "Amazon"], { required_error: "Platform is required" }),
   variant_id: z.string().min(1, "Variant is required"),
   quantity: z.coerce.number().min(1, "Quantity must be at least 1"),
-  restockable: z.boolean().default(false),
-  shipping_loss: z.coerce.number().min(0).default(0),
-  ads_loss: z.coerce.number().min(0).default(0),
-  damage_loss: z.coerce.number().min(0).default(0),
+  refund_amount: z.coerce.number().min(0, "Refund amount must be 0 or more"),
   return_type: z.enum(["RTO", "DTO", "CUSTOMER_RETURN", "EXCHANGE", "OTHER"], { required_error: "Return type is required" }),
   return_reason: z.string().optional(),
 })
@@ -68,11 +65,9 @@ export function AddReturnModal({ isOpen, onClose, onSuccess, returnItem }: AddRe
   const form = useForm<ReturnFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
+      external_return_id: "",
       quantity: 1,
-      restockable: false,
-      shipping_loss: 0,
-      ads_loss: 0,
-      damage_loss: 0,
+      refund_amount: 0,
       return_date: format(new Date(), 'yyyy-MM-dd'),
       return_type: "OTHER",
       return_reason: "",
@@ -93,23 +88,21 @@ export function AddReturnModal({ isOpen, onClose, onSuccess, returnItem }: AddRe
     if (isOpen) {
       fetchVariants();
       if (returnItem?.id) {
-          const { created_at, total_loss, is_deleted, ...rest } = returnItem as any;
           form.reset({
-            ...rest,
+            external_return_id: (returnItem as any).external_return_id || "",
             return_date: format(new Date(returnItem.return_date), 'yyyy-MM-dd'),
-            shipping_loss: 0,
-            ads_loss: 0,
-            damage_loss: 0,
+            platform: returnItem.platform,
+            variant_id: returnItem.variant_id,
+            quantity: returnItem.quantity,
+            refund_amount: (returnItem as any).refund_amount || 0,
             return_type: (returnItem as any).return_type || "OTHER",
             return_reason: (returnItem as any).return_reason || "",
           });
       } else {
         form.reset({
+          external_return_id: "",
           quantity: 1,
-          restockable: false,
-          shipping_loss: 0,
-          ads_loss: 0,
-          damage_loss: 0,
+          refund_amount: 0,
           return_date: format(new Date(), 'yyyy-MM-dd'),
           platform: undefined,
           variant_id: undefined,
@@ -161,63 +154,101 @@ export function AddReturnModal({ isOpen, onClose, onSuccess, returnItem }: AddRe
         <DialogHeader>
           <DialogTitle>{isEditMode ? 'Edit' : 'Add New'} Return</DialogTitle>
           <DialogDescription>
-            {isEditMode ? 'Update the details of this return.' : 'Enter the details for the new return. Stock will be adjusted if restockable.'}
+            Enter return details exactly as per the platform dashboard.
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4" suppressHydrationWarning>
-             <FormField control={form.control} name="return_date" render={({ field }) => (
+            <FormField
+              control={form.control}
+              name="external_return_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>External Return ID</FormLabel>
+                  <FormControl><Input placeholder="e.g. RET-12345" {...field} /></FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField control={form.control} name="return_date" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Return Date</FormLabel>
                   <FormControl><Input type="date" {...field} /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
-            <div className="grid grid-cols-2 gap-4">
-                <FormField
+              <FormField
                 control={form.control}
                 name="platform"
                 render={({ field }) => (
-                    <FormItem>
+                  <FormItem>
                     <FormLabel>Platform</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
+                      <FormControl>
                         <SelectTrigger>
-                            <SelectValue placeholder="Select a platform" />
+                          <SelectValue placeholder="Select platform" />
                         </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                            <SelectItem value="Meesho">Meesho</SelectItem>
-                            <SelectItem value="Flipkart">Flipkart</SelectItem>
-                            <SelectItem value="Amazon">Amazon</SelectItem>
-                        </SelectContent>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="Meesho">Meesho</SelectItem>
+                        <SelectItem value="Flipkart">Flipkart</SelectItem>
+                        <SelectItem value="Amazon">Amazon</SelectItem>
+                      </SelectContent>
                     </Select>
                     <FormMessage />
-                    </FormItem>
+                  </FormItem>
                 )}
-                />
-                <FormField
+              />
+            </div>
+
+            <FormField
+              control={form.control}
+              name="variant_id"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Variant</FormLabel>
+                  <Select onValueChange={field.onChange} value={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select SKU" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      {variants.map(v => (
+                        <SelectItem key={v.id} value={v.id}>{v.variant_sku}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
                 control={form.control}
-                name="variant_id"
+                name="quantity"
                 render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Variant</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value}>
-                        <FormControl>
-                        <SelectTrigger>
-                            <SelectValue placeholder="Select a variant SKU" />
-                        </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                        {variants.map(v => (
-                            <SelectItem key={v.id} value={v.id}>{v.variant_sku} - (Stock: {v.stock})</SelectItem>
-                        ))}
-                        </SelectContent>
-                    </Select>
+                  <FormItem>
+                    <FormLabel>Quantity</FormLabel>
+                    <FormControl><Input type="number" {...field} /></FormControl>
                     <FormMessage />
-                    </FormItem>
+                  </FormItem>
                 )}
-                />
+              />
+              <FormField
+                control={form.control}
+                name="refund_amount"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Refund Amount (₹)</FormLabel>
+                    <FormControl><Input type="number" step="0.01" {...field} /></FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
             <FormField
@@ -229,7 +260,7 @@ export function AddReturnModal({ isOpen, onClose, onSuccess, returnItem }: AddRe
                   <Select onValueChange={field.onChange} value={field.value}>
                     <FormControl>
                       <SelectTrigger>
-                        <SelectValue placeholder="Select return category" />
+                        <SelectValue placeholder="Select type" />
                       </SelectTrigger>
                     </FormControl>
                     <SelectContent>
@@ -245,37 +276,6 @@ export function AddReturnModal({ isOpen, onClose, onSuccess, returnItem }: AddRe
               )}
             />
 
-            <div className="grid grid-cols-2 gap-4 items-end">
-                <FormField
-                control={form.control}
-                name="quantity"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Quantity</FormLabel>
-                    <FormControl>
-                        <Input type="number" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
-                 <FormField
-                  control={form.control}
-                  name="restockable"
-                  render={({ field }) => (
-                    <FormItem className="flex flex-row items-center justify-between rounded-lg border p-3">
-                      <FormLabel className="pr-2">Restockable?</FormLabel>
-                      <FormControl>
-                        <Switch
-                          checked={field.value}
-                          onCheckedChange={field.onChange}
-                        />
-                      </FormControl>
-                    </FormItem>
-                  )}
-                />
-            </div>
-
             <FormField
               control={form.control}
               name="return_reason"
@@ -284,7 +284,7 @@ export function AddReturnModal({ isOpen, onClose, onSuccess, returnItem }: AddRe
                   <FormLabel>Return Reason (Optional)</FormLabel>
                   <FormControl>
                     <Textarea 
-                      placeholder="Add any specific details about this return..." 
+                      placeholder="Details about return status or condition..." 
                       className="resize-none"
                       {...field} 
                     />
@@ -293,49 +293,6 @@ export function AddReturnModal({ isOpen, onClose, onSuccess, returnItem }: AddRe
                 </FormItem>
               )}
             />
-
-            <p className="text-sm font-medium">Losses {isEditMode && '(re-enter to update)'}</p>
-            <div className="grid grid-cols-3 gap-4">
-                <FormField
-                control={form.control}
-                name="shipping_loss"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Shipping</FormLabel>
-                    <FormControl>
-                        <Input type="number" step="any" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
-                <FormField
-                control={form.control}
-                name="ads_loss"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Ads</FormLabel>
-                    <FormControl>
-                        <Input type="number" step="any" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
-                <FormField
-                control={form.control}
-                name="damage_loss"
-                render={({ field }) => (
-                    <FormItem>
-                    <FormLabel>Damage</FormLabel>
-                    <FormControl>
-                        <Input type="number" step="any" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                    </FormItem>
-                )}
-                />
-            </div>
             
             <DialogFooter>
               <Button type="button" variant="outline" onClick={onClose}>
@@ -343,7 +300,7 @@ export function AddReturnModal({ isOpen, onClose, onSuccess, returnItem }: AddRe
               </Button>
               <Button type="submit" disabled={isSubmitting}>
                 {isSubmitting ? 'Saving...' : (isEditMode ? 'Save Changes' : 'Save Return')}
-                </Button>
+              </Button>
             </DialogFooter>
           </form>
         </Form>

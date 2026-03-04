@@ -40,14 +40,14 @@ export async function GET(request: Request) {
       params.push(toDate);
     }
     if (search) {
-      whereClauses.push(`(pv.variant_sku ILIKE $${paramIndex} OR ap.product_name ILIKE $${paramIndex})`);
+      whereClauses.push(`(pv.variant_sku ILIKE $${paramIndex} OR ap.product_name ILIKE $${paramIndex} OR r.external_return_id ILIKE $${paramIndex})`);
       params.push(`%${search}%`);
       paramIndex++;
     }
 
     const whereString = `WHERE ${whereClauses.join(' AND ')}`;
 
-    // 1. Fetch Dynamic Summary (Total Returns and Total Loss based on filters)
+    // 1. Fetch Dynamic Summary
     const summaryQuery = `
       SELECT 
         COUNT(*)::int as total_returns,
@@ -113,17 +113,15 @@ export async function POST(request: Request) {
     try {
         const body = await request.json();
         const accountId = request.headers.get("x-account-id");
-        const { return_date, platform, variant_id, quantity, restockable, shipping_loss, ads_loss, damage_loss, return_type, return_reason } = body;
+        const { external_return_id, return_date, platform, variant_id, quantity, refund_amount, return_type, return_reason } = body;
 
-        if (!return_date || !platform || !variant_id || !quantity || !accountId || !return_type) {
+        if (!return_date || !platform || !variant_id || !quantity || !accountId || !return_type || !external_return_id) {
             return NextResponse.json({ message: 'Missing required fields or account' }, { status: 400 });
         }
 
-        const total_loss = Number(shipping_loss || 0) + Number(ads_loss || 0) + Number(damage_loss || 0);
-
         const result = await sql`
-            INSERT INTO returns (return_date, platform, variant_id, quantity, restockable, shipping_loss, ads_loss, damage_loss, total_loss, account_id, return_type, return_reason)
-            VALUES (${return_date}, ${platform}, ${variant_id}, ${quantity}, ${restockable}, ${shipping_loss}, ${ads_loss}, ${damage_loss}, ${total_loss}, ${accountId}, ${return_type}, ${return_reason})
+            INSERT INTO returns (external_return_id, return_date, platform, variant_id, quantity, refund_amount, return_type, return_reason, account_id, restockable)
+            VALUES (${external_return_id}, ${return_date}, ${platform}, ${variant_id}, ${quantity}, ${refund_amount || 0}, ${return_type}, ${return_reason}, ${accountId}, true)
             RETURNING *;
         `;
         
@@ -138,26 +136,21 @@ export async function PUT(request: Request) {
     try {
         const body = await request.json();
         const accountId = request.headers.get("x-account-id");
-        const { id, return_date, platform, variant_id, quantity, restockable, shipping_loss, ads_loss, damage_loss, return_type, return_reason } = body;
+        const { id, external_return_id, return_date, platform, variant_id, quantity, refund_amount, return_type, return_reason } = body;
 
         if (!id || !accountId) {
             return NextResponse.json({ message: "Return ID and Account are required" }, { status: 400 });
         }
 
-        const total_loss = Number(shipping_loss || 0) + Number(ads_loss || 0) + Number(damage_loss || 0);
-
         const result = await sql`
             UPDATE returns
             SET 
+                external_return_id = ${external_return_id},
                 return_date = ${return_date}, 
                 platform = ${platform}, 
                 variant_id = ${variant_id}, 
                 quantity = ${quantity}, 
-                restockable = ${restockable},
-                shipping_loss = ${shipping_loss},
-                ads_loss = ${ads_loss},
-                damage_loss = ${damage_loss},
-                total_loss = ${total_loss},
+                refund_amount = ${refund_amount},
                 return_type = ${return_type},
                 return_reason = ${return_reason}
             WHERE id = ${id} AND account_id = ${accountId}
