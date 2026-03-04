@@ -96,10 +96,23 @@ export function AddOrderModal({ isOpen, onClose, onSuccess, order }: any) {
         method,
         body: JSON.stringify({ ...values, id: order?.id })
       });
-      if (!res.ok) throw new Error('Failed to save');
-      toast({ title: "Success" });
-      onSuccess(); onClose();
-    } catch (error: any) { toast({ variant: "destructive", title: "Error", description: error.message }); }
+      
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.message || 'Failed to save order.');
+      }
+
+      toast({ title: "Success", description: "Order saved successfully." });
+      onSuccess(); 
+      onClose();
+    } catch (error: any) { 
+      toast({ 
+        variant: "destructive", 
+        title: "Error", 
+        description: error.message 
+      }); 
+    }
   }
 
   return (

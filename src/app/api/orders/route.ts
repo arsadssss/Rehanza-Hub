@@ -137,7 +137,7 @@ export async function GET(request: Request) {
 
 /**
  * POST /api/orders
- * Aligned with bulk upload logic to include stock deduction and avoid generated columns.
+ * Enforces Order ID uniqueness and performs atomic stock deduction.
  */
 export async function POST(request: Request) {
   try {
@@ -153,7 +153,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: "Missing required order fields" }, { status: 400 });
     }
 
-    // Perform atomic insert + stock update
+    // 1. STRICTOR VALIDATION: Only external_order_id must be unique
+    const existing = await sql`
+      SELECT id FROM orders 
+      WHERE external_order_id = ${external_order_id} 
+      AND account_id = ${accountId} 
+      AND is_deleted = false 
+      LIMIT 1
+    `;
+
+    if (existing.length > 0) {
+      return NextResponse.json({ success: false, message: "Order ID already exists" }, { status: 400 });
+    }
+
+    // 2. Perform atomic insert + stock update
     const result = await sql`
       WITH inserted_order AS (
         INSERT INTO orders (
