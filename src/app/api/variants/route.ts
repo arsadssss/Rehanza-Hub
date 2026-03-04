@@ -84,7 +84,7 @@ export async function GET(request: Request) {
       FROM product_variants pv
       JOIN allproducts ap ON pv.product_id = ap.id
       ${whereString}
-      ORDER BY pv.variant_sku ASC
+      ORDER BY pv.created_at DESC
       LIMIT ${limit} OFFSET ${offset}
     `;
     const data = await sql(dataQuery, params);

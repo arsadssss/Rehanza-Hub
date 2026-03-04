@@ -76,7 +76,7 @@ export async function GET(request: Request) {
         GROUP BY p.id
     `;
 
-    const dataQuery = `${baseQuery} ${havingString} ORDER BY p.id DESC LIMIT ${limit} OFFSET ${offset}`;
+    const dataQuery = `${baseQuery} ${havingString} ORDER BY p.created_at DESC LIMIT ${limit} OFFSET ${offset}`;
     const countQuery = `SELECT COUNT(*) FROM (${baseQuery} ${havingString}) as filtered_products`;
 
     console.log('Fetching products with:', { accountId, page, search, category, stockStatus });
