@@ -59,6 +59,7 @@ export type Product = {
   amazon_price: number;
   low_stock_threshold: number;
   total_stock: number;
+  created_at: string;
 };
 
 export type Variant = {
@@ -72,6 +73,7 @@ export type Variant = {
   meesho_price: number;
   flipkart_price: number;
   amazon_price: number;
+  created_at: string;
 };
 
 function ProductsContent() {
@@ -165,7 +167,11 @@ function ProductsContent() {
         if (pRes.ok) {
           const json = await pRes.json();
           if (json.success) {
-            setProducts(json.data);
+            // Sort by created_at DESC so newest is at top
+            const sortedProducts = [...(json.data || [])].sort((a, b) => 
+              new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+            );
+            setProducts(sortedProducts);
             setPagination(json.pagination);
           }
         }
@@ -180,7 +186,11 @@ function ProductsContent() {
         if (vRes.ok) {
           const json = await vRes.json();
           if (json.success) {
-            setVariants(json.data);
+            // Sort variants by created_at DESC too
+            const sortedVariants = [...(json.data || [])].sort((a, b) => 
+              new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+            );
+            setVariants(sortedVariants);
             setPagination(json.pagination);
           }
         }
