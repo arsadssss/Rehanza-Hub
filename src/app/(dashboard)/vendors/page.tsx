@@ -158,6 +158,7 @@ export default function VendorsPage() {
         type: 'payment', original: p,
       }));
 
+      // Sort chronologically to calculate running balance correctly
       const combined = [...purchaseEntries, ...paymentEntries].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
       let runningBalance = 0;
@@ -166,7 +167,8 @@ export default function VendorsPage() {
         return { ...entry, balance: runningBalance };
       });
 
-      setLedgerData(ledgerWithBalance);
+      // Show newest transactions at the top
+      setLedgerData([...ledgerWithBalance].reverse());
     } catch (error: any) {
       toast({ variant: "destructive", title: "Error fetching ledger", description: error.message });
     } finally {
