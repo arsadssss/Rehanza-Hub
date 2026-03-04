@@ -13,14 +13,10 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, message: "Account not selected" }, { status: 400 });
     }
 
-    // Determine the date filter based on selected range
-    let orderDateFilter;
-    let returnDateFilter;
+    // Trend query based on selected range
     let trendQuery;
 
     if (range === 'monthly') {
-      orderDateFilter = sql`AND DATE_TRUNC('month', order_date) = DATE_TRUNC('month', CURRENT_DATE)`;
-      returnDateFilter = sql`AND DATE_TRUNC('month', return_date) = DATE_TRUNC('month', CURRENT_DATE)`;
       trendQuery = sql`
         SELECT 
           DATE(order_date) as date, 
@@ -33,8 +29,6 @@ export async function GET(request: Request) {
         ORDER BY date ASC
       `;
     } else if (range === 'yearly') {
-      orderDateFilter = sql`AND DATE_TRUNC('year', order_date) = DATE_TRUNC('year', CURRENT_DATE)`;
-      returnDateFilter = sql`AND DATE_TRUNC('year', return_date) = DATE_TRUNC('year', CURRENT_DATE)`;
       trendQuery = sql`
         SELECT 
           DATE_TRUNC('month', order_date) as date, 
@@ -47,9 +41,7 @@ export async function GET(request: Request) {
         ORDER BY date ASC
       `;
     } else {
-      // Default: Last 7 Days (including today)
-      orderDateFilter = sql`AND order_date >= CURRENT_DATE - INTERVAL '6 days'`;
-      returnDateFilter = sql`AND return_date >= CURRENT_DATE - INTERVAL '6 days'`;
+      // Default: Last 7 Days
       trendQuery = sql`
         SELECT 
           DATE(order_date) as date, 
@@ -63,7 +55,7 @@ export async function GET(request: Request) {
       `;
     }
 
-    // Parallel dynamic calculations from raw tables with range filtering
+    // Parallel dynamic calculations for summary metrics (Global for account)
     const [
       salesRes,
       ordersCountRes,
@@ -76,56 +68,56 @@ export async function GET(request: Request) {
       platformReturnsRes,
       orderUnitsRes
     ] = await Promise.all([
-      // Total Sales (Revenue) - Scoped
-      sql`SELECT COALESCE(SUM(total_amount), 0) as total FROM orders WHERE account_id = ${accountId} AND is_deleted = false ${orderDateFilter}`,
+      // Total Sales (Revenue) - Global
+      sql`SELECT COALESCE(SUM(total_amount), 0) as total FROM orders WHERE account_id = ${accountId} AND is_deleted = false`,
       
-      // Total Orders (Count) - Scoped
-      sql`SELECT COUNT(*)::int as count FROM orders WHERE account_id = ${accountId} AND is_deleted = false ${orderDateFilter}`,
+      // Total Orders (Count) - Global
+      sql`SELECT COUNT(*)::int as count FROM orders WHERE account_id = ${accountId} AND is_deleted = false`,
       
-      // Total Return Units (Quantity) - Scoped
-      sql`SELECT COALESCE(SUM(quantity), 0)::int as total FROM returns WHERE account_id = ${accountId} AND is_deleted = false ${returnDateFilter}`,
+      // Total Return Units (Quantity) - Global
+      sql`SELECT COALESCE(SUM(quantity), 0)::int as total FROM returns WHERE account_id = ${accountId} AND is_deleted = false`,
       
-      // COGS (Sum of Qty * Cost per Product) - Scoped
+      // COGS (Sum of Qty * Cost per Product) - Global
       sql`
         SELECT COALESCE(SUM(o.quantity * ap.cost_price), 0) as total
         FROM orders o
         JOIN product_variants pv ON o.variant_id = pv.id
         JOIN allproducts ap ON pv.product_id = ap.id
-        WHERE o.account_id = ${accountId} AND o.is_deleted = false ${orderDateFilter}
+        WHERE o.account_id = ${accountId} AND o.is_deleted = false
       `,
       
-      // Total Return Loss (Aggregated damage/shipping losses) - Scoped
-      sql`SELECT COALESCE(SUM(total_loss), 0) as total FROM returns WHERE account_id = ${accountId} AND is_deleted = false ${returnDateFilter}`,
+      // Total Return Loss - Global
+      sql`SELECT COALESCE(SUM(total_loss), 0) as total FROM returns WHERE account_id = ${accountId} AND is_deleted = false`,
       
       // Dynamic Sales Trend based on range
       trendQuery,
       
-      // Platform Breakdown for Orders - Scoped
+      // Platform Breakdown for Orders - Global
       sql`
         SELECT platform, COUNT(*)::int as orders
         FROM orders
-        WHERE account_id = ${accountId} AND is_deleted = false ${orderDateFilter}
+        WHERE account_id = ${accountId} AND is_deleted = false
         GROUP BY platform
       `,
 
-      // Return count grouped by return_type - Scoped
+      // Return count grouped by return_type - Global
       sql`
         SELECT return_type, COUNT(*)::int as count, COALESCE(SUM(quantity), 0)::int as units
         FROM returns
-        WHERE account_id = ${accountId} AND is_deleted = false ${returnDateFilter}
+        WHERE account_id = ${accountId} AND is_deleted = false
         GROUP BY return_type
       `,
 
-      // Platform-wise return breakdown - Scoped
+      // Platform-wise return breakdown - Global
       sql`
         SELECT platform, COUNT(*)::int as count, COALESCE(SUM(quantity), 0)::int as units
         FROM returns
-        WHERE account_id = ${accountId} AND is_deleted = false ${returnDateFilter}
+        WHERE account_id = ${accountId} AND is_deleted = false
         GROUP BY platform
       `,
 
-      // Total Order Units (for return percentage calculation) - Scoped
-      sql`SELECT COALESCE(SUM(quantity), 0)::int as total FROM orders WHERE account_id = ${accountId} AND is_deleted = false ${orderDateFilter}`
+      // Total Order Units - Global
+      sql`SELECT COALESCE(SUM(quantity), 0)::int as total FROM orders WHERE account_id = ${accountId} AND is_deleted = false`
     ]);
 
     const totalSales = Number(salesRes[0]?.total || 0);
@@ -136,7 +128,6 @@ export async function GET(request: Request) {
     const returnLoss = Number(returnLossRes[0]?.total || 0);
     const netProfit = totalSales - cogs - returnLoss;
 
-    // Return percentage relative to total orders (Units ratio)
     const returnRate = totalOrderUnits > 0 ? (totalReturnsUnits / totalOrderUnits) * 100 : 0;
 
     return NextResponse.json({
