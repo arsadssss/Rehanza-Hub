@@ -7,12 +7,11 @@ export const revalidate = 0;
 
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  // GLOBAL - No x-account-id check
 
   const page = parseInt(searchParams.get('page') || '1', 10);
   const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
-  const fromDate = searchParams.get('from');
-  const toDate = searchParams.get('to');
+  const range = searchParams.get('range') || 'all';
+  const userId = searchParams.get('user');
   const searchTerm = searchParams.get('search');
   const offset = (page - 1) * pageSize;
 
@@ -21,14 +20,21 @@ export async function GET(request: Request) {
     let params: any[] = [];
     let paramIndex = 1;
 
-    if (fromDate) {
-        whereClauses.push(`e.expense_date >= $${paramIndex++}`);
-        params.push(fromDate);
+    if (userId && userId !== 'all') {
+        whereClauses.push(`e.created_by = $${paramIndex++}`);
+        params.push(userId);
     }
-    if (toDate) {
-        whereClauses.push(`e.expense_date <= $${paramIndex++}`);
-        params.push(toDate);
+
+    if (range === 'today') {
+        whereClauses.push(`e.expense_date = CURRENT_DATE`);
+    } else if (range === '7d') {
+        whereClauses.push(`e.expense_date >= CURRENT_DATE - INTERVAL '7 days'`);
+    } else if (range === '30d') {
+        whereClauses.push(`e.expense_date >= CURRENT_DATE - INTERVAL '30 days'`);
+    } else if (range === 'month') {
+        whereClauses.push(`e.expense_date >= DATE_TRUNC('month', CURRENT_DATE)`);
     }
+
     if (searchTerm) {
         whereClauses.push(`e.description ILIKE $${paramIndex++}`);
         params.push(`%${searchTerm}%`);
@@ -45,7 +51,7 @@ export async function GET(request: Request) {
         LEFT JOIN users cu ON e.created_by = cu.id 
         LEFT JOIN users uu ON e.updated_by = uu.id 
         ${whereString} 
-        ORDER BY e.expense_date DESC 
+        ORDER BY e.expense_date DESC, e.created_at DESC
         LIMIT ${pageSize} OFFSET ${offset}
     `;
     const countQuery = `SELECT COUNT(*) FROM business_expenses e ${whereString}`;
@@ -60,7 +66,15 @@ export async function GET(request: Request) {
         amount: Number(e.amount || 0)
     }));
 
-    return NextResponse.json({ data: formattedData, count: Number(countResult[0]?.count || 0) });
+    const totalCount = Number(countResult[0]?.count || 0);
+
+    return NextResponse.json({ 
+        data: formattedData, 
+        count: totalCount,
+        page,
+        pageSize,
+        totalPages: Math.ceil(totalCount / pageSize)
+    });
 
   } catch (error: any) {
     console.error("API Expenses GET Error:", error);

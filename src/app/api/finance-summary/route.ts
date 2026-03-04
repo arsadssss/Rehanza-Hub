@@ -10,19 +10,22 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, message: "Account not selected" }, { status: 400 });
     }
 
-    // Payouts are SCOPED, Expenses are GLOBAL as per instructions
-    const [payoutRes, expenseRes] = await Promise.all([
+    // Payouts are SCOPED, Expenses are GLOBAL
+    const [payoutRes, expenseRes, weeklyRes] = await Promise.all([
       sql`SELECT COALESCE(SUM(amount), 0) as total FROM platform_payouts WHERE is_deleted = false AND account_id = ${accountId}`,
-      sql`SELECT COALESCE(SUM(amount), 0) as total FROM business_expenses WHERE is_deleted = false`
+      sql`SELECT COALESCE(SUM(amount), 0) as total FROM business_expenses WHERE is_deleted = false`,
+      sql`SELECT COALESCE(SUM(amount), 0) as total FROM business_expenses WHERE is_deleted = false AND expense_date >= DATE_TRUNC('week', CURRENT_DATE)`
     ]);
 
     const totalReceived = Number(payoutRes[0]?.total || 0);
     const totalExpenses = Number(expenseRes[0]?.total || 0);
+    const weeklySpend = Number(weeklyRes[0]?.total || 0);
     const netCashFlow = totalReceived - totalExpenses;
 
     return NextResponse.json({
       total_received: totalReceived,
       total_expenses: totalExpenses,
+      weekly_spend: weeklySpend,
       net_cash_flow: netCashFlow
     });
   } catch (error: any) {
