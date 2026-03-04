@@ -87,8 +87,8 @@ export function AnalyticsSection({
         let label = '';
         
         if (timeRange === '7d') label = format(d, 'eee');
-        else if (timeRange === 'monthly') label = format(d, 'd');
-        else if (timeRange === 'yearly') label = format(d, 'MMM');
+        else if (timeRange === '30d') label = format(d, 'dd MMM');
+        else if (timeRange === '90d') label = 'W' + format(d, 'w');
         else label = format(d, 'dd MMM');
 
         return {
@@ -116,13 +116,13 @@ export function AnalyticsSection({
                 </div>
                 <div className="flex items-center gap-3">
                     <Select value={timeRange} onValueChange={onTimeRangeChange}>
-                        <SelectTrigger className="w-[140px] h-9 text-[10px] font-bold uppercase tracking-widest bg-white/50 dark:bg-white/5 border-white/20 rounded-xl focus:ring-primary/20">
+                        <SelectTrigger className="w-[160px] h-9 text-[10px] font-bold uppercase tracking-widest bg-white/50 dark:bg-white/5 border-white/20 rounded-xl focus:ring-primary/20">
                             <SelectValue placeholder="Time Range" />
                         </SelectTrigger>
                         <SelectContent>
                             <SelectItem value="7d" className="text-[10px] font-bold uppercase">Last 7 Days</SelectItem>
-                            <SelectItem value="monthly" className="text-[10px] font-bold uppercase">Monthly</SelectItem>
-                            <SelectItem value="yearly" className="text-[10px] font-bold uppercase">Yearly</SelectItem>
+                            <SelectItem value="30d" className="text-[10px] font-bold uppercase">Last 30 Days</SelectItem>
+                            <SelectItem value="90d" className="text-[10px] font-bold uppercase">Last 90 Days</SelectItem>
                         </SelectContent>
                     </Select>
                     <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-black uppercase tracking-wider">
