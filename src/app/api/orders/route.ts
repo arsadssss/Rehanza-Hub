@@ -56,7 +56,7 @@ export async function GET(request: Request) {
     }
 
     if (search) {
-      whereClauses.push(`(pv.variant_sku ILIKE $${paramIndex} OR ap.product_name ILIKE $${paramIndex})`);
+      whereClauses.push(`(pv.variant_sku ILIKE $${paramIndex} OR ap.product_name ILIKE $${paramIndex} OR o.external_order_id ILIKE $${paramIndex})`);
       params.push(`%${search}%`);
       paramIndex++;
     }
@@ -94,6 +94,7 @@ export async function GET(request: Request) {
     const dataQuery = `
       SELECT 
         o.id,
+        o.external_order_id,
         o.order_date,
         o.platform,
         o.quantity,
@@ -146,17 +147,13 @@ export async function POST(request: Request) {
     }
 
     const body = await request.json();
-    const { order_date, platform, variant_id, quantity, selling_price, status } = body;
+    const { external_order_id, order_date, platform, variant_id, quantity, selling_price, status } = body;
 
-    if (!order_date || !platform || !variant_id || !quantity || selling_price === undefined) {
+    if (!external_order_id || !order_date || !platform || !variant_id || !quantity || selling_price === undefined) {
       return NextResponse.json({ success: false, message: "Missing required order fields" }, { status: 400 });
     }
 
-    // Generate a unique external ID for manual entries
-    const external_order_id = `MAN-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
-
-    // Perform atomic insert + stock update (aligned with bulk upload pattern)
-    // Note: We OMIT total_amount because it's a generated column in the DB
+    // Perform atomic insert + stock update
     const result = await sql`
       WITH inserted_order AS (
         INSERT INTO orders (
@@ -214,16 +211,16 @@ export async function PUT(request: Request) {
     }
 
     const body = await request.json();
-    const { id, order_date, platform, variant_id, quantity, selling_price, status } = body;
+    const { id, external_order_id, order_date, platform, variant_id, quantity, selling_price, status } = body;
 
-    if (!id || !order_date || !platform || !variant_id || !quantity || selling_price === undefined) {
+    if (!id || !external_order_id || !order_date || !platform || !variant_id || !quantity || selling_price === undefined) {
       return NextResponse.json({ success: false, message: "Missing required update fields" }, { status: 400 });
     }
 
-    // Note: We OMIT total_amount because it's a generated column
     const result = await sql`
       UPDATE orders
       SET 
+        external_order_id = ${external_order_id},
         order_date = ${order_date},
         platform = ${platform},
         variant_id = ${variant_id},

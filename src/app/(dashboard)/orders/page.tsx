@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PlusCircle, Pencil, Trash2, Search, FilterX, Package, CircleDollarSign, Undo2, TrendingDown, FileUp } from "lucide-react";
+import { PlusCircle, Pencil, Trash2, Search, FilterX, Package, CircleDollarSign, Undo2, TrendingDown, FileUp, Hash } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AddOrderModal } from "./components/add-order-modal";
 import { AddReturnModal } from "../returns/components/add-return-modal";
@@ -94,7 +94,6 @@ export default function OrdersPage() {
 
   const fetchData = useCallback(async () => {
     setLoading(true);
-    console.log("Orders Fetch: Selected Status =", statusFilter);
     try {
       const params = new URLSearchParams({
         page: page.toString(),
@@ -107,14 +106,10 @@ export default function OrdersPage() {
       });
 
       const endpoint = activeTab === "orders" ? "/api/orders" : "/api/returns";
-      console.log("Orders Fetch: Request URL =", `${endpoint}?${params.toString()}`);
-
       const res = await apiFetch(`${endpoint}?${params.toString()}`);
       
       if (!res.ok) throw new Error(`Failed to fetch ${activeTab}`);
       const json = await res.json();
-      
-      console.log("Orders Fetch: Response Count =", json.data?.length || 0);
       
       setData(json.data || []);
       setSummary(json.summary || null);
@@ -298,7 +293,7 @@ export default function OrdersPage() {
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
                 <Input 
-                  placeholder="SKU or Product..." 
+                  placeholder="Order ID, SKU or Product..." 
                   className="pl-8 bg-background" 
                   value={searchTerm} 
                   onChange={(e) => setSearchTerm(e.target.value)} 
@@ -349,7 +344,8 @@ export default function OrdersPage() {
               <Table>
                 <TableHeader>
                   <TableRow className="bg-muted/50">
-                    <TableHead className="w-[120px]">Date</TableHead>
+                    <TableHead className="w-[120px]">Order ID</TableHead>
+                    <TableHead>Date</TableHead>
                     <TableHead>Platform</TableHead>
                     <TableHead>SKU / Product</TableHead>
                     <TableHead className="text-right">Qty</TableHead>
@@ -361,12 +357,13 @@ export default function OrdersPage() {
                 <TableBody>
                   {loading ? (
                     Array.from({ length: 5 }).map((_, i) => (
-                      <TableRow key={i}><TableCell colSpan={7}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
+                      <TableRow key={i}><TableCell colSpan={8}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
                     ))
                   ) : (activeTab === "orders" && data.length > 0) ? (
                     data.map((o) => (
                       <TableRow key={o.id}>
-                        <TableCell className="font-medium">{safeFormatDate(o.order_date)}</TableCell>
+                        <TableCell className="font-mono text-[10px] font-bold text-muted-foreground">{o.external_order_id}</TableCell>
+                        <TableCell className="font-medium text-xs whitespace-nowrap">{safeFormatDate(o.order_date)}</TableCell>
                         <TableCell><Badge variant="outline">{o.platform}</Badge></TableCell>
                         <TableCell>
                           <div className="flex flex-col">
@@ -394,7 +391,7 @@ export default function OrdersPage() {
                       </TableRow>
                     ))
                   ) : (
-                    <TableRow><TableCell colSpan={7} className="h-24 text-center text-muted-foreground">No orders found.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={8} className="h-24 text-center text-muted-foreground">No orders found.</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>

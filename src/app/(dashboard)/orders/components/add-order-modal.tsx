@@ -33,6 +33,7 @@ const ORDER_STATUSES = [
 ] as const;
 
 const formSchema = z.object({
+  external_order_id: z.string().min(1, "Order ID is required"),
   order_date: z.string().min(1, "Order date is required"),
   platform: z.enum(["Meesho", "Flipkart", "Amazon"], { required_error: "Platform is required" }),
   variant_id: z.string().min(1, "Variant is required"),
@@ -49,6 +50,7 @@ export function AddOrderModal({ isOpen, onClose, onSuccess, order }: any) {
   const form = useForm({
     resolver: zodResolver(formSchema),
     defaultValues: { 
+      external_order_id: "",
       quantity: 1, 
       order_date: format(new Date(), 'yyyy-MM-dd'),
       selling_price: 0,
@@ -67,6 +69,7 @@ export function AddOrderModal({ isOpen, onClose, onSuccess, order }: any) {
       fetchVariants();
       if (isEditMode && order) {
         form.reset({
+          external_order_id: order.external_order_id || "",
           order_date: format(new Date(order.order_date), 'yyyy-MM-dd'),
           platform: order.platform,
           variant_id: order.variant_id,
@@ -76,7 +79,8 @@ export function AddOrderModal({ isOpen, onClose, onSuccess, order }: any) {
         });
       } else {
         form.reset({
-          quantity: 1,
+          external_order_id: "",
+          quantity: 1, 
           order_date: format(new Date(), 'yyyy-MM-dd'),
           selling_price: 0,
           status: "PENDING"
@@ -109,6 +113,8 @@ export function AddOrderModal({ isOpen, onClose, onSuccess, order }: any) {
               <FormField control={form.control} name="platform" render={({ field }) => <FormItem><FormLabel>Platform</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Platform" /></SelectTrigger></FormControl><SelectContent><SelectItem value="Meesho">Meesho</SelectItem><SelectItem value="Flipkart">Flipkart</SelectItem><SelectItem value="Amazon">Amazon</SelectItem></SelectContent></Select></FormItem>} />
             </div>
             
+            <FormField control={form.control} name="external_order_id" render={({ field }) => <FormItem><FormLabel>Order ID</FormLabel><FormControl><Input placeholder="Enter Platform Order ID" {...field} /></FormControl><FormMessage /></FormItem>} />
+
             <FormField control={form.control} name="variant_id" render={({ field }) => <FormItem><FormLabel>Variant</FormLabel><Select onValueChange={field.onChange} value={field.value}><FormControl><SelectTrigger><SelectValue placeholder="Select a variant" /></SelectTrigger></FormControl><SelectContent>{variants.map(v => <SelectItem key={v.id} value={v.id}>{v.variant_sku}</SelectItem>)}</SelectContent></Select></FormItem>} />
             
             <FormField control={form.control} name="status" render={({ field }) => (
