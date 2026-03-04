@@ -137,13 +137,27 @@ export default function ExpensesPage() {
             <CardContent>
                 <Input placeholder="Search..." value={searchTerm} onChange={e => setSearchTerm(e.target.value)} className="mb-4" />
                 <Table>
-                    <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Description</TableHead><TableHead className="text-right">Amount</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+                    <TableHeader>
+                        <TableRow>
+                            <TableHead>Date</TableHead>
+                            <TableHead>Description</TableHead>
+                            <TableHead className="text-right">Amount</TableHead>
+                            <TableHead>Added By</TableHead>
+                            <TableHead className="text-right">Actions</TableHead>
+                        </TableRow>
+                    </TableHeader>
                     <TableBody>
                         {expenses.map(e => (
                             <TableRow key={e.id}>
                                 <TableCell>{format(new Date(e.expense_date), 'dd MMM yyyy')}</TableCell>
                                 <TableCell>{e.description}</TableCell>
                                 <TableCell className="text-right font-medium">{formatINR(e.amount)}</TableCell>
+                                <TableCell>
+                                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                                        <User className="h-3 w-3" />
+                                        <span className="truncate max-w-[100px]">{e.created_by_name || "System"}</span>
+                                    </div>
+                                </TableCell>
                                 <TableCell className="text-right">
                                     <div className="flex justify-end gap-1">
                                         <Button variant="ghost" size="icon" onClick={() => setExpenseToEdit(e)}><Pencil className="h-4 w-4" /></Button>
