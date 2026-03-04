@@ -5,7 +5,7 @@ export const revalidate = 0;
 
 /**
  * GET /api/payments
- * Fetches total received and paginated payouts for the active account.
+ * Fetches filtered total received and paginated payouts for the active account.
  */
 export async function GET(request: Request) {
   try {
@@ -23,41 +23,58 @@ export async function GET(request: Request) {
     const toDate = searchParams.get('toDate');
     const offset = (page - 1) * pageSize;
 
-    // 1. Calculate Total Payment Received (Hero Card)
-    const summaryRes = await sql`
-      SELECT COALESCE(SUM(amount), 0)::numeric as total
-      FROM platform_payouts
-      WHERE account_id = ${accountId}
-      AND is_deleted = false
-    `;
-    const totalPaymentReceived = Number(summaryRes[0]?.total || 0);
-
-    // 2. Build filtered list query
-    let whereClauses = ['pp.is_deleted = false', 'pp.account_id = $1'];
+    // 1. Build Filtered Conditions (Common for Sum and Count)
+    let whereClauses = ['is_deleted = false', 'account_id = $1'];
     let params: any[] = [accountId];
     let paramIndex = 2;
 
     if (platform && platform !== 'all') {
-      whereClauses.push(`pp.platform = $${paramIndex++}`);
+      whereClauses.push(`platform = $${paramIndex++}`);
       params.push(platform);
     }
 
     if (fromDate) {
-      whereClauses.push(`pp.payout_date >= $${paramIndex++}`);
+      whereClauses.push(`payout_date >= $${paramIndex++}`);
       params.push(fromDate);
     }
 
     if (toDate) {
-      whereClauses.push(`pp.payout_date <= $${paramIndex++}`);
+      whereClauses.push(`payout_date <= $${paramIndex++}`);
       params.push(toDate);
     }
 
     const whereString = `WHERE ${whereClauses.join(' AND ')}`;
 
-    // 3. Fetch count for pagination
-    const countQuery = `SELECT COUNT(*) FROM platform_payouts pp ${whereString}`;
-    const totalRes = await sql(countQuery, params);
-    const totalRows = Number(totalRes[0]?.count || 0);
+    // 2. Fetch Aggregated Metrics (Filtered Sum and Count)
+    const [summaryRes, countRes] = await Promise.all([
+      sql(`SELECT COALESCE(SUM(amount), 0)::numeric as total FROM platform_payouts ${whereString}`, params),
+      sql(`SELECT COUNT(*) FROM platform_payouts ${whereString}`, params)
+    ]);
+
+    const totalPaymentReceived = Number(summaryRes[0]?.total || 0);
+    const totalRows = Number(countRes[0]?.count || 0);
+
+    // 3. Build version of where string with aliases for the list query
+    let listWhereClauses = ['pp.is_deleted = false', 'pp.account_id = $1'];
+    let listParams: any[] = [accountId];
+    let lIdx = 2;
+
+    if (platform && platform !== 'all') {
+      listWhereClauses.push(`pp.platform = $${lIdx++}`);
+      listParams.push(platform);
+    }
+
+    if (fromDate) {
+      listWhereClauses.push(`pp.payout_date >= $${lIdx++}`);
+      listParams.push(fromDate);
+    }
+
+    if (toDate) {
+      listWhereClauses.push(`pp.payout_date <= $${lIdx++}`);
+      listParams.push(toDate);
+    }
+
+    const listWhereString = `WHERE ${listWhereClauses.join(' AND ')}`;
 
     // 4. Fetch payout list with Account Name JOIN
     const dataQuery = `
@@ -71,11 +88,11 @@ export async function GET(request: Request) {
         a.name as account_name
       FROM platform_payouts pp
       JOIN accounts a ON pp.account_id = a.id
-      ${whereString}
+      ${listWhereString}
       ORDER BY pp.payout_date DESC
       LIMIT ${pageSize} OFFSET ${offset}
     `;
-    const payouts = await sql(dataQuery, params);
+    const payouts = await sql(dataQuery, listParams);
 
     return NextResponse.json({
       success: true,
@@ -122,7 +139,7 @@ export async function POST(request: Request) {
 
 /**
  * PUT /api/payments
- * Updates a payout restricted by account isolation.
+ * Updates an existing payout record.
  */
 export async function PUT(request: Request) {
   try {
@@ -148,7 +165,7 @@ export async function PUT(request: Request) {
 
 /**
  * DELETE /api/payments
- * Soft-deletes a payout restricted by account isolation.
+ * Soft-deletes a payout record.
  */
 export async function DELETE(request: Request) {
   try {
