@@ -20,15 +20,28 @@ export async function GET(request: Request) {
         return NextResponse.json(data);
     }
 
-    // 2. Variants List (used by modals)
+    // 2. Variants List (used by modals) - Updated to include pricing for auto-fill
     if (type === 'variants') {
         const data = await sql`
-          SELECT id, variant_sku, stock 
-          FROM product_variants 
-          WHERE account_id = ${accountId} AND is_deleted = false 
-          ORDER BY variant_sku ASC
+          SELECT 
+            pv.id, 
+            pv.variant_sku, 
+            pv.stock,
+            ap.meesho_price,
+            ap.flipkart_price,
+            ap.amazon_price
+          FROM product_variants pv
+          JOIN allproducts ap ON pv.product_id = ap.id
+          WHERE pv.account_id = ${accountId} AND pv.is_deleted = false 
+          ORDER BY pv.variant_sku ASC
         `;
-        return NextResponse.json(data);
+        return NextResponse.json(data.map((v: any) => ({
+          ...v,
+          meesho_price: Number(v.meesho_price || 0),
+          flipkart_price: Number(v.flipkart_price || 0),
+          amazon_price: Number(v.amazon_price || 0),
+          stock: Number(v.stock || 0)
+        })));
     }
     
     // 3. Main Products View with Pagination & Filters

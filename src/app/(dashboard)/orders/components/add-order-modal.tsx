@@ -58,6 +58,26 @@ export function AddOrderModal({ isOpen, onClose, onSuccess, order }: any) {
     }
   })
 
+  const selectedPlatform = form.watch("platform");
+  const selectedVariantId = form.watch("variant_id");
+
+  // Auto-fill Unit Price logic
+  React.useEffect(() => {
+    if (!selectedPlatform || !selectedVariantId || variants.length === 0 || isEditMode) return;
+
+    const variant = variants.find(v => v.id === selectedVariantId);
+    if (!variant) return;
+
+    let price = 0;
+    if (selectedPlatform === "Meesho") price = variant.meesho_price;
+    if (selectedPlatform === "Flipkart") price = variant.flipkart_price;
+    if (selectedPlatform === "Amazon") price = variant.amazon_price;
+
+    if (price > 0) {
+      form.setValue("selling_price", price);
+    }
+  }, [selectedPlatform, selectedVariantId, variants, form, isEditMode]);
+
   React.useEffect(() => {
     async function fetchVariants() {
       try {
