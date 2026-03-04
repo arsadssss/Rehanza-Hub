@@ -136,6 +136,7 @@ export async function GET(request: Request) {
 
 /**
  * POST /api/orders
+ * Aligned with bulk upload logic to include stock deduction and avoid generated columns.
  */
 export async function POST(request: Request) {
   try {
@@ -151,38 +152,52 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: "Missing required order fields" }, { status: 400 });
     }
 
-    const total_amount = Number(quantity) * Number(selling_price);
+    // Generate a unique external ID for manual entries
+    const external_order_id = `MAN-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
 
+    // Perform atomic insert + stock update (aligned with bulk upload pattern)
+    // Note: We OMIT total_amount because it's a generated column in the DB
     const result = await sql`
-      INSERT INTO orders (
-        order_date, 
-        platform, 
-        variant_id, 
-        quantity, 
-        selling_price, 
-        total_amount, 
-        account_id,
-        status
+      WITH inserted_order AS (
+        INSERT INTO orders (
+          external_order_id,
+          order_date, 
+          platform, 
+          variant_id, 
+          quantity, 
+          selling_price, 
+          account_id,
+          status
+        )
+        VALUES (
+          ${external_order_id},
+          ${order_date}, 
+          ${platform}, 
+          ${variant_id}, 
+          ${quantity}, 
+          ${selling_price}, 
+          ${accountId},
+          ${status || "PENDING"}
+        )
+        RETURNING variant_id, quantity
       )
-      VALUES (
-        ${order_date}, 
-        ${platform}, 
-        ${variant_id}, 
-        ${quantity}, 
-        ${selling_price}, 
-        ${total_amount}, 
-        ${accountId},
-        ${status || "PENDING"}
-      )
-      RETURNING *;
+      UPDATE product_variants 
+      SET stock = stock - (SELECT quantity FROM inserted_order)
+      WHERE id = (SELECT variant_id FROM inserted_order) 
+      AND account_id = ${accountId}
+      RETURNING id;
     `;
 
-    return NextResponse.json({ success: true, data: result[0] }, { status: 201 });
+    if (result.length === 0) {
+      throw new Error("Failed to process order or insufficient stock");
+    }
+
+    return NextResponse.json({ success: true, message: "Order added successfully" }, { status: 201 });
 
   } catch (error: any) {
-    console.error("API Orders POST Error:", error);
+    console.error("ORDER INSERT ERROR:", error);
     return NextResponse.json(
-      { success: false, message: "Failed to create order", error: error.message },
+      { success: false, message: error.message || "Failed to create order" },
       { status: 500 }
     );
   }
@@ -205,8 +220,7 @@ export async function PUT(request: Request) {
       return NextResponse.json({ success: false, message: "Missing required update fields" }, { status: 400 });
     }
 
-    const total_amount = Number(quantity) * Number(selling_price);
-
+    // Note: We OMIT total_amount because it's a generated column
     const result = await sql`
       UPDATE orders
       SET 
@@ -215,7 +229,6 @@ export async function PUT(request: Request) {
         variant_id = ${variant_id},
         quantity = ${quantity},
         selling_price = ${selling_price},
-        total_amount = ${total_amount},
         status = ${status}
       WHERE id = ${id} 
       AND account_id = ${accountId} 
