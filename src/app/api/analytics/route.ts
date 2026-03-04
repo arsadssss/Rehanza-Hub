@@ -13,6 +13,8 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, message: "Account not selected" }, { status: 400 });
     }
 
+    const isAllTime = range === 'all';
+    
     // Determine interval and grouping for trend based on the range
     let interval = '7 days';
     let trendGroup = 'day';
@@ -23,12 +25,13 @@ export async function GET(request: Request) {
     } else if (range === '90d') {
       interval = '90 days';
       trendGroup = 'week';
+    } else if (range === 'all') {
+      interval = '100 years'; // Effectively all time
+      trendGroup = 'month';
     } else if (range === 'monthly') {
-      // Legacy compatibility for 'monthly' if called
       interval = '30 days';
       trendGroup = 'day';
     } else if (range === 'yearly') {
-      // Legacy compatibility for 'yearly' if called
       interval = '1 year';
       trendGroup = 'month';
     }
@@ -47,13 +50,13 @@ export async function GET(request: Request) {
       salesTrendRes
     ] = await Promise.all([
       // Total Sales (Revenue) - Scoped
-      sql`SELECT COALESCE(SUM(total_amount), 0) as total FROM orders WHERE account_id = ${accountId} AND is_deleted = false AND order_date >= CURRENT_DATE - ${interval}::interval`,
+      sql`SELECT COALESCE(SUM(total_amount), 0) as total FROM orders WHERE account_id = ${accountId} AND is_deleted = false AND (${isAllTime} = true OR order_date >= CURRENT_DATE - ${interval}::interval)`,
       
       // Total Orders (Count) - Scoped
-      sql`SELECT COUNT(*)::int as count FROM orders WHERE account_id = ${accountId} AND is_deleted = false AND order_date >= CURRENT_DATE - ${interval}::interval`,
+      sql`SELECT COUNT(*)::int as count FROM orders WHERE account_id = ${accountId} AND is_deleted = false AND (${isAllTime} = true OR order_date >= CURRENT_DATE - ${interval}::interval)`,
       
       // Total Return Units (Quantity) - Scoped
-      sql`SELECT COALESCE(SUM(quantity), 0)::int as total FROM returns WHERE account_id = ${accountId} AND is_deleted = false AND return_date >= CURRENT_DATE - ${interval}::interval`,
+      sql`SELECT COALESCE(SUM(quantity), 0)::int as total FROM returns WHERE account_id = ${accountId} AND is_deleted = false AND (${isAllTime} = true OR return_date >= CURRENT_DATE - ${interval}::interval)`,
       
       // COGS (Sum of Qty * Cost per Product) - Scoped
       sql`
@@ -61,17 +64,17 @@ export async function GET(request: Request) {
         FROM orders o
         JOIN product_variants pv ON o.variant_id = pv.id
         JOIN allproducts ap ON pv.product_id = ap.id
-        WHERE o.account_id = ${accountId} AND o.is_deleted = false AND o.order_date >= CURRENT_DATE - ${interval}::interval
+        WHERE o.account_id = ${accountId} AND o.is_deleted = false AND (${isAllTime} = true OR o.order_date >= CURRENT_DATE - ${interval}::interval)
       `,
       
       // Total Return Loss - Scoped
-      sql`SELECT COALESCE(SUM(total_loss), 0) as total FROM returns WHERE account_id = ${accountId} AND is_deleted = false AND return_date >= CURRENT_DATE - ${interval}::interval`,
+      sql`SELECT COALESCE(SUM(total_loss), 0) as total FROM returns WHERE account_id = ${accountId} AND is_deleted = false AND (${isAllTime} = true OR return_date >= CURRENT_DATE - ${interval}::interval)`,
       
       // Platform Breakdown for Orders - Scoped
       sql`
         SELECT platform, COUNT(*)::int as orders
         FROM orders
-        WHERE account_id = ${accountId} AND is_deleted = false AND order_date >= CURRENT_DATE - ${interval}::interval
+        WHERE account_id = ${accountId} AND is_deleted = false AND (${isAllTime} = true OR order_date >= CURRENT_DATE - ${interval}::interval)
         GROUP BY platform
       `,
 
@@ -79,7 +82,7 @@ export async function GET(request: Request) {
       sql`
         SELECT return_type, COUNT(*)::int as count, COALESCE(SUM(quantity), 0)::int as units
         FROM returns
-        WHERE account_id = ${accountId} AND is_deleted = false AND return_date >= CURRENT_DATE - ${interval}::interval
+        WHERE account_id = ${accountId} AND is_deleted = false AND (${isAllTime} = true OR return_date >= CURRENT_DATE - ${interval}::interval)
         GROUP BY return_type
       `,
 
@@ -87,12 +90,12 @@ export async function GET(request: Request) {
       sql`
         SELECT platform, COUNT(*)::int as count, COALESCE(SUM(quantity), 0)::int as units
         FROM returns
-        WHERE account_id = ${accountId} AND is_deleted = false AND return_date >= CURRENT_DATE - ${interval}::interval
+        WHERE account_id = ${accountId} AND is_deleted = false AND (${isAllTime} = true OR return_date >= CURRENT_DATE - ${interval}::interval)
         GROUP BY platform
       `,
 
       // Total Order Units - Scoped
-      sql`SELECT COALESCE(SUM(quantity), 0)::int as total FROM orders WHERE account_id = ${accountId} AND is_deleted = false AND order_date >= CURRENT_DATE - ${interval}::interval`,
+      sql`SELECT COALESCE(SUM(quantity), 0)::int as total FROM orders WHERE account_id = ${accountId} AND is_deleted = false AND (${isAllTime} = true OR order_date >= CURRENT_DATE - ${interval}::interval)`,
 
       // Sales Trend - Scoped
       sql`
@@ -102,7 +105,7 @@ export async function GET(request: Request) {
           COUNT(id)::int as orders
         FROM orders 
         WHERE account_id = ${accountId} AND is_deleted = false
-          AND order_date >= CURRENT_DATE - ${interval}::interval
+          AND (${isAllTime} = true OR order_date >= CURRENT_DATE - ${interval}::interval)
         GROUP BY date
         ORDER BY date ASC
       `

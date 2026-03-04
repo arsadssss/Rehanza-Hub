@@ -89,6 +89,7 @@ export function AnalyticsSection({
         if (timeRange === '7d') label = format(d, 'eee');
         else if (timeRange === '30d') label = format(d, 'dd MMM');
         else if (timeRange === '90d') label = 'W' + format(d, 'w');
+        else if (timeRange === 'all') label = format(d, 'MMM yy');
         else label = format(d, 'dd MMM');
 
         return {
@@ -123,6 +124,7 @@ export function AnalyticsSection({
                             <SelectItem value="7d" className="text-[10px] font-bold uppercase">Last 7 Days</SelectItem>
                             <SelectItem value="30d" className="text-[10px] font-bold uppercase">Last 30 Days</SelectItem>
                             <SelectItem value="90d" className="text-[10px] font-bold uppercase">Last 90 Days</SelectItem>
+                            <SelectItem value="all" className="text-[10px] font-bold uppercase">All Time</SelectItem>
                         </SelectContent>
                     </Select>
                     <div className="flex items-center gap-2 px-4 py-2 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-[10px] font-black uppercase tracking-wider">
