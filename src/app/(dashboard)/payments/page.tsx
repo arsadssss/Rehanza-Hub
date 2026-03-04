@@ -63,6 +63,9 @@ export default function PaymentsPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
+  // Account detection state
+  const [activeAccountType, setActiveAccountType] = useState<"Fashion" | "Cosmetics" | undefined>(undefined);
+
   const fetchData = useCallback(async () => {
     setLoading(true);
     try {
@@ -92,6 +95,33 @@ export default function PaymentsPage() {
     setIsMounted(true);
     fetchData();
   }, [fetchData]);
+
+  // Handle detecting the current account name for modal defaults
+  useEffect(() => {
+    async function getActiveAccountInfo() {
+      try {
+        const res = await apiFetch("/api/accounts");
+        const json = await res.json();
+        if (json.success) {
+          const activeId = sessionStorage.getItem("active_account");
+          const active = json.data.find((a: any) => a.id === activeId);
+          if (active) {
+            const name = active.name.toLowerCase();
+            if (name.includes("fashion")) {
+              setActiveAccountType("Fashion");
+            } else if (name.includes("cosmetics")) {
+              setActiveAccountType("Cosmetics");
+            }
+          }
+        }
+      } catch (e) {
+        console.error("Failed to detect active account info", e);
+      }
+    }
+    if (isMounted) {
+      getActiveAccountInfo();
+    }
+  }, [isMounted]);
 
   // Reset page when filters change
   useEffect(() => {
@@ -132,6 +162,7 @@ export default function PaymentsPage() {
         onClose={() => { setIsAddPayoutOpen(false); setPayoutToEdit(null); }}
         onSuccess={fetchData}
         payout={payoutToEdit}
+        accountType={activeAccountType}
       />
       
       <AlertDialog open={!!itemToDelete} onOpenChange={() => setItemToDelete(null)}>

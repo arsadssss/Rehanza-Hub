@@ -48,9 +48,10 @@ interface AddPayoutModalProps {
   onClose: () => void
   onSuccess: () => void
   payout?: any | null
+  accountType?: "Fashion" | "Cosmetics"
 }
 
-export function AddPayoutModal({ isOpen, onClose, onSuccess, payout }: AddPayoutModalProps) {
+export function AddPayoutModal({ isOpen, onClose, onSuccess, payout, accountType }: AddPayoutModalProps) {
   const { toast } = useToast()
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const isEditMode = !!payout;
@@ -75,14 +76,13 @@ export function AddPayoutModal({ isOpen, onClose, onSuccess, payout }: AddPayout
       });
     } else if (isOpen && !isEditMode) {
       form.reset({
-        gst_account: undefined,
-        platform: undefined,
+        gst_account: accountType,
         amount: 0,
         payout_date: format(new Date(), 'yyyy-MM-dd'),
         reference: "",
       });
     }
-  }, [isOpen, payout, form, isEditMode]);
+  }, [isOpen, payout, form, isEditMode, accountType]);
 
   async function onSubmit(values: PayoutFormValues) {
     setIsSubmitting(true)
