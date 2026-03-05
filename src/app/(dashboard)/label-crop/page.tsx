@@ -5,16 +5,17 @@ import React, { useState, useCallback, useRef } from 'react';
 import { PdfUploader } from '@/components/label-crop/PdfUploader';
 import { PdfCanvasViewerMemo } from '@/components/label-crop/PdfCanvasViewer';
 import { CropOverlay } from '@/components/label-crop/CropOverlay';
-import { Scissors, RefreshCw, ZoomIn, Maximize, FileDown, Sparkles, ScanLine } from 'lucide-react';
+import { Scissors, RefreshCw, ZoomIn, Maximize, FileDown, ScanLine } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/hooks/use-toast';
 import { processPdfCrop } from '@/lib/pdfProcessor';
 import jsQR from 'jsqr';
+import { BrowserMultiFormatReader } from '@zxing/browser';
 
 /**
  * Label Intelligence - Professional PDF Cropping Tool
- * Includes Auto-Detection Mode using QR Code scanning.
+ * Includes Robust Multi-Stage Auto-Detection Mode.
  */
 export default function LabelCropPage() {
   const { toast } = useToast();
@@ -50,6 +51,51 @@ export default function LabelCropPage() {
     }));
   };
 
+  /**
+   * Content Bounding Box Detection
+   * Analyzes pixels to find the logical edges of printed content.
+   */
+  const detectLabelRectangle = (canvas: HTMLCanvasElement) => {
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    if (!ctx) return null;
+
+    const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imageData.data;
+    
+    let minX = canvas.width, minY = canvas.height, maxX = 0, maxY = 0;
+    let found = false;
+
+    // Sample pixels to find boundaries of dark content
+    for (let y = 0; y < canvas.height; y += 4) {
+      for (let x = 0; x < canvas.width; x += 4) {
+        const index = (y * canvas.width + x) * 4;
+        const r = data[index];
+        const g = data[index + 1];
+        const b = data[index + 2];
+        
+        // Check if pixel is "dark enough" to be considered part of a label
+        if (r < 200 && g < 200 && b < 200) {
+          if (x < minX) minX = x;
+          if (x > maxX) maxX = x;
+          if (y < minY) minY = y;
+          if (y > maxY) maxY = y;
+          found = true;
+        }
+      }
+    }
+
+    if (!found) return null;
+
+    // Add some padding to the detected bounding box
+    const padding = 20;
+    return {
+      x: Math.max(0, minX - padding),
+      y: Math.max(0, minY - padding),
+      width: Math.min(canvas.width - minX, (maxX - minX) + padding * 2),
+      height: Math.min(canvas.height - minY, (maxY - minY) + padding * 2)
+    };
+  };
+
   const handleAutoDetect = async () => {
     if (!canvasRef.current || !pdfMeta) return;
 
@@ -60,41 +106,56 @@ export default function LabelCropPage() {
       if (!context) throw new Error("Could not access canvas context");
 
       const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+      
+      // STAGE 1: Try QR Detection (Meesho/Flipkart Standard)
       const qr = jsQR(imageData.data, canvas.width, canvas.height);
 
       if (qr) {
-        // QR detected! Calculate a standard shipping label area around it.
-        // Usually the QR is near the bottom or center.
-        // We'll create a 4x6 ratio box (approx 600x900 at 1.5 scale)
         const detectedWidth = 600;
         const detectedHeight = 850;
-        
-        // Positioning relative to QR: 
-        // We center the box horizontally on the QR, and offset vertically 
-        // because QRs are usually at the bottom-center of the label.
         const newX = Math.max(0, Math.min(canvas.width - detectedWidth, qr.location.topLeftCorner.x - (detectedWidth / 2) + 50));
         const newY = Math.max(0, Math.min(canvas.height - detectedHeight, qr.location.topLeftCorner.y - (detectedHeight - 150)));
 
-        setCropBox({
-          x: newX,
-          y: newY,
-          width: detectedWidth,
-          height: detectedHeight
-        });
+        setCropBox({ x: newX, y: newY, width: detectedWidth, height: detectedHeight });
+        toast({ title: 'QR Detected', description: 'Framed label area based on shipping QR code.' });
+        return;
+      }
 
-        toast({
-          title: 'Label Detected',
-          description: 'Automatically framed the label area around the QR code.',
-        });
+      // STAGE 2: Try Barcode Detection (Ekart/Amazon Standard)
+      const barcodeReader = new BrowserMultiFormatReader();
+      try {
+        const barcodeResult = await barcodeReader.decodeFromCanvas(canvas);
+        if (barcodeResult) {
+          const points = barcodeResult.getResultPoints();
+          const firstPoint = points[0];
+          
+          const detectedWidth = 650;
+          const detectedHeight = 900;
+          const newX = Math.max(0, Math.min(canvas.width - detectedWidth, firstPoint.getX() - (detectedWidth / 2)));
+          const newY = Math.max(0, Math.min(canvas.height - detectedHeight, firstPoint.getY() - 100));
+
+          setCropBox({ x: newX, y: newY, width: detectedWidth, height: detectedHeight });
+          toast({ title: 'Barcode Detected', description: 'Framed label area based on primary barcode.' });
+          return;
+        }
+      } catch (e) {
+        // ZXing throws error if no barcode found, continue to Stage 3
+      }
+
+      // STAGE 3: Try Rectangle Detection Fallback
+      const rect = detectLabelRectangle(canvas);
+      if (rect && rect.width > 200 && rect.height > 200) {
+        setCropBox(rect);
+        toast({ title: 'Label Area Detected', description: 'Detected label boundaries based on printed content.' });
       } else {
         toast({
           variant: 'destructive',
           title: 'Detection Failed',
-          description: 'Could not find a valid shipping QR code. Please position manually.',
+          description: 'No barcodes or clear label boundaries found. Please position manually.',
         });
       }
     } catch (error: any) {
-      toast({ variant: 'destructive', title: 'Error', description: error.message });
+      toast({ variant: 'destructive', title: 'Detection Error', description: error.message });
     } finally {
       setIsDetecting(false);
     }
@@ -106,13 +167,9 @@ export default function LabelCropPage() {
     setIsProcessing(true);
     try {
       const buffer = await file.arrayBuffer();
-      
-      // Calculate Scaling: Visual Pixels -> PDF Points
       const scaleX = pdfMeta.width / pdfMeta.canvasWidth;
       const scaleY = pdfMeta.height / pdfMeta.canvasHeight;
 
-      // PDF Origin is Bottom-Left (0,0)
-      // Visual Origin is Top-Left (0,0)
       const pdfCrop = {
         x: cropBox.x * scaleX,
         y: pdfMeta.height - (cropBox.y + cropBox.height) * scaleY,
@@ -160,7 +217,6 @@ export default function LabelCropPage() {
         </div>
       ) : (
         <div className="space-y-6 animate-in zoom-in-95 duration-500">
-          {/* Main Preview Workspace */}
           <div className="relative bg-slate-950 rounded-[2.5rem] shadow-2xl border border-white/5 overflow-hidden flex flex-col">
             <div className="flex items-center justify-between px-8 py-4 border-b border-white/5 bg-slate-900/50 backdrop-blur-md z-10">
               <div className="flex items-center gap-3">
@@ -194,7 +250,6 @@ export default function LabelCropPage() {
             </div>
           </div>
 
-          {/* Controls Footer */}
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-center bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl p-8 rounded-[2.5rem] shadow-xl border border-border/50">
             <div className="lg:col-span-4 space-y-4">
               <div className="flex items-center justify-between">
