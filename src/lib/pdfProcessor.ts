@@ -35,9 +35,10 @@ export async function processPdfCrop(
 
 /**
  * processAmazonLabels - Specialized logic for Amazon PDFs.
- * 1. Keeps only odd pages (labels).
- * 2. Crops the label area.
- * 3. Extracts and prints the SKU on the label.
+ * 1. Iterates in pairs (Label + Invoice).
+ * 2. Extracts SKU from the invoice page.
+ * 3. Keeps only the label page at original size.
+ * 4. Prints the extracted SKU on the label.
  */
 export async function processAmazonLabels(arrayBuffer: ArrayBuffer): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.load(arrayBuffer);
@@ -49,44 +50,41 @@ export async function processAmazonLabels(arrayBuffer: ArrayBuffer): Promise<Uin
   const loadingTask = pdfjs.getDocument({ data: arrayBuffer });
   const pdfJsDoc = await loadingTask.promise;
 
-  for (let i = 0; i < totalPages; i++) {
-    // Amazon Pattern: Page 1 (index 0) is Label, Page 2 (index 1) is Invoice
-    // We only keep labels (even indices)
-    if (i % 2 !== 0) continue;
+  for (let i = 0; i < totalPages; i += 2) {
+    const labelIndex = i;
+    const invoiceIndex = i + 1;
 
-    const [copiedPage] = await newPdf.copyPages(pdfDoc, [i]);
-    const { width, height } = copiedPage.getSize();
+    // 1. Copy Label Page (DO NOT crop or resize)
+    const [copiedPage] = await newPdf.copyPages(pdfDoc, [labelIndex]);
+    const { width } = copiedPage.getSize();
 
-    // 1. Crop to Label area (Top 70% roughly)
-    // Amazon standard usually has the label in the upper section
-    const cropHeight = height * 0.70;
-    const cropY = height * 0.30;
-    copiedPage.setCropBox(0, cropY, width, cropHeight);
-    copiedPage.setMediaBox(0, cropY, width, cropHeight);
-
-    // 2. Extract SKU using PDF.js
+    // 2. Extract SKU from the corresponding Invoice Page
     let sku = "SKU NOT FOUND";
-    try {
-      const pageJs = await pdfJsDoc.getPage(i + 1);
-      const textContent = await pageJs.getTextContent();
-      const textItems = textContent.items.map((item: any) => item.str).join(' ');
-      
-      // Amazon labels usually have SKU in parentheses: (SKU-NAME)
-      const skuMatch = textItems.match(/\((.*?)\)/);
-      if (skuMatch && skuMatch[1]) {
-        sku = skuMatch[1];
+    if (invoiceIndex < totalPages) {
+      try {
+        const pageJs = await pdfJsDoc.getPage(invoiceIndex + 1);
+        const textContent = await pageJs.getTextContent();
+        const text = textContent.items.map((item: any) => item.str).join(' ');
+        
+        // Amazon SKU regex as requested: (\s*([A-Za-z0-9-]+)\s*)
+        // We look for bracketed content first as it is the most reliable SKU marker on Amazon invoices
+        const bracketMatch = text.match(/\(([^)]+)\)/);
+        if (bracketMatch && bracketMatch[1]) {
+          sku = bracketMatch[1];
+        } else {
+          const genericMatch = text.match(/(\s*([A-Za-z0-9-]+)\s*)/);
+          if (genericMatch) sku = genericMatch[1].trim();
+        }
+      } catch (e) {
+        console.error("SKU Extraction Error from Invoice:", e);
       }
-    } catch (e) {
-      console.error("SKU Extraction Error:", e);
     }
 
-    // 3. Print SKU on the label (Bottom-Left of the cropped area)
-    // Coordinate (40, 40) relative to bottom of original page, but we are cropped
-    // So we position it relative to the crop box
+    // 3. Print SKU on the label page (Bottom area as requested)
     copiedPage.drawText(`SKU: ${sku}`, {
-      x: 30,
-      y: cropY + 20,
-      size: 18,
+      x: width / 2 - 100,
+      y: 120,
+      size: 22,
       font: fontBold,
       color: rgb(0, 0, 0),
     });
