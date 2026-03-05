@@ -70,6 +70,9 @@ export default function ExpensesPage() {
   const [loading, setLoading] = useState(true);
   const [loadingChart, setLoadingChart] = useState(true);
   
+  // Account detection state
+  const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
+
   // Summary Stats
   const [totalExpenses, setTotalExpenses] = useState(0);
   const [netCashFlow, setNetCashFlow] = useState(0);
@@ -100,6 +103,7 @@ export default function ExpensesPage() {
   }, []);
 
   const fetchFinanceSummary = useCallback(async () => {
+    if (!activeAccountId) return;
     setLoading(true);
     try {
         const res = await apiFetch('/api/finance-summary');
@@ -113,7 +117,7 @@ export default function ExpensesPage() {
     } finally {
         setLoading(false);
     }
-  }, [toast]);
+  }, [toast, activeAccountId]);
 
   const fetchAnalytics = useCallback(async () => {
     setLoadingChart(true);
@@ -142,20 +146,33 @@ export default function ExpensesPage() {
         setTotalRows(count);
         setTotalPages(totalPages);
     } catch(error: any) {
-        toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch business expenses.' });
+        toast({ variant: "destructive", title: "Error", description: 'Failed to fetch business expenses.' });
     }
   }, [toast, page, searchTerm, userFilter, rangeFilter]);
 
   useEffect(() => {
     setIsMounted(true);
-    fetchUsers();
-    fetchAnalytics();
-    fetchFinanceSummary(); 
-  }, [fetchUsers, fetchAnalytics, fetchFinanceSummary]);
+    const id = sessionStorage.getItem("active_account");
+    if (id) setActiveAccountId(id);
+
+    const handleAccountInit = () => {
+      const freshId = sessionStorage.getItem("active_account");
+      if (freshId) setActiveAccountId(freshId);
+    };
+
+    window.addEventListener('active-account-changed', handleAccountInit);
+    return () => window.removeEventListener('active-account-changed', handleAccountInit);
+  }, []);
 
   useEffect(() => {
-    fetchExpenses(); 
-  }, [fetchExpenses]);
+    fetchUsers();
+    fetchAnalytics();
+    if (activeAccountId) fetchFinanceSummary(); 
+  }, [fetchUsers, fetchAnalytics, fetchFinanceSummary, activeAccountId]);
+
+  useEffect(() => {
+    if (activeAccountId) fetchExpenses(); 
+  }, [fetchExpenses, activeAccountId]);
 
   const handleConfirmDelete = async () => {
     if (!itemToDelete) return;

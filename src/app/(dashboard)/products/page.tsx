@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useEffect, useState, useCallback, Suspense } from 'react';
@@ -82,6 +81,9 @@ function ProductsContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
   
+  // Account detection state
+  const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
+
   // URL-synced State
   const view = (searchParams.get('tab') as "products" | "variants") || "products";
   const page = parseInt(searchParams.get('page') || '1', 10);
@@ -121,7 +123,6 @@ function ProductsContent() {
       }
     });
 
-    // CRITICAL: Reset page if filters change (except when updating page itself)
     if (!updates.page) {
       params.set('page', '1');
     }
@@ -140,13 +141,12 @@ function ProductsContent() {
   }, [searchTerm, search, updateQuery]);
 
   const fetchData = useCallback(async () => {
+    if (!activeAccountId) return;
     setLoading(true);
     try {
-      // 1. Fetch Summary
       const sRes = await apiFetch('/api/products/summary');
       if (sRes.ok) setSummary(await sRes.json());
 
-      // 2. Fetch Global Out of Stock Variants Count (Unique variant_sku where stock is 0)
       const oosRes = await apiFetch('/api/variants?health=out_of_stock&limit=1000');
       if (oosRes.ok) {
         const oosJson = await oosRes.json();
@@ -154,7 +154,6 @@ function ProductsContent() {
         setOutOfStockVariantCount(uniqueSkus);
       }
 
-      // 3. Main Data based on View
       if (view === 'products') {
         const params = new URLSearchParams({
           page: page.toString(),
@@ -167,7 +166,6 @@ function ProductsContent() {
         if (pRes.ok) {
           const json = await pRes.json();
           if (json.success) {
-            // Sort by created_at DESC so newest is at top
             const sortedProducts = [...(json.data || [])].sort((a, b) => 
               new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
             );
@@ -186,7 +184,6 @@ function ProductsContent() {
         if (vRes.ok) {
           const json = await vRes.json();
           if (json.success) {
-            // Sort variants by created_at DESC too
             const sortedVariants = [...(json.data || [])].sort((a, b) => 
               new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
             );
@@ -201,12 +198,25 @@ function ProductsContent() {
     } finally {
       setLoading(false);
     }
-  }, [toast, view, page, limit, search, categoryFilter, stockFilter, healthFilter]);
+  }, [toast, view, page, limit, search, categoryFilter, stockFilter, healthFilter, activeAccountId]);
 
   useEffect(() => {
     setIsMounted(true);
-    fetchData();
-  }, [fetchData]);
+    const id = sessionStorage.getItem("active_account");
+    if (id) setActiveAccountId(id);
+
+    const handleAccountInit = () => {
+      const freshId = sessionStorage.getItem("active_account");
+      if (freshId) setActiveAccountId(freshId);
+    };
+
+    window.addEventListener('active-account-changed', handleAccountInit);
+    return () => window.removeEventListener('active-account-changed', handleAccountInit);
+  }, []);
+
+  useEffect(() => {
+    if (activeAccountId) fetchData();
+  }, [fetchData, activeAccountId]);
 
   const handleEditProduct = (product: Product) => {
     setProductToEdit(product);

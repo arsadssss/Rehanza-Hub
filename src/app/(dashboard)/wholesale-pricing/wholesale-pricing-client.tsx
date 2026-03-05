@@ -60,6 +60,10 @@ type WholesaleTier = {
 export function WholesalePricingClient() {
   const { toast } = useToast();
   const [isMounted, setIsMounted] = useState(false);
+  
+  // Account detection state
+  const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
+
   const [tiers, setTiers] = useState<WholesaleTier[]>([]);
   const [loading, setLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -82,6 +86,7 @@ export function WholesalePricingClient() {
   });
 
   const fetchData = useCallback(async (currentSearch: string, currentSort: string, currentPage: number) => {
+    if (!activeAccountId) return;
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -110,17 +115,31 @@ export function WholesalePricingClient() {
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [toast, activeAccountId]);
 
   // Handle Initial Load and Search Debounce
   useEffect(() => {
     setIsMounted(true);
+    const id = sessionStorage.getItem("active_account");
+    if (id) setActiveAccountId(id);
+
+    const handleAccountInit = () => {
+      const freshId = sessionStorage.getItem("active_account");
+      if (freshId) setActiveAccountId(freshId);
+    };
+
+    window.addEventListener('active-account-changed', handleAccountInit);
+    return () => window.removeEventListener('active-account-changed', handleAccountInit);
+  }, []);
+
+  useEffect(() => {
+    if (!activeAccountId) return;
     const handler = setTimeout(() => {
       fetchData(searchTerm, sortOrder, page);
     }, 300);
 
     return () => clearTimeout(handler);
-  }, [searchTerm, sortOrder, page, fetchData]);
+  }, [searchTerm, sortOrder, page, fetchData, activeAccountId]);
 
   async function onSubmit(values: z.infer<typeof formSchema>) {
     setIsSubmitting(true);
@@ -425,7 +444,6 @@ export function WholesalePricingClient() {
                   </Button>
                   <div className="flex items-center gap-1">
                     {Array.from({ length: totalPages }, (_, i) => i + 1).map(pageNum => {
-                      // Basic logic to show limited page numbers if there are many
                       if (totalPages > 5 && (pageNum < page - 1 || pageNum > page + 1) && pageNum !== 1 && pageNum !== totalPages) {
                         if (pageNum === page - 2 || pageNum === page + 2) return <span key={pageNum} className="px-1 opacity-30">...</span>;
                         return null;

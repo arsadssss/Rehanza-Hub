@@ -10,13 +10,15 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Wallet, Archive } from 'lucide-react';
 import { apiFetch } from '@/lib/apiFetch';
 import { TaskPerformanceCard, type TrackRecordEntry } from '@/components/TaskPerformanceCard';
-import { SalesSummaryCards } from '@/components/SalesSummaryCards';
 import { AnalyticsSection } from '@/components/AnalyticsSection';
 import { SalesKpiSection } from '@/components/SalesKpiSection';
 
 export default function DashboardPage() {
   const { toast } = useToast();
   
+  // Account detection state
+  const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
+
   // High level data
   const [summary, setSummary] = useState<any>(null);
   const [recentOrders, setRecentOrders] = useState<any[]>([]);
@@ -35,6 +37,7 @@ export default function DashboardPage() {
   const [isMounted, setIsMounted] = useState(false);
 
   const fetchAnalytics = useCallback(async (range: string) => {
+    if (!activeAccountId) return;
     setLoadingAnalytics(true);
     try {
       const res = await apiFetch(`/api/analytics?range=${range}`);
@@ -47,10 +50,26 @@ export default function DashboardPage() {
     } finally {
       setLoadingAnalytics(false);
     }
+  }, [activeAccountId]);
+
+  // Initial account setup and listening for initialization
+  useEffect(() => {
+    setIsMounted(true);
+    const id = sessionStorage.getItem("active_account");
+    if (id) setActiveAccountId(id);
+
+    const handleAccountInit = () => {
+      const freshId = sessionStorage.getItem("active_account");
+      if (freshId) setActiveAccountId(freshId);
+    };
+
+    window.addEventListener('active-account-changed', handleAccountInit);
+    return () => window.removeEventListener('active-account-changed', handleAccountInit);
   }, []);
 
   useEffect(() => {
-    setIsMounted(true);
+    if (!activeAccountId) return;
+
     async function fetchDashboardData() {
       setLoading(true);
       setLoadingTrackRecord(true);
@@ -87,7 +106,7 @@ export default function DashboardPage() {
 
     fetchDashboardData();
     fetchAnalytics(timeRange);
-  }, [toast, fetchAnalytics, timeRange]);
+  }, [toast, fetchAnalytics, timeRange, activeAccountId]);
 
   return (
     <div className="p-6 md:p-8 space-y-8 bg-gray-50/50 dark:bg-black/50">

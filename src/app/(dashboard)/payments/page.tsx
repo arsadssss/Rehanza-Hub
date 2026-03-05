@@ -47,6 +47,9 @@ import { apiFetch } from '@/lib/apiFetch';
 export default function PaymentsPage() {
   const { toast } = useToast();
   const [isMounted, setIsMounted] = useState(false);
+  
+  // Account detection state
+  const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
 
   const [payouts, setPayouts] = useState<any[]>([]);
   const [totalReceived, setTotalReceived] = useState(0);
@@ -63,10 +66,11 @@ export default function PaymentsPage() {
   const [dateFrom, setDateFrom] = useState('');
   const [dateTo, setDateTo] = useState('');
 
-  // Account detection state
+  // Account detection state for modal
   const [activeAccountType, setActiveAccountType] = useState<"Fashion" | "Cosmetics" | undefined>(undefined);
 
   const fetchData = useCallback(async () => {
+    if (!activeAccountId) return;
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -89,12 +93,25 @@ export default function PaymentsPage() {
     } finally {
       setLoading(false);
     }
-  }, [toast, page, pageSize, platformFilter, dateFrom, dateTo]);
+  }, [toast, page, pageSize, platformFilter, dateFrom, dateTo, activeAccountId]);
 
   useEffect(() => {
     setIsMounted(true);
-    fetchData();
-  }, [fetchData]);
+    const id = sessionStorage.getItem("active_account");
+    if (id) setActiveAccountId(id);
+
+    const handleAccountInit = () => {
+      const freshId = sessionStorage.getItem("active_account");
+      if (freshId) setActiveAccountId(freshId);
+    };
+
+    window.addEventListener('active-account-changed', handleAccountInit);
+    return () => window.removeEventListener('active-account-changed', handleAccountInit);
+  }, []);
+
+  useEffect(() => {
+    if (activeAccountId) fetchData();
+  }, [fetchData, activeAccountId]);
 
   // Handle detecting the current account name for modal defaults
   useEffect(() => {

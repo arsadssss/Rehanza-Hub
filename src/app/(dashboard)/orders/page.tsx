@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PlusCircle, Pencil, Trash2, Search, FilterX, Package, CircleDollarSign, Undo2, TrendingDown, FileUp, Hash } from "lucide-react";
+import { PlusCircle, Pencil, Trash2, Search, FilterX, Package, CircleDollarSign, Undo2, TrendingDown, FileUp } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AddOrderModal } from "./components/add-order-modal";
 import { AddReturnModal } from "../returns/components/add-return-modal";
@@ -70,6 +70,9 @@ export default function OrdersPage() {
   const [activeTab, setActiveTab] = useState("orders");
   const [loading, setLoading] = useState(true);
   
+  // Account detection state
+  const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
+
   // Data State
   const [data, setData] = useState<any[]>([]);
   const [summary, setSummary] = useState<any>(null);
@@ -93,6 +96,7 @@ export default function OrdersPage() {
   const [itemToDelete, setItemToDelete] = useState<{ id: string; description: string } | null>(null);
 
   const fetchData = useCallback(async () => {
+    if (!activeAccountId) return;
     setLoading(true);
     try {
       const params = new URLSearchParams({
@@ -119,12 +123,25 @@ export default function OrdersPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeTab, page, platformFilter, statusFilter, searchTerm, fromDate, toDate, toast]);
+  }, [activeTab, page, platformFilter, statusFilter, searchTerm, fromDate, toDate, toast, activeAccountId]);
 
   useEffect(() => {
     setIsMounted(true);
-    fetchData();
-  }, [fetchData]);
+    const id = sessionStorage.getItem("active_account");
+    if (id) setActiveAccountId(id);
+
+    const handleAccountInit = () => {
+      const freshId = sessionStorage.getItem("active_account");
+      if (freshId) setActiveAccountId(freshId);
+    };
+
+    window.addEventListener('active-account-changed', handleAccountInit);
+    return () => window.removeEventListener('active-account-changed', handleAccountInit);
+  }, []);
+
+  useEffect(() => {
+    if (activeAccountId) fetchData();
+  }, [fetchData, activeAccountId]);
 
   const handleTabChange = (val: string) => {
     setData([]);

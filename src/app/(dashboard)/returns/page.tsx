@@ -60,6 +60,9 @@ type ItemToDelete = {
 export default function ReturnsPage() {
   const { toast } = useToast();
   
+  // Account detection state
+  const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
+
   const [returns, setReturns] = useState<Return[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -69,19 +72,20 @@ export default function ReturnsPage() {
   const [itemToDelete, setItemToDelete] = useState<ItemToDelete | null>(null);
 
   const fetchReturns = useCallback(async () => {
+    if (!activeAccountId) return;
     setLoading(true);
     try {
         const res = await apiFetch('/api/returns');
         if (!res.ok) throw new Error('Failed to fetch returns.');
         const data = await res.json();
-        setReturns(data);
+        setReturns(data.data || []);
     } catch(error: any) {
       toast({ variant: 'destructive', title: 'Error', description: error.message });
       setReturns([]);
     } finally {
         setLoading(false);
     }
-  }, [toast]);
+  }, [toast, activeAccountId]);
 
   const handleSuccess = useCallback(() => {
     fetchReturns();
@@ -89,13 +93,28 @@ export default function ReturnsPage() {
   }, [fetchReturns]);
 
   useEffect(() => {
-    handleSuccess();
-    const handleDataChange = () => handleSuccess();
-    window.addEventListener('data-changed', handleDataChange);
-    return () => {
-      window.removeEventListener('data-changed', handleDataChange);
+    const id = sessionStorage.getItem("active_account");
+    if (id) setActiveAccountId(id);
+
+    const handleAccountInit = () => {
+      const freshId = sessionStorage.getItem("active_account");
+      if (freshId) setActiveAccountId(freshId);
     };
-  }, [handleSuccess]);
+
+    window.addEventListener('active-account-changed', handleAccountInit);
+    return () => window.removeEventListener('active-account-changed', handleAccountInit);
+  }, []);
+
+  useEffect(() => {
+    if (activeAccountId) {
+      handleSuccess();
+      const handleDataChange = () => handleSuccess();
+      window.addEventListener('data-changed', handleDataChange);
+      return () => {
+        window.removeEventListener('data-changed', handleDataChange);
+      };
+    }
+  }, [handleSuccess, activeAccountId]);
 
   const handleOpenModal = (returnItem?: Return | null) => {
     if (returnItem) {

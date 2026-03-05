@@ -10,6 +10,8 @@ export default function AnalyticsPage() {
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
   
+  const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
+  
   const [totalSales, setTotalSales] = useState(0);
   const [totalOrders, setTotalOrders] = useState(0);
   const [totalReturns, setTotalReturns] = useState(0);
@@ -21,6 +23,21 @@ export default function AnalyticsPage() {
   const [timeRange, setTimeRange] = useState('7d');
 
   useEffect(() => {
+    const id = sessionStorage.getItem("active_account");
+    if (id) setActiveAccountId(id);
+
+    const handleAccountInit = () => {
+      const freshId = sessionStorage.getItem("active_account");
+      if (freshId) setActiveAccountId(freshId);
+    };
+
+    window.addEventListener('active-account-changed', handleAccountInit);
+    return () => window.removeEventListener('active-account-changed', handleAccountInit);
+  }, []);
+
+  useEffect(() => {
+    if (!activeAccountId) return;
+
     async function fetchAnalyticsData() {
       setLoading(true);
       try {
@@ -51,7 +68,7 @@ export default function AnalyticsPage() {
       }
     }
     fetchAnalyticsData();
-  }, [toast, timeRange]);
+  }, [toast, timeRange, activeAccountId]);
 
   return (
     <div className="p-8 space-y-10 bg-gray-50/50 dark:bg-black/50 min-h-full">

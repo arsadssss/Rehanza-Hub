@@ -31,8 +31,26 @@ export default function InventoryPage() {
   const [searchTerm, setSearchTerm] = useState("");
   const { toast } = useToast();
   const router = useRouter();
+  
+  // Account detection state
+  const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
 
   useEffect(() => {
+    const id = sessionStorage.getItem("active_account");
+    if (id) setActiveAccountId(id);
+
+    const handleAccountInit = () => {
+      const freshId = sessionStorage.getItem("active_account");
+      if (freshId) setActiveAccountId(freshId);
+    };
+
+    window.addEventListener('active-account-changed', handleAccountInit);
+    return () => window.removeEventListener('active-account-changed', handleAccountInit);
+  }, []);
+
+  useEffect(() => {
+    if (!activeAccountId) return;
+
     async function fetchData() {
       setLoading(true);
       try {
@@ -44,8 +62,6 @@ export default function InventoryPage() {
             inventoryInvestment: json.inventoryInvestment,
             items: json.items
           });
-          // Temporary debug logging as requested
-          console.log("Calculated Inventory Value:", json.inventoryInvestment);
         }
       } catch (error: any) {
         toast({ 
@@ -58,7 +74,7 @@ export default function InventoryPage() {
       }
     }
     fetchData();
-  }, [toast]);
+  }, [toast, activeAccountId]);
 
   const filteredItems = useMemo(() => {
     if (!data?.items) return [];

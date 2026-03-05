@@ -82,8 +82,11 @@ export function SidebarNav() {
           if (saved) {
             setSelectedAccount(saved);
           } else if (json.data.length > 0) {
-            setSelectedAccount(json.data[0].id);
-            sessionStorage.setItem("active_account", json.data[0].id);
+            const firstAccountId = json.data[0].id;
+            setSelectedAccount(firstAccountId);
+            sessionStorage.setItem("active_account", firstAccountId);
+            // Notify components that the initial account is now ready
+            window.dispatchEvent(new Event('active-account-changed'));
           }
         }
       } catch (error) {
