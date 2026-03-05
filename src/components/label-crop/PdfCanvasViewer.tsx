@@ -1,40 +1,42 @@
-
 "use client";
 
 import React, { useEffect, useRef, useState } from 'react';
 import * as pdfjs from 'pdfjs-dist';
-import { CropOverlay } from './CropOverlay';
 
 // Set worker via unpkg for stability in browser
 pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 interface PdfCanvasViewerProps {
   file: File;
-  zoom: number;
-  cropBox: { x: number; y: number; width: number; height: number };
-  onCropChange: (box: { x: number; y: number; width: number; height: number }) => void;
   onMetaChange: (meta: { width: number; height: number; canvasWidth: number; canvasHeight: number }) => void;
+  zoom: number;
+  children?: React.ReactNode;
 }
 
-export function PdfCanvasViewer({ file, zoom, cropBox, onCropChange, onMetaChange }: PdfCanvasViewerProps) {
+/**
+ * PdfCanvasViewer - Renders PDF once and applies zoom via CSS transform to prevent blinking.
+ */
+function PdfCanvasViewer({ file, onMetaChange, zoom, children }: PdfCanvasViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [loading, setLoading] = useState(true);
+  const [isRendered, setIsRendered] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
 
     async function renderPage() {
-      setLoading(true);
+      setIsRendered(false);
       try {
         const arrayBuffer = await file.arrayBuffer();
         const pdf = await pdfjs.getDocument({ data: arrayBuffer }).promise;
         const page = await pdf.getPage(1);
         
-        const viewport = page.getViewport({ scale: zoom });
+        // Render at a high-quality fixed scale (1.5)
+        const baseScale = 1.5;
+        const viewport = page.getViewport({ scale: baseScale });
         const canvas = canvasRef.current;
         if (!canvas || !isMounted) return;
 
-        const context = canvas.getContext('2d');
+        const context = canvas.getContext('2d', { alpha: false });
         if (!context) return;
 
         canvas.height = viewport.height;
@@ -49,7 +51,7 @@ export function PdfCanvasViewer({ file, zoom, cropBox, onCropChange, onMetaChang
             canvasWidth: viewport.width,
             canvasHeight: viewport.height
           });
-          setLoading(false);
+          setIsRendered(true);
         }
       } catch (error) {
         console.error("PDF Render Error:", error);
@@ -58,20 +60,20 @@ export function PdfCanvasViewer({ file, zoom, cropBox, onCropChange, onMetaChang
 
     renderPage();
     return () => { isMounted = false; };
-  }, [file, zoom, onMetaChange]);
+  }, [file, onMetaChange]); // Only re-render if the file itself changes
 
   return (
-    <div className="relative shadow-[0_0_100px_rgba(0,0,0,0.5)] bg-white">
+    <div 
+      className="relative shadow-[0_0_100px_rgba(0,0,0,0.5)] bg-white transition-transform duration-100 ease-out"
+      style={{ 
+        transform: `scale(${zoom})`,
+        transformOrigin: 'top center'
+      }}
+    >
       <canvas ref={canvasRef} className="block" />
-      {!loading && (
-        <CropOverlay 
-          x={cropBox.x} 
-          y={cropBox.y} 
-          width={cropBox.width} 
-          height={cropBox.height} 
-          onUpdate={onCropChange}
-        />
-      )}
+      {isRendered && children}
     </div>
   );
 }
+
+export const PdfCanvasViewerMemo = React.memo(PdfCanvasViewer);

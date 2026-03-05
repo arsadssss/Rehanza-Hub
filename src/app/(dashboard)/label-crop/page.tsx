@@ -1,9 +1,9 @@
-
 "use client";
 
 import React, { useState, useCallback } from 'react';
 import { PdfUploader } from '@/components/label-crop/PdfUploader';
-import { PdfCanvasViewer } from '@/components/label-crop/PdfCanvasViewer';
+import { PdfCanvasViewerMemo } from '@/components/label-crop/PdfCanvasViewer';
+import { CropOverlay } from '@/components/label-crop/CropOverlay';
 import { Scissors, RefreshCw, ZoomIn, Maximize, FileDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
@@ -12,11 +12,12 @@ import { processPdfCrop } from '@/lib/pdfProcessor';
 
 /**
  * Label Intelligence - Professional PDF Cropping Tool
+ * Fixed blinking by decoupling PDF rendering from crop state.
  */
 export default function LabelCropPage() {
   const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
-  const [zoom, setZoom] = useState(1.5);
+  const [zoom, setZoom] = useState(1.0);
   const [isProcessing, setIsProcessing] = useState(false);
   
   // Crop state in pixels relative to the canvas
@@ -31,9 +32,9 @@ export default function LabelCropPage() {
     setCropBox({ x: 50, y: 50, width: 400, height: 300 });
   };
 
-  const handleMetaChange = (meta: { width: number; height: number; canvasWidth: number; canvasHeight: number }) => {
+  const handleMetaChange = useCallback((meta: { width: number; height: number; canvasWidth: number; canvasHeight: number }) => {
     setPdfPdfMeta(meta);
-  };
+  }, []);
 
   const handleCenterBox = () => {
     if (!pdfMeta) return;
@@ -106,7 +107,7 @@ export default function LabelCropPage() {
         <div className="space-y-6 animate-in zoom-in-95 duration-500">
           {/* Main Preview Workspace */}
           <div className="relative bg-slate-950 rounded-[2.5rem] shadow-2xl border border-white/5 overflow-hidden flex flex-col">
-            <div className="flex items-center justify-between px-8 py-4 border-b border-white/5 bg-slate-900/50 backdrop-blur-md">
+            <div className="flex items-center justify-between px-8 py-4 border-b border-white/5 bg-slate-900/50 backdrop-blur-md z-10">
               <div className="flex items-center gap-3">
                 <span className="px-3 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-black uppercase tracking-tighter">Active Session</span>
                 <h2 className="text-xs font-bold text-white/80 truncate max-w-[300px]">{file.name}</h2>
@@ -119,14 +120,21 @@ export default function LabelCropPage() {
               </button>
             </div>
 
-            <div className="h-[600px] overflow-auto flex items-start justify-center p-12 custom-scrollbar">
-              <PdfCanvasViewer 
+            <div className="h-[600px] overflow-auto flex items-start justify-center p-12 custom-scrollbar bg-slate-900/20">
+              <PdfCanvasViewerMemo 
                 file={file} 
                 zoom={zoom} 
-                cropBox={cropBox}
-                onCropChange={setCropBox}
                 onMetaChange={handleMetaChange}
-              />
+              >
+                <CropOverlay 
+                  x={cropBox.x} 
+                  y={cropBox.y} 
+                  width={cropBox.width} 
+                  height={cropBox.height} 
+                  scale={zoom}
+                  onUpdate={setCropBox}
+                />
+              </PdfCanvasViewerMemo>
             </div>
           </div>
 
@@ -144,7 +152,7 @@ export default function LabelCropPage() {
                 <Slider 
                   value={[zoom]} 
                   min={0.5} 
-                  max={3} 
+                  max={2.5} 
                   step={0.1} 
                   onValueChange={([val]) => setZoom(val)}
                   className="flex-1"
@@ -162,7 +170,7 @@ export default function LabelCropPage() {
               </Button>
               <Button 
                 variant="outline" 
-                onClick={() => setZoom(1.5)} 
+                onClick={() => setZoom(1.0)} 
                 className="rounded-xl h-12 px-6 font-bold"
               >
                 <RefreshCw className="mr-2 h-4 w-4" /> Reset Zoom

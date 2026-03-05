@@ -1,4 +1,3 @@
-
 "use client";
 
 import React from 'react';
@@ -10,13 +9,15 @@ interface CropOverlayProps {
   y: number;
   width: number;
   height: number;
+  scale: number;
   onUpdate: (box: { x: number; y: number; width: number; height: number }) => void;
 }
 
-export function CropOverlay({ x, y, width, height, onUpdate }: CropOverlayProps) {
+export function CropOverlay({ x, y, width, height, scale, onUpdate }: CropOverlayProps) {
   return (
     <Rnd
       bounds="parent"
+      scale={scale}
       size={{ width, height }}
       position={{ x, y }}
       onDragStop={(e, d) => onUpdate({ x: d.x, y: d.y, width, height })}
