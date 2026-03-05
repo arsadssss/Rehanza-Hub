@@ -13,7 +13,6 @@ import {
   SidebarMenuItem,
   SidebarMenuButton,
   useSidebar,
-  SidebarTrigger,
 } from '@/components/ui/sidebar';
 import {
   LayoutDashboard,
@@ -30,13 +29,15 @@ import {
   Wallet,
   ChevronDown,
   Image as ImageIcon,
-  PanelLeft,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { LogoutButton } from '@/components/logout-button';
 import { apiFetch } from '@/lib/apiFetch';
 import { cn } from '@/lib/utils';
+import { Button } from '@/components/ui/button';
 
 const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -62,7 +63,7 @@ type Account = {
 export function SidebarNav() {
   const pathname = usePathname();
   const { data: session } = useSession();
-  const { state, isMobile } = useSidebar();
+  const { state, isMobile, toggleSidebar } = useSidebar();
   const isCollapsed = state === 'collapsed';
   
   const [accounts, setAccounts] = useState<Account[]>([]);
@@ -101,20 +102,34 @@ export function SidebarNav() {
       collapsible="icon" 
       className="border-none bg-gradient-to-b from-indigo-800 to-indigo-950 text-white shadow-2xl overflow-hidden transition-all duration-300"
     >
-      <SidebarHeader className="p-4 pt-8">
-        <div className="flex items-center justify-between px-2">
+      <SidebarHeader className="p-4 pt-6">
+        <div className={cn(
+          "flex items-center gap-3",
+          isCollapsed ? "flex-col justify-center" : "flex-row justify-between px-2"
+        )}>
           <div className="flex items-center gap-3 overflow-hidden">
             <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/10 shadow-xl border border-white/10 backdrop-blur-md">
               <Package className="h-6 w-6 text-white" />
             </div>
             {!isCollapsed && (
-              <h1 className="text-xl font-black text-white tracking-tighter font-headline whitespace-nowrap animate-in fade-in slide-in-from-left-4 duration-500">
+              <h1 className="text-lg font-black text-white tracking-tighter font-headline whitespace-nowrap animate-in fade-in slide-in-from-left-4 duration-500">
                 Rehanza Hub
               </h1>
             )}
           </div>
-          {!isMobile && !isCollapsed && (
-            <SidebarTrigger className="h-8 w-8 text-white/40 hover:text-white hover:bg-white/10" />
+          
+          {!isMobile && (
+            <Button
+              variant="ghost"
+              size="icon"
+              onClick={toggleSidebar}
+              className={cn(
+                "h-8 w-8 text-white/40 hover:text-white hover:bg-white/10 transition-colors rounded-xl",
+                isCollapsed && "mt-2"
+              )}
+            >
+              {isCollapsed ? <ChevronRight className="h-5 w-5" /> : <ChevronLeft className="h-5 w-5" />}
+            </Button>
           )}
         </div>
 
@@ -167,9 +182,11 @@ export function SidebarNav() {
                       "h-5 w-5 shrink-0 transition-transform group-hover:scale-110",
                       isActive ? "text-indigo-900" : "text-white/40 group-hover:text-white"
                     )} />
-                    <span className="text-xs font-bold uppercase tracking-wide truncate">
-                      {item.label}
-                    </span>
+                    {!isCollapsed && (
+                      <span className="text-xs font-bold uppercase tracking-wide truncate">
+                        {item.label}
+                      </span>
+                    )}
                   </Link>
                 </SidebarMenuButton>
               </SidebarMenuItem>
