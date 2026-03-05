@@ -133,12 +133,12 @@ export function AnalyticsSection({
                     </div>
                 </div>
             </div>
-            <div className="h-[350px] w-full">
+            <div className="h-[320px] w-full">
                 {loading ? <Skeleton className="h-full w-full bg-black/5 dark:bg-white/5 rounded-3xl" /> : (
-                    <ResponsiveContainer width="100%" height={300}>
+                    <ResponsiveContainer width="100%" height="100%">
                         <AreaChart
                             data={mappedSalesTrend}
-                            margin={{ top: 20, right: 30, left: 20, bottom: 5 }}
+                            margin={{ top: 10, right: 10, left: -20, bottom: 0 }}
                         >
                             <defs>
                                 <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
