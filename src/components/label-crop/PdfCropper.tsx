@@ -10,8 +10,8 @@ import { Download, RefreshCw, ZoomIn, Scissors, CheckCircle2 } from 'lucide-reac
 import { processPdfCrop } from '@/lib/pdfProcessor';
 import { useToast } from '@/hooks/use-toast';
 
-// Configure PDF.js worker
-pdfjs.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjs.version}/pdf.worker.min.js`;
+// Configure PDF.js worker using a reliable CDN path with the correct extension for v4+
+pdfjs.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjs.version}/build/pdf.worker.min.mjs`;
 
 interface PdfCropperProps {
   file: File;
