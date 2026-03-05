@@ -66,7 +66,7 @@ export async function processAmazonLabels(arrayBuffer: ArrayBuffer): Promise<Uin
         const textContent = await pageJs.getTextContent();
         const text = textContent.items.map((item: any) => item.str).join(' ');
         
-        // Amazon SKU regex fix: Only capture parentheses immediately before the word HSN
+        // Amazon SKU regex: Only capture parentheses immediately before the word HSN
         const skuMatch = text.match(/\(\s*([A-Za-z0-9\-]+)\s*\)\s*HSN/i);
         if (skuMatch && skuMatch[1]) {
           sku = skuMatch[1].trim();
@@ -76,11 +76,14 @@ export async function processAmazonLabels(arrayBuffer: ArrayBuffer): Promise<Uin
       }
     }
 
-    // 3. Print SKU on the label page (Bottom area as requested)
+    // 3. Print SKU on the label page (Bottom area, centered)
+    const fontSize = 26;
+    const textWidth = fontBold.widthOfTextAtSize(sku, fontSize);
+
     copiedPage.drawText(sku, {
-      x: width / 2 - 100,
-      y: 120,
-      size: 22,
+      x: (width - textWidth) / 2,
+      y: 70, // Placed relative to bottom to avoid overlapping routing blocks
+      size: fontSize,
       font: fontBold,
       color: rgb(0, 0, 0),
     });
