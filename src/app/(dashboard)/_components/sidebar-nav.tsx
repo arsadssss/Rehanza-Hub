@@ -11,6 +11,9 @@ import {
   SidebarFooter,
   SidebarMenu,
   SidebarMenuItem,
+  SidebarMenuButton,
+  useSidebar,
+  SidebarTrigger,
 } from '@/components/ui/sidebar';
 import {
   LayoutDashboard,
@@ -27,6 +30,7 @@ import {
   Wallet,
   ChevronDown,
   Image as ImageIcon,
+  PanelLeft,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -58,6 +62,8 @@ type Account = {
 export function SidebarNav() {
   const pathname = usePathname();
   const { data: session } = useSession();
+  const { state, isMobile } = useSidebar();
+  const isCollapsed = state === 'collapsed';
   
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
@@ -91,87 +97,118 @@ export function SidebarNav() {
   const firstLetter = userName.charAt(0).toUpperCase();
 
   return (
-    <Sidebar className="border-none bg-gradient-to-b from-indigo-700 to-purple-700 rounded-r-[2rem] text-white shadow-2xl overflow-hidden">
-      <SidebarHeader className="p-6 pt-10">
-        <div className="flex items-center gap-3 px-2">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-white/20 shadow-lg border border-white/20">
-            <Package className="h-6 w-6 text-white" />
+    <Sidebar 
+      collapsible="icon" 
+      className="border-none bg-gradient-to-b from-indigo-800 to-indigo-950 text-white shadow-2xl overflow-hidden transition-all duration-300"
+    >
+      <SidebarHeader className="p-4 pt-8">
+        <div className="flex items-center justify-between px-2">
+          <div className="flex items-center gap-3 overflow-hidden">
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-white/10 shadow-xl border border-white/10 backdrop-blur-md">
+              <Package className="h-6 w-6 text-white" />
+            </div>
+            {!isCollapsed && (
+              <h1 className="text-xl font-black text-white tracking-tighter font-headline whitespace-nowrap animate-in fade-in slide-in-from-left-4 duration-500">
+                Rehanza Hub
+              </h1>
+            )}
           </div>
-          <h1 className="text-xl font-bold text-white tracking-tight font-headline">
-            Rehanza Hub
-          </h1>
+          {!isMobile && !isCollapsed && (
+            <SidebarTrigger className="h-8 w-8 text-white/40 hover:text-white hover:bg-white/10" />
+          )}
         </div>
 
         {/* Account Switcher */}
-        <div className="mt-8 px-2 relative group">
-          <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-white/60">
-            <ChevronDown className="h-4 w-4" />
+        {!isCollapsed && (
+          <div className="mt-8 px-2 relative group animate-in fade-in duration-700">
+            <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-white/40 group-hover:text-white transition-colors">
+              <ChevronDown className="h-4 w-4" />
+            </div>
+            <select
+              value={selectedAccount || ""}
+              onChange={(e) => {
+                sessionStorage.setItem("active_account", e.target.value);
+                setSelectedAccount(e.target.value);
+                window.location.reload();
+              }}
+              className="w-full appearance-none rounded-2xl bg-white/5 border border-white/10 p-3.5 pr-10 text-[10px] font-black uppercase tracking-widest text-white/80 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all cursor-pointer hover:bg-white/10 hover:text-white"
+            >
+              {accounts.length === 0 && <option value="" className="bg-indigo-900">Loading...</option>}
+              {accounts.map((acc) => (
+                <option key={acc.id} value={acc.id} className="bg-indigo-900 text-white">
+                  {acc.name}
+                </option>
+              ))}
+            </select>
           </div>
-          <select
-            value={selectedAccount || ""}
-            onChange={(e) => {
-              sessionStorage.setItem("active_account", e.target.value);
-              setSelectedAccount(e.target.value);
-              window.location.reload();
-            }}
-            className="w-full appearance-none rounded-xl bg-white/10 border border-white/10 p-3 pr-10 text-xs font-medium text-white focus:outline-none focus:ring-2 focus:ring-white/20 transition-all cursor-pointer hover:bg-white/20"
-          >
-            {accounts.length === 0 && <option value="" className="bg-indigo-800">Loading...</option>}
-            {accounts.map((acc) => (
-              <option key={acc.id} value={acc.id} className="bg-indigo-800 text-white">
-                {acc.name}
-              </option>
-            ))}
-          </select>
-        </div>
+        )}
       </SidebarHeader>
 
-      <SidebarContent className="px-4 py-2 mt-4">
-        <SidebarMenu className="gap-1.5">
+      <SidebarContent className="px-3 py-4 mt-2">
+        <SidebarMenu className="gap-1">
           {navItems.map((item) => {
             const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
             
             return (
               <SidebarMenuItem key={item.href}>
-                <Link 
-                  href={item.href}
+                <SidebarMenuButton
+                  asChild
+                  isActive={isActive}
+                  tooltip={item.label}
                   className={cn(
-                    "flex items-center gap-3 px-5 py-3 text-sm font-medium transition-all duration-200 ease-in-out group",
+                    "h-12 w-full transition-all duration-200 group flex items-center gap-3 px-4 rounded-2xl",
                     isActive 
-                      ? "bg-white text-indigo-700 rounded-full shadow-lg font-bold" 
-                      : "text-white/80 rounded-xl hover:bg-white/10 hover:text-white"
+                      ? "bg-white text-indigo-900 shadow-[0_10px_20px_rgba(0,0,0,0.2)] font-black" 
+                      : "text-white/60 hover:bg-white/5 hover:text-white"
                   )}
                 >
-                  <item.icon className={cn(
-                    "h-5 w-5 transition-colors",
-                    isActive ? "text-indigo-700" : "text-white/70 group-hover:text-white"
-                  )} />
-                  <span>{item.label}</span>
-                </Link>
+                  <Link href={item.href}>
+                    <item.icon className={cn(
+                      "h-5 w-5 shrink-0 transition-transform group-hover:scale-110",
+                      isActive ? "text-indigo-900" : "text-white/40 group-hover:text-white"
+                    )} />
+                    <span className="text-xs font-bold uppercase tracking-wide truncate">
+                      {item.label}
+                    </span>
+                  </Link>
+                </SidebarMenuButton>
               </SidebarMenuItem>
             );
           })}
         </SidebarMenu>
       </SidebarContent>
 
-      <SidebarFooter className="p-6 mt-auto space-y-4">
-        <Separator className="bg-white/10" />
-        <div className="flex items-center gap-3 px-2">
-          <Avatar className="h-10 w-10 border-2 border-white/20">
-            <AvatarFallback className="bg-white/20 text-white font-bold">{firstLetter}</AvatarFallback>
+      <SidebarFooter className="p-4 mt-auto space-y-4">
+        <Separator className="bg-white/5 mx-2" />
+        
+        <div className={cn(
+          "flex items-center gap-3 px-2 transition-all duration-300",
+          isCollapsed ? "justify-center" : "justify-start"
+        )}>
+          <Avatar className="h-10 w-10 border-2 border-white/10 shadow-lg">
+            <AvatarFallback className="bg-white/10 text-white text-xs font-black">{firstLetter}</AvatarFallback>
           </Avatar>
-          <div className="flex flex-col overflow-hidden">
-            <span className="text-sm font-semibold text-white truncate">
-              {userName}
-            </span>
-            <span className="text-[10px] text-white/60 uppercase tracking-widest font-bold">
-              {session?.user?.role || 'Member'}
-            </span>
-          </div>
+          {!isCollapsed && (
+            <div className="flex flex-col overflow-hidden animate-in fade-in slide-in-from-left-2">
+              <span className="text-xs font-black text-white truncate leading-tight">
+                {userName}
+              </span>
+              <span className="text-[9px] text-white/40 uppercase font-black tracking-widest mt-0.5">
+                {session?.user?.role || 'Member'}
+              </span>
+            </div>
+          )}
         </div>
-        <div className="px-2">
+
+        <div className="px-1">
           <LogoutButton />
         </div>
+        
+        {!isCollapsed && (
+          <div className="text-center pb-2">
+            <p className="text-[8px] text-white/20 font-black uppercase tracking-[0.3em]">Version 2.4.0</p>
+          </div>
+        )}
       </SidebarFooter>
     </Sidebar>
   );

@@ -2,6 +2,7 @@ import React from "react";
 import { SidebarProvider } from "@/components/ui/sidebar";
 import { SidebarNav } from "./_components/sidebar-nav";
 import { MobileHeader } from "./_components/mobile-header";
+import { MobileBottomNav } from "./_components/mobile-bottom-nav";
 import { cookies } from "next/headers";
 
 export default async function DashboardLayout({
@@ -16,13 +17,14 @@ export default async function DashboardLayout({
 
   return (
     <SidebarProvider defaultOpen={defaultOpen}>
-      <div className="flex min-h-screen">
+      <div className="flex min-h-screen w-full">
         <SidebarNav />
-        <main className="flex-1 min-w-0 bg-background flex flex-col">
+        <main className="flex-1 min-w-0 bg-background flex flex-col relative">
           <MobileHeader />
-          <div className="flex-1 w-full">
+          <div className="flex-1 w-full pb-20 md:pb-0">
             {children}
           </div>
+          <MobileBottomNav />
         </main>
       </div>
     </SidebarProvider>
