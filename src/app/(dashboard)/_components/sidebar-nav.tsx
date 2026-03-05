@@ -1,3 +1,4 @@
+
 'use client';
 
 import Link from 'next/link';
@@ -31,6 +32,7 @@ import {
   Image as ImageIcon,
   ChevronLeft,
   ChevronRight,
+  Crop,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -51,6 +53,7 @@ const navItems = [
   { href: '/payments', icon: Wallet, label: 'Payments' },
   { href: '/wholesale-pricing', icon: Tag, label: 'Wholesale' },
   { href: '/image-tool', icon: ImageIcon, label: 'Image Tool' },
+  { href: '/label-crop', icon: Crop, label: 'Label Crop' },
   { href: '/profile', icon: User, label: 'Profile' },
   { href: '/settings', icon: Settings, label: 'Settings' },
 ];
