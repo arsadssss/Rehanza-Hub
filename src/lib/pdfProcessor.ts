@@ -1,17 +1,20 @@
 
 import { PDFDocument } from 'pdf-lib';
 
+export interface CropArea {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
 /**
  * processPdfCrop - Extracts a specific region from the first page of a PDF.
- * Uses percentage-based coordinates to remain independent of preview zoom/scale.
- * 
- * @param arrayBuffer - Raw bytes of the uploaded PDF
- * @param crop - Crop area { x, y, width, height } in percentages (0-100)
- * @returns Uint8Array of the new cropped PDF
+ * Converts visual coordinates into PDF points.
  */
 export async function processPdfCrop(
   arrayBuffer: ArrayBuffer,
-  crop: { x: number; y: number; width: number; height: number }
+  pdfCrop: CropArea
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.load(arrayBuffer);
   const pages = pdfDoc.getPages();
@@ -19,29 +22,20 @@ export async function processPdfCrop(
 
   const { width, height } = firstPage.getSize();
 
-  // PDF coordinate system starts from bottom-left (0,0)
-  // Our screen coordinates start from top-left (0,0)
-  
-  const cropX = (crop.x / 100) * width;
-  const cropWidth = (crop.width / 100) * width;
-  const cropHeight = (crop.height / 100) * height;
-  
-  // Calculate Y from bottom (standard PDF geometry)
-  const cropY = height - ((crop.y + crop.height) / 100) * height;
+  // Coordinates are already scaled to PDF points before passing to this function
+  // We just need to ensure they are within bounds
+  const safeX = Math.max(0, Math.min(width, pdfCrop.x));
+  const safeY = Math.max(0, Math.min(height, pdfCrop.y));
+  const safeWidth = Math.max(1, Math.min(width - safeX, pdfCrop.width));
+  const safeHeight = Math.max(1, Math.min(height - safeY, pdfCrop.height));
 
-  // Ensure coordinates don't exceed page bounds
-  const safeX = Math.max(0, cropX);
-  const safeY = Math.max(0, cropY);
-  const safeWidth = Math.min(width - safeX, cropWidth);
-  const safeHeight = Math.min(height - safeY, cropHeight);
-
-  // Set the CropBox (defines the visible region of the page)
+  // Set the CropBox (defines the visible region)
   firstPage.setCropBox(safeX, safeY, safeWidth, safeHeight);
-
-  // Also set MediaBox to shrink the physical canvas to the crop size for thermal printing
+  
+  // Set MediaBox to shrink the physical page size to match the crop
   firstPage.setMediaBox(safeX, safeY, safeWidth, safeHeight);
 
-  // Create a new document containing only this cropped page to keep the file size minimal
+  // Create a new document with only the cropped page
   const newPdfDoc = await PDFDocument.create();
   const [copiedPage] = await newPdfDoc.copyPages(pdfDoc, [0]);
   newPdfDoc.addPage(copiedPage);
