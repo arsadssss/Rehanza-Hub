@@ -1,6 +1,7 @@
+
 "use client";
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import * as pdfjs from 'pdfjs-dist';
 
 // Set worker via unpkg for stability in browser
@@ -11,13 +12,13 @@ interface PdfCanvasViewerProps {
   onMetaChange: (meta: { width: number; height: number; canvasWidth: number; canvasHeight: number }) => void;
   zoom: number;
   children?: React.ReactNode;
+  canvasRef: React.RefObject<HTMLCanvasElement | null>;
 }
 
 /**
  * PdfCanvasViewer - Renders PDF once and applies zoom via CSS transform to prevent blinking.
  */
-function PdfCanvasViewer({ file, onMetaChange, zoom, children }: PdfCanvasViewerProps) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
+function PdfCanvasViewer({ file, onMetaChange, zoom, children, canvasRef }: PdfCanvasViewerProps) {
   const [isRendered, setIsRendered] = useState(false);
 
   useEffect(() => {
@@ -60,7 +61,7 @@ function PdfCanvasViewer({ file, onMetaChange, zoom, children }: PdfCanvasViewer
 
     renderPage();
     return () => { isMounted = false; };
-  }, [file, onMetaChange]); // Only re-render if the file itself changes
+  }, [file, onMetaChange, canvasRef]); // Only re-render if the file itself changes
 
   return (
     <div 

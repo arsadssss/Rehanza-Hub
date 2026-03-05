@@ -1,24 +1,29 @@
+
 "use client";
 
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useRef } from 'react';
 import { PdfUploader } from '@/components/label-crop/PdfUploader';
 import { PdfCanvasViewerMemo } from '@/components/label-crop/PdfCanvasViewer';
 import { CropOverlay } from '@/components/label-crop/CropOverlay';
-import { Scissors, RefreshCw, ZoomIn, Maximize, FileDown } from 'lucide-react';
+import { Scissors, RefreshCw, ZoomIn, Maximize, FileDown, Sparkles, ScanLine } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/hooks/use-toast';
 import { processPdfCrop } from '@/lib/pdfProcessor';
+import jsQR from 'jsqr';
 
 /**
  * Label Intelligence - Professional PDF Cropping Tool
- * Fixed blinking by decoupling PDF rendering from crop state.
+ * Includes Auto-Detection Mode using QR Code scanning.
  */
 export default function LabelCropPage() {
   const { toast } = useToast();
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  
   const [file, setFile] = useState<File | null>(null);
   const [zoom, setZoom] = useState(1.0);
   const [isProcessing, setIsProcessing] = useState(false);
+  const [isDetecting, setIsDetecting] = useState(false);
   
   // Crop state in pixels relative to the canvas
   const [cropBox, setCropBox] = useState({ x: 50, y: 50, width: 400, height: 300 });
@@ -43,6 +48,56 @@ export default function LabelCropPage() {
       x: (pdfMeta.canvasWidth - prev.width) / 2,
       y: (pdfMeta.canvasHeight - prev.height) / 2
     }));
+  };
+
+  const handleAutoDetect = async () => {
+    if (!canvasRef.current || !pdfMeta) return;
+
+    setIsDetecting(true);
+    try {
+      const canvas = canvasRef.current;
+      const context = canvas.getContext('2d', { willReadFrequently: true });
+      if (!context) throw new Error("Could not access canvas context");
+
+      const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+      const qr = jsQR(imageData.data, canvas.width, canvas.height);
+
+      if (qr) {
+        // QR detected! Calculate a standard shipping label area around it.
+        // Usually the QR is near the bottom or center.
+        // We'll create a 4x6 ratio box (approx 600x900 at 1.5 scale)
+        const detectedWidth = 600;
+        const detectedHeight = 850;
+        
+        // Positioning relative to QR: 
+        // We center the box horizontally on the QR, and offset vertically 
+        // because QRs are usually at the bottom-center of the label.
+        const newX = Math.max(0, Math.min(canvas.width - detectedWidth, qr.location.topLeftCorner.x - (detectedWidth / 2) + 50));
+        const newY = Math.max(0, Math.min(canvas.height - detectedHeight, qr.location.topLeftCorner.y - (detectedHeight - 150)));
+
+        setCropBox({
+          x: newX,
+          y: newY,
+          width: detectedWidth,
+          height: detectedHeight
+        });
+
+        toast({
+          title: 'Label Detected',
+          description: 'Automatically framed the label area around the QR code.',
+        });
+      } else {
+        toast({
+          variant: 'destructive',
+          title: 'Detection Failed',
+          description: 'Could not find a valid shipping QR code. Please position manually.',
+        });
+      }
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Error', description: error.message });
+    } finally {
+      setIsDetecting(false);
+    }
   };
 
   const handleDownload = async () => {
@@ -125,6 +180,7 @@ export default function LabelCropPage() {
                 file={file} 
                 zoom={zoom} 
                 onMetaChange={handleMetaChange}
+                canvasRef={canvasRef}
               >
                 <CropOverlay 
                   x={cropBox.x} 
@@ -163,17 +219,19 @@ export default function LabelCropPage() {
             <div className="lg:col-span-8 flex flex-wrap justify-end gap-3">
               <Button 
                 variant="outline" 
+                onClick={handleAutoDetect}
+                disabled={isDetecting || !pdfMeta}
+                className="rounded-xl h-12 px-6 font-bold border-primary/20 text-primary hover:bg-primary/5"
+              >
+                {isDetecting ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : <ScanLine className="mr-2 h-4 w-4" />}
+                Auto-Detect Labels
+              </Button>
+              <Button 
+                variant="outline" 
                 onClick={handleCenterBox}
                 className="rounded-xl h-12 px-6 font-bold"
               >
                 <Maximize className="mr-2 h-4 w-4" /> Center Box
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={() => setZoom(1.0)} 
-                className="rounded-xl h-12 px-6 font-bold"
-              >
-                <RefreshCw className="mr-2 h-4 w-4" /> Reset Zoom
               </Button>
               <Button 
                 onClick={handleDownload} 
