@@ -1,4 +1,3 @@
-
 import { PDFDocument } from 'pdf-lib';
 
 export interface CropArea {
@@ -9,8 +8,9 @@ export interface CropArea {
 }
 
 /**
- * processPdfCrop - Extracts a specific region from the first page of a PDF.
- * Converts visual coordinates into PDF points.
+ * processPdfCrop - Applies a crop region to all pages of a PDF document.
+ * This is useful for multi-label files where the same crop applies to every sheet.
+ * Coordinates are converted from visual points to PDF points before being passed here.
  */
 export async function processPdfCrop(
   arrayBuffer: ArrayBuffer,
@@ -18,27 +18,24 @@ export async function processPdfCrop(
 ): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.load(arrayBuffer);
   const pages = pdfDoc.getPages();
-  const firstPage = pages[0];
 
-  const { width, height } = firstPage.getSize();
+  for (const page of pages) {
+    const { width, height } = page.getSize();
 
-  // Coordinates are already scaled to PDF points before passing to this function
-  // We just need to ensure they are within bounds
-  const safeX = Math.max(0, Math.min(width, pdfCrop.x));
-  const safeY = Math.max(0, Math.min(height, pdfCrop.y));
-  const safeWidth = Math.max(1, Math.min(width - safeX, pdfCrop.width));
-  const safeHeight = Math.max(1, Math.min(height - safeY, pdfCrop.height));
+    // Coordinates are already scaled to PDF points.
+    // We ensure they are within the bounds of each specific page.
+    const safeX = Math.max(0, Math.min(width, pdfCrop.x));
+    const safeY = Math.max(0, Math.min(height, pdfCrop.y));
+    const safeWidth = Math.max(1, Math.min(width - safeX, pdfCrop.width));
+    const safeHeight = Math.max(1, Math.min(height - safeY, pdfCrop.height));
 
-  // Set the CropBox (defines the visible region)
-  firstPage.setCropBox(safeX, safeY, safeWidth, safeHeight);
-  
-  // Set MediaBox to shrink the physical page size to match the crop
-  firstPage.setMediaBox(safeX, safeY, safeWidth, safeHeight);
+    // Set the CropBox (defines the visible region)
+    page.setCropBox(safeX, safeY, safeWidth, safeHeight);
+    
+    // Set MediaBox to shrink the physical page size to match the crop area
+    page.setMediaBox(safeX, safeY, safeWidth, safeHeight);
+  }
 
-  // Create a new document with only the cropped page
-  const newPdfDoc = await PDFDocument.create();
-  const [copiedPage] = await newPdfDoc.copyPages(pdfDoc, [0]);
-  newPdfDoc.addPage(copiedPage);
-
-  return await newPdfDoc.save();
+  // Save and return the entire document with all pages cropped.
+  return await pdfDoc.save();
 }
