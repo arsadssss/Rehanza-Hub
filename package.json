@@ -57,6 +57,7 @@
     "react-dropzone": "^14.3.5",
     "react-easy-crop": "^5.2.0",
     "react-hook-form": "^7.54.2",
+    "react-rnd": "^10.4.14",
     "recharts": "^2.15.4",
     "sharp": "^0.33.5",
     "tailwind-merge": "^3.0.1",
