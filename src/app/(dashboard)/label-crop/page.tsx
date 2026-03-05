@@ -1,21 +1,23 @@
-
 "use client";
 
 import React, { useState, useCallback, useRef } from 'react';
 import { PdfUploader } from '@/components/label-crop/PdfUploader';
 import { PdfCanvasViewerMemo } from '@/components/label-crop/PdfCanvasViewer';
 import { CropOverlay } from '@/components/label-crop/CropOverlay';
-import { Scissors, RefreshCw, ZoomIn, Maximize, FileDown, ScanLine } from 'lucide-react';
+import { Scissors, RefreshCw, ZoomIn, Maximize, FileDown, ScanLine, ShoppingBag, Truck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
 import { useToast } from '@/hooks/use-toast';
-import { processPdfCrop } from '@/lib/pdfProcessor';
+import { processPdfCrop, processAmazonLabels } from '@/lib/pdfProcessor';
 import jsQR from 'jsqr';
 import { BrowserMultiFormatReader } from '@zxing/browser';
+import { cn } from '@/lib/utils';
+
+type LabelMode = 'flipkart' | 'amazon';
 
 /**
  * Label Intelligence - Professional PDF Cropping Tool
- * Includes Robust Multi-Stage Auto-Detection Mode.
+ * Includes Robust Multi-Stage Auto-Detection Mode and specialized Amazon Mode.
  */
 export default function LabelCropPage() {
   const { toast } = useToast();
@@ -25,6 +27,7 @@ export default function LabelCropPage() {
   const [zoom, setZoom] = useState(1.0);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isDetecting, setIsDetecting] = useState(false);
+  const [mode, setMode] = useState<LabelMode>('flipkart');
   
   // Crop state in pixels relative to the canvas
   const [cropBox, setCropBox] = useState({ x: 50, y: 50, width: 400, height: 300 });
@@ -53,7 +56,6 @@ export default function LabelCropPage() {
 
   /**
    * Content Bounding Box Detection
-   * Analyzes pixels to find the logical edges of printed content.
    */
   const detectLabelRectangle = (canvas: HTMLCanvasElement) => {
     const ctx = canvas.getContext('2d', { willReadFrequently: true });
@@ -65,7 +67,6 @@ export default function LabelCropPage() {
     let minX = canvas.width, minY = canvas.height, maxX = 0, maxY = 0;
     let found = false;
 
-    // Sample pixels to find boundaries of dark content
     for (let y = 0; y < canvas.height; y += 4) {
       for (let x = 0; x < canvas.width; x += 4) {
         const index = (y * canvas.width + x) * 4;
@@ -73,7 +74,6 @@ export default function LabelCropPage() {
         const g = data[index + 1];
         const b = data[index + 2];
         
-        // Check if pixel is "dark enough" to be considered part of a label
         if (r < 200 && g < 200 && b < 200) {
           if (x < minX) minX = x;
           if (x > maxX) maxX = x;
@@ -86,7 +86,6 @@ export default function LabelCropPage() {
 
     if (!found) return null;
 
-    // Add some padding to the detected bounding box
     const padding = 20;
     return {
       x: Math.max(0, minX - padding),
@@ -106,8 +105,6 @@ export default function LabelCropPage() {
       if (!context) throw new Error("Could not access canvas context");
 
       const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-      
-      // STAGE 1: Try QR Detection (Meesho/Flipkart Standard)
       const qr = jsQR(imageData.data, canvas.width, canvas.height);
 
       if (qr) {
@@ -121,7 +118,6 @@ export default function LabelCropPage() {
         return;
       }
 
-      // STAGE 2: Try Barcode Detection (Ekart/Amazon Standard)
       const barcodeReader = new BrowserMultiFormatReader();
       try {
         const barcodeResult = await barcodeReader.decodeFromCanvas(canvas);
@@ -138,11 +134,8 @@ export default function LabelCropPage() {
           toast({ title: 'Barcode Detected', description: 'Framed label area based on primary barcode.' });
           return;
         }
-      } catch (e) {
-        // ZXing throws error if no barcode found, continue to Stage 3
-      }
+      } catch (e) {}
 
-      // STAGE 3: Try Rectangle Detection Fallback
       const rect = detectLabelRectangle(canvas);
       if (rect && rect.width > 200 && rect.height > 200) {
         setCropBox(rect);
@@ -151,7 +144,7 @@ export default function LabelCropPage() {
         toast({
           variant: 'destructive',
           title: 'Detection Failed',
-          description: 'No barcodes or clear label boundaries found. Please position manually.',
+          description: 'No barcodes found. Please position manually.',
         });
       }
     } catch (error: any) {
@@ -162,34 +155,43 @@ export default function LabelCropPage() {
   };
 
   const handleDownload = async () => {
-    if (!file || !pdfMeta) return;
+    if (!file) return;
 
     setIsProcessing(true);
     try {
       const buffer = await file.arrayBuffer();
-      const scaleX = pdfMeta.width / pdfMeta.canvasWidth;
-      const scaleY = pdfMeta.height / pdfMeta.canvasHeight;
+      let finalPdfBytes: Uint8Array;
 
-      const pdfCrop = {
-        x: cropBox.x * scaleX,
-        y: pdfMeta.height - (cropBox.y + cropBox.height) * scaleY,
-        width: cropBox.width * scaleX,
-        height: cropBox.height * scaleY
-      };
+      if (mode === 'amazon') {
+        // Amazon specific logic: automated cleaning + SKU printing
+        finalPdfBytes = await processAmazonLabels(buffer);
+      } else {
+        // Standard logic: user defined crop box
+        if (!pdfMeta) throw new Error("Metadata missing for crop.");
+        const scaleX = pdfMeta.width / pdfMeta.canvasWidth;
+        const scaleY = pdfMeta.height / pdfMeta.canvasHeight;
 
-      const croppedPdfBytes = await processPdfCrop(buffer, pdfCrop);
+        const pdfCrop = {
+          x: cropBox.x * scaleX,
+          y: pdfMeta.height - (cropBox.y + cropBox.height) * scaleY,
+          width: cropBox.width * scaleX,
+          height: cropBox.height * scaleY
+        };
+
+        finalPdfBytes = await processPdfCrop(buffer, pdfCrop);
+      }
       
-      const blob = new Blob([croppedPdfBytes], { type: 'application/pdf' });
+      const blob = new Blob([finalPdfBytes], { type: 'application/pdf' });
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.download = `label-${new Date().getTime()}.pdf`;
+      link.download = `${mode}-label-${new Date().getTime()}.pdf`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
       URL.revokeObjectURL(url);
 
-      toast({ title: 'Success', description: 'Cropped label downloaded.' });
+      toast({ title: 'Success', description: 'Processed label downloaded.' });
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Error', description: error.message });
     } finally {
@@ -199,16 +201,42 @@ export default function LabelCropPage() {
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-8 font-body min-h-screen">
-      <div className="flex flex-col gap-1">
-        <h1 className="text-4xl font-black tracking-tighter font-headline text-foreground flex items-center gap-3">
-          <div className="p-2.5 bg-primary rounded-2xl shadow-lg shadow-primary/20">
-            <Scissors className="h-7 w-7 text-white" />
-          </div>
-          Label Intelligence
-        </h1>
-        <p className="text-muted-foreground font-medium text-sm ml-1">
-          Precision extraction for shipping labels. 100% local memory processing.
-        </p>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-4">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-4xl font-black tracking-tighter font-headline text-foreground flex items-center gap-3">
+            <div className="p-2.5 bg-primary rounded-2xl shadow-lg shadow-primary/20">
+              <Scissors className="h-7 w-7 text-white" />
+            </div>
+            Label Intelligence
+          </h1>
+          <p className="text-muted-foreground font-medium text-sm ml-1">
+            Precision extraction for shipping labels. 100% local memory processing.
+          </p>
+        </div>
+
+        {/* Mode Selector */}
+        <div className="bg-white/50 dark:bg-slate-900/50 p-1.5 rounded-2xl border border-border/50 flex gap-1">
+          <button 
+            onClick={() => setMode('flipkart')}
+            className={cn(
+              "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-tighter transition-all flex items-center gap-2",
+              mode === 'flipkart' ? "bg-primary text-white shadow-md" : "text-muted-foreground hover:bg-primary/5"
+            )}
+          >
+            <Truck className="h-3.5 w-3.5" />
+            Flipkart/Standard
+          </button>
+          <button 
+            onClick={() => setMode('amazon')}
+            className={cn(
+              "px-4 py-2 rounded-xl text-xs font-black uppercase tracking-tighter transition-all flex items-center gap-2",
+              mode === 'amazon' ? "bg-[#FF9900] text-black shadow-md" : "text-muted-foreground hover:bg-[#FF9900]/10"
+            )}
+          >
+            <ShoppingBag className="h-3.5 w-3.5" />
+            Amazon Mode
+          </button>
+        </div>
       </div>
 
       {!file ? (
@@ -220,7 +248,12 @@ export default function LabelCropPage() {
           <div className="relative bg-slate-950 rounded-[2.5rem] shadow-2xl border border-white/5 overflow-hidden flex flex-col">
             <div className="flex items-center justify-between px-8 py-4 border-b border-white/5 bg-slate-900/50 backdrop-blur-md z-10">
               <div className="flex items-center gap-3">
-                <span className="px-3 py-1 rounded-full bg-primary/10 text-primary text-[10px] font-black uppercase tracking-tighter">Active Session</span>
+                <span className={cn(
+                  "px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-tighter",
+                  mode === 'amazon' ? "bg-[#FF9900]/20 text-[#FF9900]" : "bg-primary/10 text-primary"
+                )}>
+                  {mode.toUpperCase()} MODE
+                </span>
                 <h2 className="text-xs font-bold text-white/80 truncate max-w-[300px]">{file.name}</h2>
               </div>
               <button 
@@ -238,14 +271,25 @@ export default function LabelCropPage() {
                 onMetaChange={handleMetaChange}
                 canvasRef={canvasRef}
               >
-                <CropOverlay 
-                  x={cropBox.x} 
-                  y={cropBox.y} 
-                  width={cropBox.width} 
-                  height={cropBox.height} 
-                  scale={zoom}
-                  onUpdate={setCropBox}
-                />
+                {mode === 'flipkart' && (
+                  <CropOverlay 
+                    x={cropBox.x} 
+                    y={cropBox.y} 
+                    width={cropBox.width} 
+                    height={cropBox.height} 
+                    scale={zoom}
+                    onUpdate={setCropBox}
+                  />
+                )}
+                {mode === 'amazon' && (
+                  <div className="absolute inset-0 pointer-events-none border-4 border-dashed border-[#FF9900]/30">
+                    <div className="absolute top-0 left-0 right-0 h-[70%] bg-[#FF9900]/5 flex items-center justify-center">
+                      <span className="text-[#FF9900] text-[10px] font-black uppercase bg-black/40 px-4 py-2 rounded-full border border-[#FF9900]/20 backdrop-blur-md">
+                        Auto-Crop Area (Labels Only)
+                      </span>
+                    </div>
+                  </div>
+                )}
               </PdfCanvasViewerMemo>
             </div>
           </div>
@@ -272,36 +316,59 @@ export default function LabelCropPage() {
             </div>
 
             <div className="lg:col-span-8 flex flex-wrap justify-end gap-3">
-              <Button 
-                variant="outline" 
-                onClick={handleAutoDetect}
-                disabled={isDetecting || !pdfMeta}
-                className="rounded-xl h-12 px-6 font-bold border-primary/20 text-primary hover:bg-primary/5"
-              >
-                {isDetecting ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : <ScanLine className="mr-2 h-4 w-4" />}
-                Auto-Detect Labels
-              </Button>
-              <Button 
-                variant="outline" 
-                onClick={handleCenterBox}
-                className="rounded-xl h-12 px-6 font-bold"
-              >
-                <Maximize className="mr-2 h-4 w-4" /> Center Box
-              </Button>
+              {mode === 'flipkart' && (
+                <>
+                  <Button 
+                    variant="outline" 
+                    onClick={handleAutoDetect}
+                    disabled={isDetecting || !pdfMeta}
+                    className="rounded-xl h-12 px-6 font-bold border-primary/20 text-primary hover:bg-primary/5"
+                  >
+                    {isDetecting ? <RefreshCw className="h-4 w-4 animate-spin mr-2" /> : <ScanLine className="mr-2 h-4 w-4" />}
+                    Auto-Detect Labels
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    onClick={handleCenterBox}
+                    className="rounded-xl h-12 px-6 font-bold"
+                  >
+                    <Maximize className="mr-2 h-4 w-4" /> Center Box
+                  </Button>
+                </>
+              )}
+              
               <Button 
                 onClick={handleDownload} 
                 disabled={isProcessing}
-                className="rounded-xl h-12 px-8 font-black shadow-lg shadow-primary/20 bg-primary hover:scale-[1.02] transition-transform"
+                className={cn(
+                  "rounded-xl h-12 px-8 font-black shadow-lg transition-transform hover:scale-[1.02]",
+                  mode === 'amazon' ? "bg-[#FF9900] text-black shadow-[#FF9900]/20" : "bg-primary shadow-primary/20"
+                )}
               >
                 {isProcessing ? (
                   <RefreshCw className="h-4 w-4 animate-spin mr-2" />
                 ) : (
                   <FileDown className="h-4 w-4 mr-2" />
                 )}
-                Extract & Download PDF
+                {mode === 'amazon' ? 'Extract Amazon Labels' : 'Extract & Download PDF'}
               </Button>
             </div>
           </div>
+          
+          {mode === 'amazon' && (
+            <div className="p-6 bg-[#FF9900]/5 border border-[#FF9900]/20 rounded-3xl flex items-start gap-4">
+              <div className="p-2 bg-[#FF9900]/10 rounded-xl">
+                <ShoppingBag className="h-5 w-5 text-[#FF9900]" />
+              </div>
+              <div className="space-y-1">
+                <p className="text-sm font-black text-foreground uppercase tracking-tight">Amazon Automation Active</p>
+                <p className="text-xs text-muted-foreground leading-relaxed">
+                  In Amazon Mode, the tool will automatically remove invoice pages, crop labels, extract SKUs from text, 
+                  and print them at the bottom of each shipping label for easier sorting.
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       )}
     </div>
