@@ -66,14 +66,10 @@ export async function processAmazonLabels(arrayBuffer: ArrayBuffer): Promise<Uin
         const textContent = await pageJs.getTextContent();
         const text = textContent.items.map((item: any) => item.str).join(' ');
         
-        // Amazon SKU regex as requested: (\s*([A-Za-z0-9-]+)\s*)
-        // We look for bracketed content first as it is the most reliable SKU marker on Amazon invoices
-        const bracketMatch = text.match(/\(([^)]+)\)/);
-        if (bracketMatch && bracketMatch[1]) {
-          sku = bracketMatch[1];
-        } else {
-          const genericMatch = text.match(/(\s*([A-Za-z0-9-]+)\s*)/);
-          if (genericMatch) sku = genericMatch[1].trim();
+        // Amazon SKU regex fix: Only capture parentheses immediately before the word HSN
+        const skuMatch = text.match(/\(\s*([A-Za-z0-9\-]+)\s*\)\s*HSN/i);
+        if (skuMatch && skuMatch[1]) {
+          sku = skuMatch[1].trim();
         }
       } catch (e) {
         console.error("SKU Extraction Error from Invoice:", e);
@@ -81,7 +77,7 @@ export async function processAmazonLabels(arrayBuffer: ArrayBuffer): Promise<Uin
     }
 
     // 3. Print SKU on the label page (Bottom area as requested)
-    copiedPage.drawText(`SKU: ${sku}`, {
+    copiedPage.drawText(sku, {
       x: width / 2 - 100,
       y: 120,
       size: 22,
