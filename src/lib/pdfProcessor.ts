@@ -38,7 +38,7 @@ export async function processPdfCrop(
  * 1. Iterates in pairs (Label + Invoice).
  * 2. Extracts SKU from the invoice page.
  * 3. Keeps only the label page at original size.
- * 4. Prints the extracted SKU on the label by appending to footer text.
+ * 4. Clears existing footer and prints new footer with SKU.
  */
 export async function processAmazonLabels(arrayBuffer: ArrayBuffer): Promise<Uint8Array> {
   const pdfDoc = await PDFDocument.load(arrayBuffer);
@@ -75,16 +75,25 @@ export async function processAmazonLabels(arrayBuffer: ArrayBuffer): Promise<Uin
       }
     }
 
-    // 3. Print SKU appended to footer text at standard position
-    const footerText = `Sold on: www.amazon.in | ${sku}`;
-    const fontSize = 10;
+    // 3. Clear existing footer area and print SKU appended to footer text
+    
+    // Draw white rectangle to hide existing footer
+    copiedPage.drawRectangle({
+      x: 45,
+      y: 30,
+      width: 420,
+      height: 22,
+      color: rgb(1, 1, 1)
+    });
 
-    copiedPage.drawText(footerText, {
-      x: 60,
-      y: 40,
-      size: fontSize,
+    const newFooter = `Sold on: www.amazon.in | ${sku}`;
+
+    copiedPage.drawText(newFooter, {
+      x: 50,
+      y: 35,
+      size: 9,
       font: fontBold,
-      color: rgb(0, 0, 0),
+      color: rgb(0, 0, 0)
     });
 
     newPdf.addPage(copiedPage);
