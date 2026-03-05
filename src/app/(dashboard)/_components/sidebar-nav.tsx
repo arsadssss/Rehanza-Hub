@@ -97,6 +97,8 @@ export function SidebarNav() {
   const userName = session?.user?.name ?? 'User';
   const firstLetter = userName.charAt(0).toUpperCase();
 
+  const activeIndex = accounts.findIndex(acc => acc.id === selectedAccount);
+
   return (
     <Sidebar 
       collapsible="icon" 
@@ -133,30 +135,58 @@ export function SidebarNav() {
           )}
         </div>
 
-        {/* Account Switcher */}
-        {!isCollapsed && (
-          <div className="mt-8 px-2 relative group animate-in fade-in duration-700">
-            <div className="absolute right-5 top-1/2 -translate-y-1/2 pointer-events-none text-white/40 group-hover:text-white transition-colors">
-              <ChevronDown className="h-4 w-4" />
+        {/* Account Switcher Toggle */}
+        <div className={cn(
+          "mt-8 px-2 transition-all duration-500",
+          isCollapsed ? "flex flex-col items-center gap-2" : "block"
+        )}>
+          {accounts.length > 0 ? (
+            <div className={cn(
+              "bg-white/10 p-1 rounded-2xl relative flex",
+              isCollapsed ? "flex-col w-10" : "flex-row w-full h-11 items-center"
+            )}>
+              {/* Sliding Indicator (Only visible when expanded) */}
+              {!isCollapsed && activeIndex !== -1 && (
+                <div 
+                  className="absolute h-9 bg-white rounded-xl shadow-lg transition-all duration-300 ease-out z-0"
+                  style={{
+                    width: `calc((100% - 8px) / ${accounts.length})`,
+                    left: `calc(4px + (${activeIndex} * (100% - 8px) / ${accounts.length}))`
+                  }}
+                />
+              )}
+
+              {accounts.map((acc) => {
+                const isActive = selectedAccount === acc.id;
+                return (
+                  <button
+                    key={acc.id}
+                    onClick={() => {
+                      if (!isActive) {
+                        sessionStorage.setItem("active_account", acc.id);
+                        setSelectedAccount(acc.id);
+                        window.location.reload();
+                      }
+                    }}
+                    className={cn(
+                      "relative z-10 transition-all duration-300 flex items-center justify-center font-black uppercase tracking-widest",
+                      isCollapsed 
+                        ? "w-8 h-8 rounded-xl text-[10px]" 
+                        : "flex-1 h-full text-[9px]",
+                      isActive 
+                        ? (isCollapsed ? "bg-white text-indigo-900 shadow-lg" : "text-indigo-900") 
+                        : "text-white/40 hover:text-white/70"
+                    )}
+                  >
+                    {isCollapsed ? acc.name.charAt(0) : acc.name}
+                  </button>
+                );
+              })}
             </div>
-            <select
-              value={selectedAccount || ""}
-              onChange={(e) => {
-                sessionStorage.setItem("active_account", e.target.value);
-                setSelectedAccount(e.target.value);
-                window.location.reload();
-              }}
-              className="w-full appearance-none rounded-2xl bg-white/5 border border-white/10 p-3.5 pr-10 text-[10px] font-black uppercase tracking-widest text-white/80 focus:outline-none focus:ring-2 focus:ring-primary/50 transition-all cursor-pointer hover:bg-white/10 hover:text-white"
-            >
-              {accounts.length === 0 && <option value="" className="bg-indigo-900">Loading...</option>}
-              {accounts.map((acc) => (
-                <option key={acc.id} value={acc.id} className="bg-indigo-900 text-white">
-                  {acc.name}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
+          ) : (
+            !isCollapsed && <div className="h-11 flex items-center justify-center text-[8px] font-black text-white/20 uppercase tracking-[0.2em]">Loading Accounts...</div>
+          )}
+        </div>
       </SidebarHeader>
 
       <SidebarContent className="px-3 py-4 mt-2">
