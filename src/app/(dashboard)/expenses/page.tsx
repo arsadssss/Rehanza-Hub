@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { format, startOfWeek, subWeeks, isSameWeek, addWeeks } from 'date-fns';
 import { formatINR } from '@/lib/format';
@@ -68,7 +68,6 @@ export default function ExpensesPage() {
   const [isMounted, setIsMounted] = useState(false);
   const [expenses, setExpenses] = useState<BusinessExpense[]>([]);
   const [loading, setLoading] = useState(true);
-  const [loadingChart, setLoadingChart] = useState(true);
   
   // Account detection state
   const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
@@ -78,8 +77,46 @@ export default function ExpensesPage() {
   const [netCashFlow, setNetCashFlow] = useState(0);
   const [weeklySpend, setWeeklySpend] = useState(0);
   
-  // Chart Data
-  const [chartData, setChartData] = useState<any[]>([]);
+  // Group logic: Recompute chart data whenever expenses array changes
+  const chartData = useMemo(() => {
+    if (!expenses.length) {
+      const today = new Date();
+      const currentWeekStart = startOfWeek(today, { weekStartsOn: 0 });
+      return [{ week: currentWeekStart.toISOString(), total: 0 }];
+    }
+
+    // 1. Group currently loaded expenses by week (Sunday start to match "09 Mar" style)
+    const groups: Record<string, number> = {};
+    expenses.forEach(e => {
+      const d = new Date(e.expense_date);
+      const w = startOfWeek(d, { weekStartsOn: 0 }).toISOString();
+      groups[w] = (groups[w] || 0) + Number(e.amount);
+    });
+
+    // 2. Determine time range for the chart
+    const weeks = Object.keys(groups).sort();
+    const earliest = new Date(weeks[0]);
+    const today = new Date();
+    const currentWeekStart = startOfWeek(today, { weekStartsOn: 0 });
+
+    // 3. Fill buckets with padding until today
+    const paddedTrend = [];
+    let runner = earliest;
+    
+    // Safety limit to avoid infinite loops if dates are somehow broken
+    let limit = 0;
+    while ((runner <= currentWeekStart || isSameWeek(runner, currentWeekStart, { weekStartsOn: 0 })) && limit < 100) {
+      const runnerStr = runner.toISOString();
+      paddedTrend.push({
+        week: runnerStr,
+        total: groups[runnerStr] || 0
+      });
+      runner = addWeeks(runner, 1);
+      limit++;
+    }
+    
+    return paddedTrend;
+  }, [expenses]);
 
   // Modals
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
@@ -106,13 +143,11 @@ export default function ExpensesPage() {
     if (!activeAccountId) return;
     setLoading(true);
     try {
-        // 1. Fetch all accounts to calculate global payouts
         const accountsRes = await fetch('/api/accounts');
         const accountsData = await accountsRes.json();
         
         let totalGlobalPayouts = 0;
         if (accountsData.success && Array.isArray(accountsData.data)) {
-          // Fetch payments-summary for each account to get total received
           const payoutPromises = accountsData.data.map((acc: any) => 
             fetch('/api/payments-summary', {
               headers: { 'x-account-id': acc.id }
@@ -122,16 +157,12 @@ export default function ExpensesPage() {
           totalGlobalPayouts = summaries.reduce((sum, s) => sum + (Number(s.total_received) || 0), 0);
         }
 
-        // 2. Fetch global expenses and weekly spend
-        // The backend returns global values for these fields even when scoped by account
         const res = await apiFetch('/api/finance-summary');
         if (!res.ok) throw new Error('Failed to fetch global finance summary');
         const data = await res.json();
         
         setTotalExpenses(data.total_expenses);
         setWeeklySpend(data.weekly_spend);
-        
-        // 3. Set global Net Cash Flow (Total Payouts from ALL Accounts - Global Expenses)
         setNetCashFlow(totalGlobalPayouts - data.total_expenses);
         
     } catch (error: any) {
@@ -140,53 +171,6 @@ export default function ExpensesPage() {
         setLoading(false);
     }
   }, [toast, activeAccountId]);
-
-  const fetchAnalytics = useCallback(async () => {
-    setLoadingChart(true);
-    try {
-      const res = await apiFetch('/api/expenses/analytics');
-      if (res.ok) {
-        const data = await res.json();
-        const rawTrend = data.trend || [];
-        
-        if (rawTrend.length === 0) {
-          // No data: show current week as empty
-          const today = new Date();
-          const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
-          setChartData([{ week: currentWeekStart.toISOString(), total: 0 }]);
-          return;
-        }
-
-        // Pad data until today
-        const today = new Date();
-        const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
-        const earliestWeek = new Date(rawTrend[0].week);
-        
-        const paddedTrend = [];
-        let runner = earliestWeek;
-        
-        // Safety limit to avoid infinite loops if dates are somehow broken
-        let limit = 0;
-        while ((runner <= currentWeekStart || isSameWeek(runner, currentWeekStart, { weekStartsOn: 1 })) && limit < 100) {
-          const runnerStr = runner.toISOString();
-          const existing = rawTrend.find((t: any) => 
-            isSameWeek(new Date(t.week), runner, { weekStartsOn: 1 })
-          );
-          
-          paddedTrend.push({
-            week: runnerStr,
-            total: existing ? Number(existing.total) : 0
-          });
-          
-          runner = addWeeks(runner, 1);
-          limit++;
-        }
-        
-        setChartData(paddedTrend);
-      }
-    } catch (e) { console.error(e); }
-    finally { setLoadingChart(false); }
-  }, []);
 
   const fetchExpenses = useCallback(async () => {
     try {
@@ -223,9 +207,8 @@ export default function ExpensesPage() {
 
   useEffect(() => {
     fetchUsers();
-    fetchAnalytics();
     if (activeAccountId) fetchFinanceSummary(); 
-  }, [fetchUsers, fetchAnalytics, fetchFinanceSummary, activeAccountId]);
+  }, [fetchUsers, fetchFinanceSummary, activeAccountId]);
 
   useEffect(() => {
     if (activeAccountId) fetchExpenses(); 
@@ -239,7 +222,7 @@ export default function ExpensesPage() {
         });
         if (!res.ok) throw new Error('Failed to delete');
         toast({ title: 'Success', description: `Deleted ${itemToDelete.description}` });
-        fetchFinanceSummary(); fetchExpenses(); fetchAnalytics();
+        fetchFinanceSummary(); fetchExpenses();
     } catch (error: any) {
         toast({ variant: 'destructive', title: 'Error', description: error.message });
     } finally {
@@ -260,7 +243,12 @@ export default function ExpensesPage() {
 
   return (
     <div className="w-full px-6 py-6 space-y-8 bg-gray-50/50 dark:bg-black/50 min-h-screen">
-        <AddExpenseModal isOpen={isAddExpenseOpen || !!expenseToEdit} onClose={() => { setIsAddExpenseOpen(false); setExpenseToEdit(null); }} onSuccess={() => { fetchFinanceSummary(); fetchExpenses(); fetchAnalytics(); }} expense={expenseToEdit} />
+        <AddExpenseModal 
+          isOpen={isAddExpenseOpen || !!expenseToEdit} 
+          onClose={() => { setIsAddExpenseOpen(false); setExpenseToEdit(null); }} 
+          onSuccess={() => { fetchFinanceSummary(); fetchExpenses(); }} 
+          expense={expenseToEdit} 
+        />
         <AlertDialog open={!!itemToDelete} onOpenChange={() => setItemToDelete(null)}>
             <AlertDialogContent>
                 <AlertDialogHeader><AlertDialogTitle>Confirm Delete</AlertDialogTitle><AlertDialogDescription>This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
@@ -282,7 +270,7 @@ export default function ExpensesPage() {
             <StatCard title="Weekly Spend" value={formatINR(weeklySpend)} icon={Calendar} gradient="from-amber-500 to-orange-600" loading={loading} />
         </div>
 
-        {/* Analytics Section */}
+        {/* Analytics Section - Dynamically Aggregated */}
         <Card className="border-0 shadow-xl rounded-[2rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
           <CardHeader>
             <div className="flex items-center gap-3">
@@ -291,13 +279,13 @@ export default function ExpensesPage() {
               </div>
               <div>
                 <CardTitle className="font-headline text-xl">Weekly Expense Trend</CardTitle>
-                <CardDescription>Analysis of global business expenditures grouped by week.</CardDescription>
+                <CardDescription>Real-time spend analysis based on currently filtered expenses.</CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent>
             <div className="h-[300px] w-full mt-4">
-              {loadingChart ? <Skeleton className="h-full w-full rounded-2xl" /> : (
+              {loading && !chartData.length ? <Skeleton className="h-full w-full rounded-2xl" /> : (
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
