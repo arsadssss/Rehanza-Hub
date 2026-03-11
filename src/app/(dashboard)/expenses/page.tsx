@@ -2,7 +2,7 @@
 
 import React, { useEffect, useState, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { format } from 'date-fns';
+import { format, startOfWeek, subWeeks, isSameWeek, addWeeks } from 'date-fns';
 import { formatINR } from '@/lib/format';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
@@ -147,7 +147,42 @@ export default function ExpensesPage() {
       const res = await apiFetch('/api/expenses/analytics');
       if (res.ok) {
         const data = await res.json();
-        setChartData(data.trend);
+        const rawTrend = data.trend || [];
+        
+        if (rawTrend.length === 0) {
+          // No data: show current week as empty
+          const today = new Date();
+          const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
+          setChartData([{ week: currentWeekStart.toISOString(), total: 0 }]);
+          return;
+        }
+
+        // Pad data until today
+        const today = new Date();
+        const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
+        const earliestWeek = new Date(rawTrend[0].week);
+        
+        const paddedTrend = [];
+        let runner = earliestWeek;
+        
+        // Safety limit to avoid infinite loops if dates are somehow broken
+        let limit = 0;
+        while ((runner <= currentWeekStart || isSameWeek(runner, currentWeekStart, { weekStartsOn: 1 })) && limit < 100) {
+          const runnerStr = runner.toISOString();
+          const existing = rawTrend.find((t: any) => 
+            isSameWeek(new Date(t.week), runner, { weekStartsOn: 1 })
+          );
+          
+          paddedTrend.push({
+            week: runnerStr,
+            total: existing ? Number(existing.total) : 0
+          });
+          
+          runner = addWeeks(runner, 1);
+          limit++;
+        }
+        
+        setChartData(paddedTrend);
       }
     } catch (e) { console.error(e); }
     finally { setLoadingChart(false); }
