@@ -18,6 +18,7 @@ import {
 import {
   Form,
   FormControl,
+  FormDescription,
   FormField,
   FormItem,
   FormLabel,
@@ -35,6 +36,7 @@ import type { Product } from "../page"
 import { formatINR } from "@/lib/format"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { apiFetch } from "@/lib/apiFetch"
+import { calculateProductPrices } from "@/lib/pricingEngine"
 
 const formSchema = z.object({
   sku: z.string().min(1, "SKU is required"),
@@ -43,15 +45,17 @@ const formSchema = z.object({
   cost_price: z.coerce.number().positive("Cost Price must be positive"),
   margin: z.coerce.number().positive("Margin is required"),
   low_stock_threshold: z.coerce.number().min(0, "Low stock threshold cannot be negative").default(5),
+  promo_ads: z.coerce.number().min(0).default(20),
+  tax_other: z.coerce.number().min(0).default(10),
+  packing: z.coerce.number().min(0).default(15),
+  amazon_ship: z.coerce.number().min(0).default(80),
+  flipkart_ship: z.coerce.number().min(0).default(120),
+  meesho_price: z.coerce.number().min(0),
+  flipkart_price: z.coerce.number().min(0),
+  amazon_price: z.coerce.number().min(0),
 })
 
 type ProductFormValues = z.infer<typeof formSchema>
-
-const PROMO_ADS = 20
-const TAX_OTHER = 10
-const PACKING = 15
-const AMAZON_SHIP = 80
-const BASE_CHARGES = 45
 
 const marginValues = [20, 30, 45, 50, 60, 80, 100, 150, 200, 300, 500]
 
@@ -67,8 +71,6 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: Product
   const [isSubmitting, setIsSubmitting] = React.useState(false)
   const isEditMode = !!product;
 
-  const [previewPrices, setPreviewPrices] = React.useState({ meesho: 0, flipkart: 0, amazon: 0 })
-
   const form = useForm<ProductFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -77,25 +79,49 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: Product
       category: "",
       cost_price: 0,
       low_stock_threshold: 5,
+      promo_ads: 20,
+      tax_other: 10,
+      packing: 15,
+      amazon_ship: 80,
+      flipkart_ship: 120,
+      meesho_price: 0,
+      flipkart_price: 0,
+      amazon_price: 0,
     },
   })
 
-  const cost_price = form.watch("cost_price")
-  const margin = form.watch("margin")
+  // Watch all inputs that affect pricing
+  const watchedValues = form.watch([
+    "cost_price", 
+    "margin", 
+    "promo_ads", 
+    "tax_other", 
+    "packing", 
+    "amazon_ship", 
+    "flipkart_ship"
+  ])
 
+  // Trigger recalculation on change
   React.useEffect(() => {
-    const cost = Number(cost_price) || 0;
-    const prof = Number(margin) || 0;
+    const [cost, margin, ads, tax, pack, amz, flip] = watchedValues;
+    
+    // Only auto-calc if there is actual cost data
+    if (Number(cost) > 0) {
+      const prices = calculateProductPrices({
+        cost_price: cost,
+        margin,
+        promo_ads: ads,
+        tax_other: tax,
+        packing: pack,
+        amazon_ship: amz,
+        flipkart_ship: flip
+      });
 
-    if (cost > 0 && prof > 0) {
-      const meeshoPrice = cost + BASE_CHARGES + prof
-      const flipkartPrice = meeshoPrice
-      const amazonPrice = meeshoPrice + AMAZON_SHIP
-      setPreviewPrices({ meesho: meeshoPrice, flipkart: flipkartPrice, amazon: amazonPrice })
-    } else {
-      setPreviewPrices({ meesho: 0, flipkart: 0, amazon: 0 })
+      form.setValue("meesho_price", prices.meesho_price, { shouldDirty: true });
+      form.setValue("flipkart_price", prices.flipkart_price, { shouldDirty: true });
+      form.setValue("amazon_price", prices.amazon_price, { shouldDirty: true });
     }
-  }, [cost_price, margin]);
+  }, [watchedValues, form]);
 
   React.useEffect(() => {
     if (isOpen) {
@@ -107,6 +133,14 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: Product
           cost_price: product.cost_price,
           margin: product.margin,
           low_stock_threshold: product.low_stock_threshold,
+          promo_ads: (product as any).promo_ads ?? 20,
+          tax_other: (product as any).tax_other ?? 10,
+          packing: (product as any).packing ?? 15,
+          amazon_ship: (product as any).amazon_ship ?? 80,
+          flipkart_ship: (product as any).flipkart_ship ?? 120,
+          meesho_price: product.meesho_price,
+          flipkart_price: product.flipkart_price,
+          amazon_price: product.amazon_price,
         })
       } else {
         form.reset({
@@ -114,8 +148,16 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: Product
           product_name: "",
           category: "",
           cost_price: 0,
-          margin: undefined,
+          margin: 50,
           low_stock_threshold: 5,
+          promo_ads: 20,
+          tax_other: 10,
+          packing: 15,
+          amazon_ship: 80,
+          flipkart_ship: 120,
+          meesho_price: 0,
+          flipkart_price: 0,
+          amazon_price: 0,
         })
       }
     }
@@ -128,21 +170,9 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: Product
   async function onSubmit(values: ProductFormValues) {
     setIsSubmitting(true)
     try {
-      const productData = {
-        ...values,
-        id: product?.id,
-        promo_ads: PROMO_ADS,
-        tax_other: TAX_OTHER,
-        packing: PACKING,
-        amazon_ship: AMAZON_SHIP,
-        meesho_price: previewPrices.meesho,
-        flipkart_price: previewPrices.flipkart,
-        amazon_price: previewPrices.amazon,
-      }
-      
       const res = await apiFetch('/api/products', {
           method: isEditMode ? 'PUT' : 'POST',
-          body: JSON.stringify(productData)
+          body: JSON.stringify({ ...values, id: product?.id })
       });
 
       if (!res.ok) {
@@ -169,139 +199,218 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: Product
 
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && handleClose()}>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>{isEditMode ? 'Edit' : 'Add New'} Product</DialogTitle>
           <DialogDescription>
-            {isEditMode ? 'Update the details for this product.' : 'Enter the details of the new product. Selling prices will be calculated automatically.'}
+            {isEditMode ? 'Update the details for this product.' : 'Enter product details. Pricing is calculated automatically including 18% GST.'}
           </DialogDescription>
         </DialogHeader>
         <Form {...form}>
-          <form onSubmit={form.handleSubmit(onSubmit)} className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4">
-            <div className="space-y-4">
-               <FormField
-                control={form.control}
-                name="sku"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>SKU</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., TS-BL-L" {...field} disabled={isEditMode} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="product_name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Product Name</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., T-Shirt" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="category"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Category</FormLabel>
-                    <FormControl>
-                      <Input placeholder="e.g., Apparel" {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <div className="grid grid-cols-2 gap-4">
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+              {/* Left Column: Basic Info & Costs */}
+              <div className="space-y-4">
+                <h3 className="font-bold text-sm uppercase tracking-wider text-primary border-b pb-2">Core Details</h3>
+                <div className="grid grid-cols-2 gap-4">
                   <FormField
-                  control={form.control}
-                  name="cost_price"
-                  render={({ field }) => (
+                    control={form.control}
+                    name="sku"
+                    render={({ field }) => (
                       <FormItem>
-                      <FormLabel>Cost Price</FormLabel>
-                      <FormControl>
-                          <Input type="number" {...field} />
-                      </FormControl>
-                      <FormMessage />
+                        <FormLabel>SKU</FormLabel>
+                        <FormControl><Input placeholder="e.g., TS-BL-L" {...field} disabled={isEditMode} /></FormControl>
+                        <FormMessage />
                       </FormItem>
-                  )}
+                    )}
                   />
                   <FormField
-                  control={form.control}
-                  name="margin"
-                  render={({ field }) => (
+                    control={form.control}
+                    name="category"
+                    render={({ field }) => (
                       <FormItem>
-                      <FormLabel>Margin</FormLabel>
-                       <Select onValueChange={(value) => field.onChange(Number(value))} value={String(field.value || '')}>
-                          <FormControl>
-                          <SelectTrigger>
-                              <SelectValue placeholder="Select margin" />
-                          </SelectTrigger>
-                          </FormControl>
+                        <FormLabel>Category</FormLabel>
+                        <FormControl><Input placeholder="e.g., Apparel" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <FormField
+                  control={form.control}
+                  name="product_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Product Name</FormLabel>
+                      <FormControl><Input placeholder="e.g., T-Shirt" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <h3 className="font-bold text-sm uppercase tracking-wider text-primary border-b pb-2 mt-6">Cost Breakdown</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="cost_price"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Cost Price (₹)</FormLabel>
+                        <FormControl><Input type="number" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="margin"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Margin (₹)</FormLabel>
+                        <Select onValueChange={(value) => field.onChange(Number(value))} value={String(field.value || '')}>
+                          <FormControl><SelectTrigger><SelectValue placeholder="Margin" /></SelectTrigger></FormControl>
                           <SelectContent>
-                          {marginValues.map(m => (
+                            {marginValues.map(m => (
                               <SelectItem key={m} value={String(m)}>{formatINR(m)}</SelectItem>
-                          ))}
+                            ))}
                           </SelectContent>
-                      </Select>
-                      <FormMessage />
+                        </Select>
+                        <FormMessage />
                       </FormItem>
-                  )}
+                    )}
                   />
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="promo_ads"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs">Ads (₹)</FormLabel>
+                        <FormControl><Input type="number" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="tax_other"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs">Tax Misc (₹)</FormLabel>
+                        <FormControl><Input type="number" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="packing"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="text-xs">Packing (₹)</FormLabel>
+                        <FormControl><Input type="number" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </div>
-               <FormField
+
+              {/* Right Column: Platform Logistics & Final Pricing */}
+              <div className="space-y-4">
+                <h3 className="font-bold text-sm uppercase tracking-wider text-primary border-b pb-2">Logistics (Shipping)</h3>
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="amazon_ship"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Amazon Ship (₹)</FormLabel>
+                        <FormControl><Input type="number" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="flipkart_ship"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Flipkart Ship (₹)</FormLabel>
+                        <FormControl><Input type="number" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+
+                <h3 className="font-bold text-sm uppercase tracking-wider text-primary border-b pb-2 mt-6">Final Platform Pricing</h3>
+                <div className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="meesho_price"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel className="flex justify-between items-center">
+                          Meesho Listing Price 
+                          <span className="text-[10px] text-muted-foreground uppercase font-black">Inc. 18% GST</span>
+                        </FormLabel>
+                        <FormControl><Input type="number" className="font-bold text-lg" {...field} /></FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="flipkart_price"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs">Flipkart Listing</FormLabel>
+                          <FormControl><Input type="number" className="font-bold" {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    <FormField
+                      control={form.control}
+                      name="amazon_price"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel className="text-xs">Amazon Listing</FormLabel>
+                          <FormControl><Input type="number" className="font-bold" {...field} /></FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+                  <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
+                    GST (18%) is automatically included based on your cost stack and logistics.
+                  </div>
+                </div>
+
+                <FormField
                   control={form.control}
                   name="low_stock_threshold"
                   render={({ field }) => (
-                      <FormItem>
-                      <FormLabel>Low Stock Threshold</FormLabel>
-                      <FormControl>
-                          <Input type="number" {...field} />
-                      </FormControl>
+                    <FormItem>
+                      <FormLabel>Low Stock Alert Threshold</FormLabel>
+                      <FormControl><Input type="number" {...field} /></FormControl>
                       <FormMessage />
-                      </FormItem>
+                    </FormItem>
                   )}
                 />
-            </div>
-
-            <div className="space-y-4">
-              <Card className="bg-muted/50">
-                <CardHeader className="pb-4">
-                  <CardTitle className="text-lg">Live Price Preview</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                    <div className="flex justify-between items-center text-sm">
-                      <span className="text-muted-foreground">Meesho Price:</span>
-                      <span className="font-semibold">{formatINR(previewPrices.meesho)}</span>
-                    </div>
-                     <div className="flex justify-between items-center text-sm">
-                      <span className="text-muted-foreground">Flipkart Price:</span>
-                      <span className="font-semibold">{formatINR(previewPrices.flipkart)}</span>
-                    </div>
-                     <div className="flex justify-between items-center text-sm">
-                      <span className="text-muted-foreground">Amazon Price:</span>
-                      <span className="font-semibold">{formatINR(previewPrices.amazon)}</span>
-                    </div>
-                </CardContent>
-              </Card>
+              </div>
             </div>
             
-            <div className="col-span-1 md:col-span-2">
-              <DialogFooter>
-                <Button type="button" variant="outline" onClick={handleClose}>
-                  Cancel
-                </Button>
-                <Button type="submit" disabled={isSubmitting}>
-                  {isSubmitting ? 'Saving...' : (isEditMode ? 'Save Changes' : 'Save Product')}
-                  </Button>
-              </DialogFooter>
-            </div>
+            <DialogFooter className="mt-8">
+              <Button type="button" variant="outline" onClick={handleClose}>Cancel</Button>
+              <Button type="submit" disabled={isSubmitting} className="min-w-[150px]">
+                {isSubmitting ? 'Saving...' : (isEditMode ? 'Save Changes' : 'Create Product')}
+              </Button>
+            </DialogFooter>
           </form>
         </Form>
       </DialogContent>
