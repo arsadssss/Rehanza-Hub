@@ -106,12 +106,34 @@ export default function ExpensesPage() {
     if (!activeAccountId) return;
     setLoading(true);
     try {
+        // 1. Fetch all accounts to calculate global payouts
+        const accountsRes = await fetch('/api/accounts');
+        const accountsData = await accountsRes.json();
+        
+        let totalGlobalPayouts = 0;
+        if (accountsData.success && Array.isArray(accountsData.data)) {
+          // Fetch payments-summary for each account to get total received
+          const payoutPromises = accountsData.data.map((acc: any) => 
+            fetch('/api/payments-summary', {
+              headers: { 'x-account-id': acc.id }
+            }).then(r => r.json())
+          );
+          const summaries = await Promise.all(payoutPromises);
+          totalGlobalPayouts = summaries.reduce((sum, s) => sum + (Number(s.total_received) || 0), 0);
+        }
+
+        // 2. Fetch global expenses and weekly spend
+        // The backend returns global values for these fields even when scoped by account
         const res = await apiFetch('/api/finance-summary');
-        if (!res.ok) throw new Error('Failed to fetch finance summary');
+        if (!res.ok) throw new Error('Failed to fetch global finance summary');
         const data = await res.json();
+        
         setTotalExpenses(data.total_expenses);
-        setNetCashFlow(data.net_cash_flow);
         setWeeklySpend(data.weekly_spend);
+        
+        // 3. Set global Net Cash Flow (Total Payouts from ALL Accounts - Global Expenses)
+        setNetCashFlow(totalGlobalPayouts - data.total_expenses);
+        
     } catch (error: any) {
         toast({ variant: 'destructive', title: 'Error', description: error.message });
     } finally {
