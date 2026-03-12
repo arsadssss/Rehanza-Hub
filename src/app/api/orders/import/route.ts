@@ -56,12 +56,18 @@ export async function POST(request: Request) {
     }
 
     // 2. Detect Platform
-    const firstRowKeys = Object.keys(jsonData[0]).map(k => k.toLowerCase());
+    const headers = Object.keys(jsonData[0]);
+    console.log("Detected headers:", headers);
+
+    const normalizedHeaders = headers.map(h => 
+      h.toLowerCase().replace(/[^a-z0-9]/g, "")
+    );
+
     let platform = "";
 
-    const isAmazon = firstRowKeys.some(k => k.includes("order-id") || k.includes("quantity-purchased"));
-    const isMeesho = firstRowKeys.some(k => k.includes("sub order")) && firstRowKeys.some(k => k.includes("supplier listed price"));
-    const isFlipkart = firstRowKeys.some(k => k.includes("order_id") || k.includes("order_item_id") || k.includes("fsn"));
+    const isAmazon = normalizedHeaders.some(h => h.includes("orderid")) && normalizedHeaders.some(h => h.includes("purchasedate"));
+    const isMeesho = normalizedHeaders.some(h => h.includes("suborderno")) && normalizedHeaders.some(h => h.includes("supplierlistedprice"));
+    const isFlipkart = normalizedHeaders.some(h => h.includes("orderid") || h.includes("orderitemid")) && normalizedHeaders.some(h => h.includes("fsn") || h.includes("sku"));
 
     if (isAmazon) platform = "Amazon";
     else if (isMeesho) platform = "Meesho";
@@ -91,30 +97,36 @@ export async function POST(request: Request) {
         let price = 0;
 
         if (platform === "Amazon") {
-          external_id = String(row["order-id"] || row["order-item-id"] || "");
-          raw_date = row["purchase-date"] || "";
-          sku_str = String(row["sku"] || "").trim().toUpperCase();
-          qty = parseInt(row["quantity-purchased"]) || 1;
-          price = parseFloat(row["item-price"]) || 0;
+          external_id = String(findValueByPattern(row, ["order-id", "order_id"]) || "");
+          raw_date = findValueByPattern(row, ["purchase-date", "order_date"]) || "";
+          sku_str = String(findValueByPattern(row, ["sku"]) || "").trim().toUpperCase();
+          qty = parseInt(findValueByPattern(row, ["quantity-purchased", "quantity"])) || 1;
+          price = parseFloat(findValueByPattern(row, ["item-price", "selling_price"])) || 0;
         } 
         else if (platform === "Meesho") {
-          external_id = String(findValueByPattern(row, ["sub order"]) || "");
-          raw_date = String(findValueByPattern(row, ["order date"]) || "");
-          sku_str = String(row["SKU"] || row["sku"] || findValueByPattern(row, ["sku"]) || "").trim().toUpperCase();
-          qty = parseInt(findValueByPattern(row, ["quantity"])) || 1;
-          price = parseFloat(findValueByPattern(row, ["supplier listed price"])) || 0;
+          const orderIdCol = headers.find(h => h.toLowerCase().includes("sub order"));
+          const dateCol = headers.find(h => h.toLowerCase().includes("order date"));
+          const skuCol = headers.find(h => h.toLowerCase().includes("sku"));
+          const qtyCol = headers.find(h => h.toLowerCase().includes("quantity"));
+          const priceCol = headers.find(h => h.toLowerCase().includes("supplier listed price"));
+
+          external_id = String(row[orderIdCol!] || "");
+          raw_date = String(row[dateCol!] || "");
+          sku_str = String(row[skuCol!] || "").trim().toUpperCase();
+          qty = Number(row[qtyCol!]) || 1;
+          price = Number(row[priceCol!]) || 0;
         } 
         else if (platform === "Flipkart") {
-          external_id = String(row["order_id"] || row["order_item_id"] || "");
-          raw_date = row["order_date"] || "";
-          sku_str = String(row["sku"] || row["fsn"] || "").trim().toUpperCase();
-          qty = parseInt(row["quantity"]) || 1;
-          price = parseFloat(row["selling_price"] || row["item_price"] || 0);
+          external_id = String(findValueByPattern(row, ["order_id", "order_item_id"]) || "");
+          raw_date = findValueByPattern(row, ["order_date"]) || "";
+          sku_str = String(findValueByPattern(row, ["sku", "fsn"]) || "").trim().toUpperCase();
+          qty = parseInt(findValueByPattern(row, ["quantity"])) || 1;
+          price = parseFloat(findValueByPattern(row, ["selling_price", "item_price"]) || 0);
         }
 
         if (!external_id || !sku_str) continue;
 
-        // 4. Ensure SKU exists
+        // Ensure SKU exists
         let variantRes = await sql`
           SELECT id FROM product_variants 
           WHERE variant_sku = ${sku_str} AND account_id = ${accountId} AND is_deleted = false 
@@ -130,7 +142,7 @@ export async function POST(request: Request) {
 
           let productId;
           if (productRes.length === 0) {
-            const productName = row["product_name"] || row["title"] || row["Product Name"] || findValueByPattern(row, ["product name"]) || `Auto Imported: ${sku_str}`;
+            const productName = findValueByPattern(row, ["product name", "title", "product_name"]) || `Auto Imported: ${sku_str}`;
             const newProduct = await sql`
               INSERT INTO allproducts (
                 sku, product_name, category, cost_price, margin, promo_ads, tax_other, packing, 
@@ -156,14 +168,15 @@ export async function POST(request: Request) {
         }
 
         const variantId = variantRes[0].id;
+        const total_amount = price * qty;
 
-        // 5. Insert Order with Duplicate Protection
+        // Insert Order with Duplicate Protection
         const insertRes = await sql`
           INSERT INTO orders (
-            external_order_id, order_date, platform, variant_id, quantity, selling_price, account_id, status
+            external_order_id, order_date, platform, variant_id, quantity, selling_price, total_amount, account_id, status
           )
           VALUES (
-            ${external_id}, ${raw_date}, ${platform}, ${variantId}, ${qty}, ${price}, ${accountId}, 'SHIPPED'
+            ${external_id}, ${raw_date}, ${platform}, ${variantId}, ${qty}, ${price}, ${total_amount}, ${accountId}, 'SHIPPED'
           )
           ON CONFLICT (external_order_id) DO NOTHING
           RETURNING id
