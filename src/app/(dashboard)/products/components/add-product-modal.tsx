@@ -34,7 +34,6 @@ import {
 } from "@/components/ui/select"
 import type { Product } from "../page"
 import { formatINR } from "@/lib/format"
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { apiFetch } from "@/lib/apiFetch"
 import { calculateProductPrices } from "@/lib/pricingEngine"
 
@@ -90,7 +89,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: Product
     },
   })
 
-  // Watch all inputs that affect pricing
+  // Watch all inputs that affect pricing for real-time preview
   const watchedValues = form.watch([
     "cost_price", 
     "margin", 
@@ -101,26 +100,24 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: Product
     "flipkart_ship"
   ])
 
-  // Trigger recalculation on change
+  // Trigger recalculation logic whenever watched fields change
   React.useEffect(() => {
     const [cost, margin, ads, tax, pack, amz, flip] = watchedValues;
     
-    // Only auto-calc if there is actual cost data
-    if (Number(cost) > 0) {
-      const prices = calculateProductPrices({
-        cost_price: cost,
-        margin,
-        promo_ads: ads,
-        tax_other: tax,
-        packing: pack,
-        amazon_ship: amz,
-        flipkart_ship: flip
-      });
+    const prices = calculateProductPrices({
+      cost_price: Number(cost || 0),
+      margin: Number(margin || 0),
+      promo_ads: Number(ads || 0),
+      tax_other: Number(tax || 0),
+      packing: Number(pack || 0),
+      amazon_ship: Number(amz || 0),
+      flipkart_ship: Number(flip || 0)
+    });
 
-      form.setValue("meesho_price", prices.meesho_price, { shouldDirty: true });
-      form.setValue("flipkart_price", prices.flipkart_price, { shouldDirty: true });
-      form.setValue("amazon_price", prices.amazon_price, { shouldDirty: true });
-    }
+    // Bulk update the platform listing prices in the form
+    form.setValue("meesho_price", prices.meesho_price, { shouldDirty: true });
+    form.setValue("flipkart_price", prices.flipkart_price, { shouldDirty: true });
+    form.setValue("amazon_price", prices.amazon_price, { shouldDirty: true });
   }, [watchedValues, form]);
 
   React.useEffect(() => {
@@ -386,8 +383,8 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: Product
                       )}
                     />
                   </div>
-                  <div className="p-3 rounded-lg bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
-                    GST (18%) is automatically included based on your cost stack and logistics.
+                  <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 text-[11px] font-bold text-emerald-700 dark:text-emerald-400">
+                    GST (18%) automatically included in price
                   </div>
                 </div>
 

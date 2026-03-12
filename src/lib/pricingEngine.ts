@@ -14,15 +14,15 @@ export function calculateProductPrices(data: any) {
     Number(data.tax_other || 0) +
     Number(data.packing || 0);
 
-  // Meesho has no extra shipping in base calculation
+  // Meesho price is base cost + 18% GST (no extra shipping field used in base)
   const meesho = Math.round(baseCost * 1.18);
 
-  // Flipkart includes flipkart_ship before GST
+  // Flipkart price includes flipkart_ship field from form before GST
   const flipkart = Math.round(
     (baseCost + Number(data.flipkart_ship || 0)) * 1.18
   );
 
-  // Amazon includes amazon_ship before GST
+  // Amazon price includes amazon_ship field from form before GST
   const amazon = Math.round(
     (baseCost + Number(data.amazon_ship || 0)) * 1.18
   );
