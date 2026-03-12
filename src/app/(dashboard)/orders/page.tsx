@@ -1,6 +1,7 @@
+
 "use client";
 
-import React, { useEffect, useState, useCallback } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import { formatINR } from "@/lib/format";
 import { format, parseISO, isValid } from 'date-fns';
 import { Card, CardHeader, CardTitle, CardContent } from "@/components/ui/card";
@@ -12,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PlusCircle, Pencil, Trash2, Search, FilterX, Package, CircleDollarSign, Undo2, TrendingDown, FileUp } from "lucide-react";
+import { PlusCircle, Pencil, Trash2, Search, FilterX, Package, CircleDollarSign, Undo2, TrendingDown, FileUp, Database } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AddOrderModal } from "./components/add-order-modal";
 import { AddReturnModal } from "../returns/components/add-return-modal";
@@ -66,9 +67,11 @@ const SummaryCard = ({ title, value, icon: Icon, gradient, loading }: { title: s
 
 export default function OrdersPage() {
   const { toast } = useToast();
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [activeTab, setActiveTab] = useState("orders");
   const [loading, setLoading] = useState(true);
+  const [isImporting, setIsImporting] = useState(false);
   
   // Account detection state
   const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
@@ -183,12 +186,56 @@ export default function OrdersPage() {
     }
   };
 
+  const handleMarketplaceImport = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setIsImporting(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const res = await apiFetch("/api/orders/import", {
+        method: "POST",
+        body: formData,
+      });
+
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Import failed");
+
+      toast({
+        title: "Import Summary",
+        description: `Imported: ${json.orders_imported} | Skipped: ${json.duplicates_skipped} | New SKUs: ${json.new_skus_created}`,
+      });
+
+      fetchData();
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Import Failed",
+        description: error.message,
+      });
+    } finally {
+      setIsImporting(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
   if (!isMounted) {
     return <div className="p-6 space-y-6"><Skeleton className="h-20 w-full" /><Skeleton className="h-64 w-full" /></div>;
   }
 
   return (
     <div className="p-6 space-y-6">
+      {/* Hidden File Input for Marketplace Import */}
+      <input 
+        type="file" 
+        ref={fileInputRef} 
+        onChange={handleMarketplaceImport} 
+        className="hidden" 
+        accept=".csv,.xlsx" 
+      />
+
       {/* Modals */}
       <AddOrderModal 
         isOpen={isOrderModalOpen} 
@@ -235,9 +282,18 @@ export default function OrdersPage() {
           <h1 className="text-3xl font-bold tracking-tight font-headline">Operations Management</h1>
           <p className="text-muted-foreground text-sm">Monitor and manage your business orders and returns.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center flex-wrap gap-2">
           {activeTab === "orders" ? (
             <>
+              <Button 
+                variant="secondary" 
+                onClick={() => fileInputRef.current?.click()} 
+                disabled={isImporting}
+                className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold"
+              >
+                <Database className={cn("mr-2 h-4 w-4", isImporting && "animate-spin")} /> 
+                {isImporting ? "Processing..." : "Upload Marketplace Report"}
+              </Button>
               <Button variant="outline" onClick={() => setIsBulkModalOpen(true)}>
                 <FileUp className="mr-2 h-4 w-4" /> Bulk Upload
               </Button>
