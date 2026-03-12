@@ -5,21 +5,23 @@ export const revalidate = 0;
 
 export async function GET() {
   try {
-    // Get spending grouped by week for the last 8 weeks
+    // Get spending grouped by day for the last 7 days, including days with 0 expenses
     const trend = await sql`
       SELECT 
-        DATE_TRUNC('week', expense_date) AS week, 
-        SUM(amount)::numeric AS total 
-      FROM business_expenses 
-      WHERE is_deleted = false 
-      GROUP BY week 
-      ORDER BY week ASC 
-      LIMIT 8
+        d.date::date as date,
+        COALESCE(SUM(e.amount), 0)::numeric as total
+      FROM (
+        SELECT (CURRENT_DATE - i * INTERVAL '1 day')::date as date 
+        FROM generate_series(0, 6) i
+      ) d
+      LEFT JOIN business_expenses e ON DATE(e.expense_date) = d.date AND e.is_deleted = false
+      GROUP BY d.date
+      ORDER BY d.date ASC
     `;
 
     return NextResponse.json({
       trend: (trend || []).map((t: any) => ({
-        week: t.week,
+        date: t.date,
         total: Number(t.total || 0)
       }))
     });

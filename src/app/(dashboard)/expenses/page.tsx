@@ -1,8 +1,8 @@
 "use client"
 
-import React, { useEffect, useState, useCallback, useMemo } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { format, startOfWeek, subWeeks, isSameWeek, addWeeks } from 'date-fns';
+import { format } from 'date-fns';
 import { formatINR } from '@/lib/format';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
@@ -15,7 +15,6 @@ import {
   PlusCircle, 
   Pencil, 
   Trash2, 
-  User, 
   ArrowDownCircle, 
   TrendingUp, 
   TrendingDown, 
@@ -30,14 +29,13 @@ import { AddExpenseModal } from './components/add-expense-modal';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/apiFetch';
 import { 
-  BarChart, 
-  Bar, 
+  AreaChart, 
+  Area, 
   XAxis, 
   YAxis, 
   CartesianGrid, 
   Tooltip, 
-  ResponsiveContainer,
-  Cell
+  ResponsiveContainer
 } from 'recharts';
 
 export type BusinessExpense = {
@@ -63,6 +61,23 @@ const StatCard = ({ title, value, icon: Icon, gradient, loading }: { title: stri
     </Card>
 );
 
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-white dark:bg-slate-900 p-4 border border-border shadow-2xl rounded-2xl">
+        <p className="text-[10px] font-black text-muted-foreground uppercase tracking-widest mb-1">
+          {format(new Date(label), 'dd MMM yyyy')}
+        </p>
+        <p className="text-lg font-black text-indigo-600 dark:text-indigo-400 leading-tight">
+          {formatINR(payload[0].value)}
+        </p>
+        <p className="text-[10px] font-bold text-muted-foreground mt-1 uppercase">Total Spent</p>
+      </div>
+    );
+  }
+  return null;
+};
+
 export default function ExpensesPage() {
   const { toast } = useToast();
   const [isMounted, setIsMounted] = useState(false);
@@ -77,46 +92,9 @@ export default function ExpensesPage() {
   const [netCashFlow, setNetCashFlow] = useState(0);
   const [weeklySpend, setWeeklySpend] = useState(0);
   
-  // Group logic: Recompute chart data whenever expenses array changes
-  const chartData = useMemo(() => {
-    if (!expenses.length) {
-      const today = new Date();
-      const currentWeekStart = startOfWeek(today, { weekStartsOn: 0 });
-      return [{ week: currentWeekStart.toISOString(), total: 0 }];
-    }
-
-    // 1. Group currently loaded expenses by week (Sunday start to match "09 Mar" style)
-    const groups: Record<string, number> = {};
-    expenses.forEach(e => {
-      const d = new Date(e.expense_date);
-      const w = startOfWeek(d, { weekStartsOn: 0 }).toISOString();
-      groups[w] = (groups[w] || 0) + Number(e.amount);
-    });
-
-    // 2. Determine time range for the chart
-    const weeks = Object.keys(groups).sort();
-    const earliest = new Date(weeks[0]);
-    const today = new Date();
-    const currentWeekStart = startOfWeek(today, { weekStartsOn: 0 });
-
-    // 3. Fill buckets with padding until today
-    const paddedTrend = [];
-    let runner = earliest;
-    
-    // Safety limit to avoid infinite loops if dates are somehow broken
-    let limit = 0;
-    while ((runner <= currentWeekStart || isSameWeek(runner, currentWeekStart, { weekStartsOn: 0 })) && limit < 100) {
-      const runnerStr = runner.toISOString();
-      paddedTrend.push({
-        week: runnerStr,
-        total: groups[runnerStr] || 0
-      });
-      runner = addWeeks(runner, 1);
-      limit++;
-    }
-    
-    return paddedTrend;
-  }, [expenses]);
+  // Analytics State
+  const [trendData, setTrendData] = useState<any[]>([]);
+  const [loadingTrend, setLoadingTrend] = useState(true);
 
   // Modals
   const [isAddExpenseOpen, setIsAddExpenseOpen] = useState(false);
@@ -137,6 +115,18 @@ export default function ExpensesPage() {
       const res = await apiFetch('/api/users');
       if (res.ok) setUsers(await res.json());
     } catch (e) { console.error(e); }
+  }, []);
+
+  const fetchTrend = useCallback(async () => {
+    setLoadingTrend(true);
+    try {
+      const res = await fetch('/api/expenses/analytics');
+      if (res.ok) {
+        const data = await res.json();
+        setTrendData(data.trend || []);
+      }
+    } catch (e) { console.error(e); }
+    finally { setLoadingTrend(false); }
   }, []);
 
   const fetchFinanceSummary = useCallback(async () => {
@@ -207,8 +197,9 @@ export default function ExpensesPage() {
 
   useEffect(() => {
     fetchUsers();
+    fetchTrend();
     if (activeAccountId) fetchFinanceSummary(); 
-  }, [fetchUsers, fetchFinanceSummary, activeAccountId]);
+  }, [fetchUsers, fetchFinanceSummary, fetchTrend, activeAccountId]);
 
   useEffect(() => {
     if (activeAccountId) fetchExpenses(); 
@@ -222,7 +213,9 @@ export default function ExpensesPage() {
         });
         if (!res.ok) throw new Error('Failed to delete');
         toast({ title: 'Success', description: `Deleted ${itemToDelete.description}` });
-        fetchFinanceSummary(); fetchExpenses();
+        fetchFinanceSummary(); 
+        fetchExpenses();
+        fetchTrend();
     } catch (error: any) {
         toast({ variant: 'destructive', title: 'Error', description: error.message });
     } finally {
@@ -246,7 +239,7 @@ export default function ExpensesPage() {
         <AddExpenseModal 
           isOpen={isAddExpenseOpen || !!expenseToEdit} 
           onClose={() => { setIsAddExpenseOpen(false); setExpenseToEdit(null); }} 
-          onSuccess={() => { fetchFinanceSummary(); fetchExpenses(); }} 
+          onSuccess={() => { fetchFinanceSummary(); fetchExpenses(); fetchTrend(); }} 
           expense={expenseToEdit} 
         />
         <AlertDialog open={!!itemToDelete} onOpenChange={() => setItemToDelete(null)}>
@@ -270,7 +263,7 @@ export default function ExpensesPage() {
             <StatCard title="Weekly Spend" value={formatINR(weeklySpend)} icon={Calendar} gradient="from-amber-500 to-orange-600" loading={loading} />
         </div>
 
-        {/* Analytics Section - Dynamically Aggregated */}
+        {/* Analytics Section - Dynamic 7-Day Trend */}
         <Card className="border-0 shadow-xl rounded-[2rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
           <CardHeader>
             <div className="flex items-center gap-3">
@@ -278,42 +271,47 @@ export default function ExpensesPage() {
                 <BarChart3 className="h-5 w-5 text-primary" />
               </div>
               <div>
-                <CardTitle className="font-headline text-xl">Weekly Expense Trend</CardTitle>
-                <CardDescription>Real-time spend analysis based on currently filtered expenses.</CardDescription>
+                <CardTitle className="font-headline text-xl">Daily Expense Trend</CardTitle>
+                <CardDescription>Visualizing business spend across the last 7 days.</CardDescription>
               </div>
             </div>
           </CardHeader>
           <CardContent>
             <div className="h-[300px] w-full mt-4">
-              {loading && !chartData.length ? <Skeleton className="h-full w-full rounded-2xl" /> : (
+              {loadingTrend ? <Skeleton className="h-full w-full rounded-2xl" /> : (
                 <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={chartData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                  <AreaChart data={trendData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                    <defs>
+                      <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
                     <XAxis 
-                      dataKey="week" 
-                      tick={{ fontSize: 10, fill: 'gray' }} 
+                      dataKey="date" 
+                      tick={{ fontSize: 10, fill: 'gray', fontWeight: 700 }} 
                       axisLine={false}
                       tickLine={false}
                       tickFormatter={(val) => format(new Date(val), 'dd MMM')}
                     />
                     <YAxis 
-                      tick={{ fontSize: 10, fill: 'gray' }} 
+                      tick={{ fontSize: 10, fill: 'gray', fontWeight: 700 }} 
                       axisLine={false}
                       tickLine={false}
                       tickFormatter={(val) => `₹${val}`}
                     />
-                    <Tooltip 
-                      cursor={{ fill: 'rgba(0,0,0,0.02)' }}
-                      contentStyle={{ borderRadius: '1rem', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}
-                      formatter={(val: any) => [formatINR(val), 'Total Spend']}
-                      labelFormatter={(label) => `Week of ${format(new Date(label), 'dd MMM yyyy')}`}
+                    <Tooltip content={<CustomTooltip />} />
+                    <Area 
+                      type="monotone" 
+                      dataKey="total" 
+                      stroke="#8b5cf6" 
+                      strokeWidth={3}
+                      fillOpacity={1} 
+                      fill="url(#colorTotal)" 
+                      animationDuration={1500}
                     />
-                    <Bar dataKey="total" radius={[6, 6, 0, 0]}>
-                      {chartData.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={index === chartData.length - 1 ? '#6366f1' : '#cbd5e1'} />
-                      ))}
-                    </Bar>
-                  </BarChart>
+                  </AreaChart>
                 </ResponsiveContainer>
               )}
             </div>
