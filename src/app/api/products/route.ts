@@ -19,7 +19,7 @@ export async function GET(request: Request) {
       SELECT * FROM allproducts 
       WHERE account_id = ${accountId} 
       AND is_deleted = false 
-      ORDER BY sku ASC
+      ORDER BY created_at DESC
     `;
 
     return NextResponse.json({ 
