@@ -6,25 +6,25 @@
  * 2. Platform Price = (Base Cost + Platform Shipping) * 1.18 (GST)
  */
 
-export function calculateProductPrices(data: any) {
+export function calculateProductPrices(product: any) {
   const baseCost =
-    Number(data.cost_price || 0) +
-    Number(data.margin || 0) +
-    Number(data.promo_ads || 0) +
-    Number(data.tax_other || 0) +
-    Number(data.packing || 0);
+    Number(product.cost_price || 0) +
+    Number(product.margin || 0) +
+    Number(product.promo_ads || 0) +
+    Number(product.tax_other || 0) +
+    Number(product.packing || 0);
 
-  // Meesho price is base cost + 18% GST (no extra shipping field used in base)
+  // Meesho price: base cost + 18% GST
   const meesho = Math.round(baseCost * 1.18);
 
-  // Flipkart price includes flipkart_ship field from form before GST
+  // Flipkart price: (base cost + flipkart_ship) + 18% GST
   const flipkart = Math.round(
-    (baseCost + Number(data.flipkart_ship || 0)) * 1.18
+    (baseCost + Number(product.flipkart_ship || 0)) * 1.18
   );
 
-  // Amazon price includes amazon_ship field from form before GST
+  // Amazon price: (base cost + amazon_ship) + 18% GST
   const amazon = Math.round(
-    (baseCost + Number(data.amazon_ship || 0)) * 1.18
+    (baseCost + Number(product.amazon_ship || 0)) * 1.18
   );
 
   return {

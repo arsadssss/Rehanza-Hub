@@ -1,4 +1,3 @@
-
 import { sql } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import { getServerSession } from 'next-auth';
@@ -6,16 +5,16 @@ import { authOptions } from '@/lib/auth';
 
 export const dynamic = "force-dynamic";
 
-// Operational Constants for Pricing Logic (as per system defaults)
-const PROMO_ADS = 20;
-const TAX_OTHER = 10;
-const PACKING = 15;
-const AMAZON_SHIP = 80;
-const BASE_CHARGES = 45;
+// Standard Operational Defaults
+const DEFAULT_PROMO_ADS = 20;
+const DEFAULT_TAX_OTHER = 10;
+const DEFAULT_PACKING = 15;
+const DEFAULT_AMAZON_SHIP = 80;
+const DEFAULT_FLIPKART_SHIP = 80;
 
 /**
  * POST /api/products/bulk-import
- * Rebuilt isolated service for batch product management.
+ * Process batch product management.
  * Logic: Fetch existing SKUs -> Split into New/Existing -> Transactional Bulk Insert + Batch Updates.
  */
 export async function POST(request: Request) {
@@ -32,7 +31,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: "Empty dataset received." }, { status: 400 });
     }
 
-    // 1. Fetch ALL existing SKUs for this account to identify updates vs inserts
     const existingRes = await sql`
       SELECT sku FROM allproducts 
       WHERE account_id = ${accountId} 
@@ -43,15 +41,16 @@ export async function POST(request: Request) {
     const toInsert: any[] = [];
     const toUpdate: any[] = [];
 
-    // 2. Map and Validate rows, calculate prices
     for (const p of products) {
       const sku = p.sku.trim().toUpperCase();
       const cost = Number(p.cost_price) || 0;
       const margin = Number(p.margin) || 0;
       
-      const meeshoPrice = cost + BASE_CHARGES + margin;
-      const flipkartPrice = meeshoPrice;
-      const amazonPrice = meeshoPrice + AMAZON_SHIP;
+      // Calculate dynamic prices based on new formula
+      const baseCost = cost + margin + DEFAULT_PROMO_ADS + DEFAULT_TAX_OTHER + DEFAULT_PACKING;
+      const meeshoPrice = Math.round(baseCost * 1.18);
+      const flipkartPrice = Math.round((baseCost + DEFAULT_FLIPKART_SHIP) * 1.18);
+      const amazonPrice = Math.round((baseCost + DEFAULT_AMAZON_SHIP) * 1.18);
 
       const preparedItem = {
         sku,
@@ -63,10 +62,11 @@ export async function POST(request: Request) {
         meesho_price: meeshoPrice,
         flipkart_price: flipkartPrice,
         amazon_price: amazonPrice,
-        promo_ads: PROMO_ADS,
-        tax_other: TAX_OTHER,
-        packing: PACKING,
-        amazon_ship: AMAZON_SHIP,
+        promo_ads: DEFAULT_PROMO_ADS,
+        tax_other: DEFAULT_TAX_OTHER,
+        packing: DEFAULT_PACKING,
+        amazon_ship: DEFAULT_AMAZON_SHIP,
+        flipkart_ship: DEFAULT_FLIPKART_SHIP,
         account_id: accountId
       };
 
@@ -80,22 +80,17 @@ export async function POST(request: Request) {
     let inserted = 0;
     let updated = 0;
 
-    // 3. Process Transactionally
-    // Note: Standard Neon helper doesn't support multi-statement BEGIN/COMMIT in one block via templates easily
-    // We execute sequentially but logically as a single atomic operation for the user.
-    
-    // Perform Bulk Insert for new items
     if (toInsert.length > 0) {
       for (const item of toInsert) {
         await sql`
           INSERT INTO allproducts (
             sku, product_name, category, cost_price, margin, low_stock_threshold, 
-            promo_ads, tax_other, packing, amazon_ship, 
+            promo_ads, tax_other, packing, amazon_ship, flipkart_ship,
             meesho_price, flipkart_price, amazon_price, account_id
           )
           VALUES (
             ${item.sku}, ${item.product_name}, ${item.category}, ${item.cost_price}, ${item.margin}, ${item.low_stock_threshold}, 
-            ${item.promo_ads}, ${item.tax_other}, ${item.packing}, ${item.amazon_ship}, 
+            ${item.promo_ads}, ${item.tax_other}, ${item.packing}, ${item.amazon_ship}, ${item.flipkart_ship},
             ${item.meesho_price}, ${item.flipkart_price}, ${item.amazon_price}, ${accountId}
           )
         `;
@@ -103,7 +98,6 @@ export async function POST(request: Request) {
       }
     }
 
-    // Perform Updates for existing items
     if (toUpdate.length > 0) {
       for (const item of toUpdate) {
         await sql`
@@ -116,7 +110,12 @@ export async function POST(request: Request) {
             low_stock_threshold = ${item.low_stock_threshold},
             meesho_price = ${item.meesho_price},
             flipkart_price = ${item.flipkart_price},
-            amazon_price = ${item.amazon_price}
+            amazon_price = ${item.amazon_price},
+            amazon_ship = ${item.amazon_ship},
+            flipkart_ship = ${item.flipkart_ship},
+            promo_ads = ${item.promo_ads},
+            tax_other = ${item.tax_other},
+            packing = ${item.packing}
           WHERE account_id = ${accountId} 
           AND sku = ${item.sku}
           AND is_deleted = false

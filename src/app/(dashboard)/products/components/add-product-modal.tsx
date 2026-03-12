@@ -48,7 +48,7 @@ const formSchema = z.object({
   tax_other: z.coerce.number().min(0).default(10),
   packing: z.coerce.number().min(0).default(15),
   amazon_ship: z.coerce.number().min(0).default(80),
-  flipkart_ship: z.coerce.number().min(0).default(120),
+  flipkart_ship: z.coerce.number().min(0).default(80),
   meesho_price: z.coerce.number().min(0),
   flipkart_price: z.coerce.number().min(0),
   amazon_price: z.coerce.number().min(0),
@@ -82,14 +82,13 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: Product
       tax_other: 10,
       packing: 15,
       amazon_ship: 80,
-      flipkart_ship: 120,
+      flipkart_ship: 80,
       meesho_price: 0,
       flipkart_price: 0,
       amazon_price: 0,
     },
   })
 
-  // Watch all inputs that affect pricing for real-time preview
   const watchedValues = form.watch([
     "cost_price", 
     "margin", 
@@ -100,7 +99,6 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: Product
     "flipkart_ship"
   ])
 
-  // Trigger recalculation logic whenever watched fields change
   React.useEffect(() => {
     const [cost, margin, ads, tax, pack, amz, flip] = watchedValues;
     
@@ -114,7 +112,6 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: Product
       flipkart_ship: Number(flip || 0)
     });
 
-    // Bulk update the platform listing prices in the form
     form.setValue("meesho_price", prices.meesho_price, { shouldDirty: true });
     form.setValue("flipkart_price", prices.flipkart_price, { shouldDirty: true });
     form.setValue("amazon_price", prices.amazon_price, { shouldDirty: true });
@@ -134,7 +131,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: Product
           tax_other: (product as any).tax_other ?? 10,
           packing: (product as any).packing ?? 15,
           amazon_ship: (product as any).amazon_ship ?? 80,
-          flipkart_ship: (product as any).flipkart_ship ?? 120,
+          flipkart_ship: (product as any).flipkart_ship ?? 80,
           meesho_price: product.meesho_price,
           flipkart_price: product.flipkart_price,
           amazon_price: product.amazon_price,
@@ -151,7 +148,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: Product
           tax_other: 10,
           packing: 15,
           amazon_ship: 80,
-          flipkart_ship: 120,
+          flipkart_ship: 80,
           meesho_price: 0,
           flipkart_price: 0,
           amazon_price: 0,

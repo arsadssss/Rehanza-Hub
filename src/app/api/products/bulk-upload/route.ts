@@ -1,19 +1,17 @@
-
 import { sql } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
 export const dynamic = "force-dynamic";
 
-const PROMO_ADS = 20;
-const TAX_OTHER = 10;
-const PACKING = 15;
-const AMAZON_SHIP = 80;
-const BASE_CHARGES = 45;
+const DEFAULT_PROMO_ADS = 20;
+const DEFAULT_TAX_OTHER = 10;
+const DEFAULT_PACKING = 15;
+const DEFAULT_AMAZON_SHIP = 80;
+const DEFAULT_FLIPKART_SHIP = 80;
 
 /**
  * POST /api/products/bulk-upload
  * Handles batch insertion of products with transactional safety and automated price calculation.
- * Optimized to use a single DB call for performance.
  */
 export async function POST(request: Request) {
   try {
@@ -27,7 +25,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: "No product data provided" }, { status: 400 });
     }
 
-    // 1. Pre-validation: Fetch existing SKUs to avoid conflicts
     const skusToInsert = products.map(p => p.sku.toUpperCase());
     const existingProducts = await sql`
       SELECT sku FROM allproducts 
@@ -60,13 +57,14 @@ export async function POST(request: Request) {
         continue;
       }
 
-      // Automated pricing calculation
+      // Automated pricing calculation following the new formula
       const cost = Number(p.cost_price) || 0;
       const margin = Number(p.margin) || 0;
       
-      const meeshoPrice = cost + BASE_CHARGES + margin;
-      const flipkartPrice = meeshoPrice;
-      const amazonPrice = meeshoPrice + AMAZON_SHIP;
+      const baseCost = cost + margin + DEFAULT_PROMO_ADS + DEFAULT_TAX_OTHER + DEFAULT_PACKING;
+      const meeshoPrice = Math.round(baseCost * 1.18);
+      const flipkartPrice = Math.round((baseCost + DEFAULT_FLIPKART_SHIP) * 1.18);
+      const amazonPrice = Math.round((baseCost + DEFAULT_AMAZON_SHIP) * 1.18);
 
       validToInsert.push({
         sku,
@@ -78,46 +76,32 @@ export async function POST(request: Request) {
         meesho_price: meeshoPrice,
         flipkart_price: flipkartPrice,
         amazon_price: amazonPrice,
-        promo_ads: PROMO_ADS,
-        tax_other: TAX_OTHER,
-        packing: PACKING,
-        amazon_ship: AMAZON_SHIP,
+        promo_ads: DEFAULT_PROMO_ADS,
+        tax_other: DEFAULT_TAX_OTHER,
+        packing: DEFAULT_PACKING,
+        amazon_ship: DEFAULT_AMAZON_SHIP,
+        flipkart_ship: DEFAULT_FLIPKART_SHIP,
         account_id: accountId
       });
     }
 
-    // 2. Perform Single-Call Bulk Insertion
     if (validToInsert.length > 0) {
       try {
-        // Constructing a manual bulk insert because the neon client 
-        // handles multiple values best via standard SQL syntax for arrays/unnest or large value lists.
-        // We use a pattern that is safe and performs a single round-trip.
-        
-        // We will loop through chunks if the data is massive, but for standard imports,
-        // we'll use a single query with multiple value sets.
-        
         for (const item of validToInsert) {
           await sql`
             INSERT INTO allproducts (
               sku, product_name, category, cost_price, margin, low_stock_threshold, 
-              promo_ads, tax_other, packing, amazon_ship, 
+              promo_ads, tax_other, packing, amazon_ship, flipkart_ship,
               meesho_price, flipkart_price, amazon_price, account_id
             )
             VALUES (
               ${item.sku}, ${item.product_name}, ${item.category}, ${item.cost_price}, ${item.margin}, ${item.low_stock_threshold}, 
-              ${item.promo_ads}, ${item.tax_other}, ${item.packing}, ${item.amazon_ship}, 
+              ${item.promo_ads}, ${item.tax_other}, ${item.packing}, ${item.amazon_ship}, ${item.flipkart_ship},
               ${item.meesho_price}, ${item.flipkart_price}, ${item.amazon_price}, ${accountId}
             )
           `;
           result.inserted++;
         }
-        
-        // NOTE: While the loop above is clean, a "true" single DB call would involve 
-        // a complex template literal or a stored procedure. Neon's current driver 
-        // handles the serial execution of these queries within the same request 
-        // very efficiently, but the above is optimized for individual row success tracking.
-        // For a TRUE single transaction, we wrap it in a BEGIN/COMMIT logic if required.
-        
       } catch (dbErr: any) {
         console.error("Database Bulk Insert Error:", dbErr);
         throw new Error(`Batch insertion failed: ${dbErr.message}`);
