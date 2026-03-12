@@ -35,7 +35,7 @@ import {
 import type { Product } from "../page"
 import { formatINR } from "@/lib/format"
 import { apiFetch } from "@/lib/apiFetch"
-import { calculateProductPrices } from "@/lib/pricingEngine"
+import { calculatePlatformPrices } from "@/lib/pricingEngine"
 
 const formSchema = z.object({
   sku: z.string().min(1, "SKU is required"),
@@ -89,6 +89,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: Product
     },
   })
 
+  // Watch fields for automatic recalculation
   const watchedValues = form.watch([
     "cost_price", 
     "margin", 
@@ -102,7 +103,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: Product
   React.useEffect(() => {
     const [cost, margin, ads, tax, pack, amz, flip] = watchedValues;
     
-    const prices = calculateProductPrices({
+    const prices = calculatePlatformPrices({
       cost_price: Number(cost || 0),
       margin: Number(margin || 0),
       promo_ads: Number(ads || 0),
@@ -142,7 +143,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: Product
           product_name: "",
           category: "",
           cost_price: 0,
-          margin: 50,
+          margin: 100,
           low_stock_threshold: 5,
           promo_ads: 20,
           tax_other: 10,
@@ -351,7 +352,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: Product
                           Meesho Listing Price 
                           <span className="text-[10px] text-muted-foreground uppercase font-black">Inc. 18% GST</span>
                         </FormLabel>
-                        <FormControl><Input type="number" className="font-bold text-lg" {...field} /></FormControl>
+                        <FormControl><Input type="number" className="font-bold text-lg" {...field} readOnly /></FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
@@ -363,7 +364,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: Product
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel className="text-xs">Flipkart Listing</FormLabel>
-                          <FormControl><Input type="number" className="font-bold" {...field} /></FormControl>
+                          <FormControl><Input type="number" className="font-bold" {...field} readOnly /></FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
@@ -374,7 +375,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess, product }: Product
                       render={({ field }) => (
                         <FormItem>
                           <FormLabel className="text-xs">Amazon Listing</FormLabel>
-                          <FormControl><Input type="number" className="font-bold" {...field} /></FormControl>
+                          <FormControl><Input type="number" className="font-bold" {...field} readOnly /></FormControl>
                           <FormMessage />
                         </FormItem>
                       )}
