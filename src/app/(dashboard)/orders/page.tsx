@@ -13,7 +13,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PlusCircle, Pencil, Trash2, Search, FilterX, Package, CircleDollarSign, Undo2, TrendingDown, FileUp, Database } from "lucide-react";
+import { PlusCircle, Pencil, Trash2, Search, FilterX, Package, CircleDollarSign, Undo2, TrendingDown, FileUp, Database, AlertCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { AddOrderModal } from "./components/add-order-modal";
 import { AddReturnModal } from "../returns/components/add-return-modal";
@@ -21,6 +21,7 @@ import { BulkUploadModal } from "./components/bulk-upload-modal";
 import { BulkUploadReturnsModal } from "../returns/components/bulk-upload-returns-modal";
 import { apiFetch } from "@/lib/apiFetch";
 import { cn } from "@/lib/utils";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 const ORDER_STATUSES = [
   "DELIVERED", "SHIPPED", "READY_TO_SHIP", "CANCELLED", "RTO_INITIATED", "RTO_LOCKED", 
@@ -201,15 +202,30 @@ export default function OrdersPage() {
       });
 
       const json = await res.json();
-      if (!res.ok) throw new Error(json.error || json.message || "Import failed");
-
-      const errorText = json.failed_rows > 0 
-        ? ` | Failed: ${json.failed_rows}\nErrors: ${json.error_log.slice(0, 5).map((e: any) => e.message || e).join(', ')}` 
-        : "";
+      if (!res.ok) throw new Error(json.message || "Import failed");
 
       toast({
-        title: "Import Summary",
-        description: `Imported: ${json.orders_imported} | Skipped: ${json.duplicates_skipped} | New SKUs: ${json.new_skus_created}${errorText}`,
+        title: "Import Completed",
+        description: (
+          <div className="mt-2 space-y-2">
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              <div className="p-2 bg-emerald-500/10 rounded-lg text-emerald-600 font-bold">Imported: {json.imported}</div>
+              <div className="p-2 bg-blue-500/10 rounded-lg text-blue-600 font-bold">Skipped: {json.duplicates}</div>
+              <div className="p-2 bg-purple-500/10 rounded-lg text-purple-600 font-bold">New SKUs: {json.new_skus}</div>
+              <div className="p-2 bg-rose-500/10 rounded-lg text-rose-600 font-bold">Failed: {json.failed}</div>
+            </div>
+            {json.errors && json.errors.length > 0 && (
+              <ScrollArea className="h-20 w-full rounded border p-2 bg-muted/50">
+                {json.errors.map((err: any, idx: number) => (
+                  <div key={idx} className="text-[10px] flex items-start gap-1 mb-1">
+                    <AlertCircle className="h-3 w-3 text-rose-500 shrink-0 mt-0.5" />
+                    <span className="text-muted-foreground">Row {err.row}: {err.msg}</span>
+                  </div>
+                ))}
+              </ScrollArea>
+            )}
+          </div>
+        ),
       });
 
       fetchData();
@@ -231,7 +247,6 @@ export default function OrdersPage() {
 
   return (
     <div className="p-6 space-y-6">
-      {/* Hidden File Input for Marketplace Import */}
       <input 
         type="file" 
         ref={fileInputRef} 
@@ -240,7 +255,6 @@ export default function OrdersPage() {
         accept=".csv,.xlsx,.xls,.tsv,.txt" 
       />
 
-      {/* Modals */}
       <AddOrderModal 
         isOpen={isOrderModalOpen} 
         onClose={() => { setIsOrderModalOpen(false); setItemToEdit(null); }} 
@@ -293,24 +307,24 @@ export default function OrdersPage() {
                 variant="secondary" 
                 onClick={() => fileInputRef.current?.click()} 
                 disabled={isImporting}
-                className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold"
+                className="bg-indigo-500 hover:bg-indigo-600 text-white font-bold shadow-lg shadow-indigo-500/20"
               >
                 <Database className={cn("mr-2 h-4 w-4", isImporting && "animate-spin")} /> 
                 {isImporting ? "Processing..." : "Upload Marketplace Report"}
               </Button>
-              <Button variant="outline" onClick={() => setIsBulkModalOpen(true)}>
+              <Button variant="outline" onClick={() => setIsBulkModalOpen(true)} className="rounded-xl border-border/50">
                 <FileUp className="mr-2 h-4 w-4" /> Bulk Upload
               </Button>
-              <Button onClick={() => { setItemToEdit(null); setIsOrderModalOpen(true); }}>
+              <Button onClick={() => { setItemToEdit(null); setIsOrderModalOpen(true); }} className="rounded-xl shadow-lg shadow-primary/20 font-bold">
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Order
               </Button>
             </>
           ) : (
             <>
-              <Button variant="outline" onClick={() => setIsBulkReturnModalOpen(true)}>
+              <Button variant="outline" onClick={() => setIsBulkReturnModalOpen(true)} className="rounded-xl border-border/50">
                 <FileUp className="mr-2 h-4 w-4" /> Bulk Upload
               </Button>
-              <Button onClick={() => { setItemToEdit(null); setIsReturnModalOpen(true); }}>
+              <Button onClick={() => { setItemToEdit(null); setIsReturnModalOpen(true); }} className="rounded-xl shadow-lg shadow-primary/20 font-bold">
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Return
               </Button>
             </>
@@ -319,9 +333,9 @@ export default function OrdersPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={handleTabChange} className="w-full">
-        <TabsList className="grid w-full grid-cols-2 max-w-md">
-          <TabsTrigger value="orders">Orders Log</TabsTrigger>
-          <TabsTrigger value="returns">Returns Log</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 max-w-md bg-muted/50 p-1 rounded-2xl">
+          <TabsTrigger value="orders" className="rounded-xl data-[state=active]:shadow-md">Orders Log</TabsTrigger>
+          <TabsTrigger value="returns" className="rounded-xl data-[state=active]:shadow-md">Returns Log</TabsTrigger>
         </TabsList>
 
         <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -331,14 +345,14 @@ export default function OrdersPage() {
                         title="Total Orders" 
                         value={summary?.totalOrders?.toLocaleString('en-IN') || "0"} 
                         icon={Package} 
-                        gradient="from-purple-500 to-indigo-600" 
+                        gradient="from-indigo-500 to-blue-600" 
                         loading={loading} 
                     />
                     <SummaryCard 
                         title="Total Revenue" 
                         value={formatINR(summary?.totalRevenue || 0)} 
                         icon={CircleDollarSign} 
-                        gradient="from-cyan-500 to-blue-600" 
+                        gradient="from-emerald-500 to-teal-600" 
                         loading={loading} 
                     />
                 </>
@@ -355,34 +369,33 @@ export default function OrdersPage() {
                         title="Total Loss" 
                         value={formatINR(summary?.totalLoss || 0)} 
                         icon={TrendingDown} 
-                        gradient="from-red-500 to-rose-600" 
+                        gradient="from-rose-500 to-red-600" 
                         loading={loading} 
                     />
                 </>
             )}
         </div>
 
-        {/* Global Filters */}
-        <Card className="mt-6 border-0 shadow-sm bg-muted/30">
-          <CardContent className="p-4 grid grid-cols-1 md:grid-cols-6 lg:grid-cols-7 gap-4 items-end">
+        <Card className="mt-6 border-0 shadow-sm bg-muted/20 backdrop-blur-sm rounded-[2rem] overflow-hidden">
+          <CardContent className="p-6 grid grid-cols-1 md:grid-cols-6 lg:grid-cols-7 gap-4 items-end">
             <div className="space-y-1.5 md:col-span-2">
-              <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Search</label>
+              <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Search Database</label>
               <div className="relative">
-                <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <Input 
                   placeholder="Order ID, SKU or Product..." 
-                  className="pl-8 bg-background" 
+                  className="pl-9 h-11 bg-background border-border/50 rounded-xl" 
                   value={searchTerm} 
-                  onChange={(e) => setSearchTerm(e.target.value)} 
+                  onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }} 
                 />
               </div>
             </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Platform</label>
-              <Select value={platformFilter} onValueChange={setPlatformFilter}>
-                <SelectTrigger className="bg-background"><SelectValue placeholder="Platform" /></SelectTrigger>
+              <Select value={platformFilter} onValueChange={(v) => { setPlatformFilter(v); setPage(1); }}>
+                <SelectTrigger className="h-11 bg-background border-border/50 rounded-xl"><SelectValue placeholder="Platform" /></SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="all">All Platforms</SelectItem>
+                  <SelectItem value="all">All Channels</SelectItem>
                   <SelectItem value="Meesho">Meesho</SelectItem>
                   <SelectItem value="Flipkart">Flipkart</SelectItem>
                   <SelectItem value="Amazon">Amazon</SelectItem>
@@ -392,10 +405,10 @@ export default function OrdersPage() {
             {activeTab === "orders" && (
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">Status</label>
-                <Select value={statusFilter} onValueChange={setStatusFilter}>
-                  <SelectTrigger className="bg-background"><SelectValue placeholder="Status" /></SelectTrigger>
+                <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setPage(1); }}>
+                  <SelectTrigger className="h-11 bg-background border-border/50 rounded-xl"><SelectValue placeholder="Status" /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
+                    <SelectItem value="all">All States</SelectItem>
                     {ORDER_STATUSES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
                   </SelectContent>
                 </Select>
@@ -403,64 +416,64 @@ export default function OrdersPage() {
             )}
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">From</label>
-              <Input type="date" className="bg-background" value={fromDate} onChange={(e) => setFromDate(e.target.value)} />
+              <Input type="date" className="h-11 bg-background border-border/50 rounded-xl" value={fromDate} onChange={(e) => { setFromDate(e.target.value); setPage(1); }} />
             </div>
             <div className="space-y-1.5">
               <label className="text-[10px] font-bold uppercase text-muted-foreground ml-1">To</label>
-              <Input type="date" className="bg-background" value={toDate} onChange={(e) => setToDate(e.target.value)} />
+              <Input type="date" className="h-11 bg-background border-border/50 rounded-xl" value={toDate} onChange={(e) => { setToDate(e.target.value); setPage(1); }} />
             </div>
-            <Button variant="ghost" onClick={resetFilters} className="h-10 text-xs font-bold uppercase md:col-start-6 lg:col-start-7">
+            <Button variant="ghost" onClick={resetFilters} className="h-11 rounded-xl text-xs font-bold uppercase hover:bg-destructive/5 hover:text-destructive">
               <FilterX className="mr-2 h-4 w-4" /> Reset
             </Button>
           </CardContent>
         </Card>
 
         <TabsContent value="orders" className="mt-6">
-          <Card className="border-0 shadow-md">
+          <Card className="border-0 shadow-xl rounded-[2rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead className="w-[120px]">Order ID</TableHead>
-                    <TableHead>Date</TableHead>
-                    <TableHead>Platform</TableHead>
-                    <TableHead>SKU / Product</TableHead>
-                    <TableHead className="text-right">Qty</TableHead>
-                    <TableHead className="text-right">Total</TableHead>
-                    <TableHead className="text-center">Status</TableHead>
-                    <TableHead className="text-right w-[100px]">Actions</TableHead>
+                  <TableRow className="bg-muted/30 hover:bg-muted/30 border-border/50 h-14">
+                    <TableHead className="px-6 font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Order ID</TableHead>
+                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Date</TableHead>
+                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Platform</TableHead>
+                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground">SKU / Product</TableHead>
+                    <TableHead className="text-right font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Qty</TableHead>
+                    <TableHead className="text-right font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Total</TableHead>
+                    <TableHead className="text-center font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Status</TableHead>
+                    <TableHead className="text-right w-[100px] px-6 font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading ? (
                     Array.from({ length: 5 }).map((_, i) => (
-                      <TableRow key={i}><TableCell colSpan={8}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
+                      <TableRow key={i} className="h-20"><TableCell colSpan={8} className="px-6"><Skeleton className="h-10 w-full rounded-xl" /></TableCell></TableRow>
                     ))
                   ) : (activeTab === "orders" && data.length > 0) ? (
                     data.map((o) => (
-                      <TableRow key={o.id}>
-                        <TableCell className="font-mono text-[10px] font-bold text-muted-foreground">{o.external_order_id}</TableCell>
-                        <TableCell className="font-medium text-xs whitespace-nowrap">{safeFormatDate(o.order_date)}</TableCell>
-                        <TableCell><Badge variant="outline">{o.platform}</Badge></TableCell>
+                      <TableRow key={o.id} className="hover:bg-primary/5 transition-colors border-border/50 h-20">
+                        <TableCell className="px-6 font-mono text-[10px] font-black text-muted-foreground/60">{o.external_order_id}</TableCell>
+                        <TableCell className="font-bold text-xs whitespace-nowrap">{safeFormatDate(o.order_date)}</TableCell>
+                        <TableCell><Badge variant="outline" className="rounded-lg font-black text-[9px] uppercase tracking-tighter">{o.platform}</Badge></TableCell>
                         <TableCell>
                           <div className="flex flex-col">
-                            <span className="font-bold text-sm font-code uppercase">{o.variant_sku}</span>
-                            <span className="text-[10px] text-muted-foreground truncate max-w-[200px]">{o.product_name}</span>
+                            <span className="font-black text-xs font-code uppercase tracking-tight text-foreground">{o.variant_sku}</span>
+                            <span className="text-[10px] text-muted-foreground truncate max-w-[180px] font-medium">{o.product_name || "Custom Item"}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="text-right">{o.quantity}</TableCell>
-                        <TableCell className="text-right font-bold text-primary">{formatINR(o.total_amount)}</TableCell>
+                        <TableCell className="text-right font-black text-xs">{o.quantity}</TableCell>
+                        <TableCell className="text-right font-black text-indigo-600 dark:text-indigo-400">{formatINR(o.total_amount)}</TableCell>
                         <TableCell className="text-center">
-                          <Badge className={cn("text-[10px] font-black tracking-tighter uppercase", getStatusBadge(o.status))}>
+                          <Badge className={cn("text-[9px] font-black tracking-widest uppercase rounded-lg px-2", getStatusBadge(o.status))}>
                             {o.status || "PENDING"}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="px-6 text-right">
                           <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="icon" onClick={() => { setItemToEdit(o); setIsOrderModalOpen(true); }}>
+                            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl hover:bg-primary/10 hover:text-primary transition-colors" onClick={() => { setItemToEdit(o); setIsOrderModalOpen(true); }}>
                               <Pencil className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="hover:text-destructive" onClick={() => setItemToDelete({ id: o.id, description: `Order for ${o.variant_sku}` })}>
+                            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl hover:bg-destructive/10 hover:text-destructive transition-colors" onClick={() => setItemToDelete({ id: o.id, description: `Order for ${o.variant_sku}` })}>
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
@@ -468,7 +481,7 @@ export default function OrdersPage() {
                       </TableRow>
                     ))
                   ) : (
-                    <TableRow><TableCell colSpan={8} className="h-24 text-center text-muted-foreground">No orders found.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={8} className="h-40 text-center text-muted-foreground italic font-medium">No order records matched your current filters.</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -477,49 +490,49 @@ export default function OrdersPage() {
         </TabsContent>
 
         <TabsContent value="returns" className="mt-6">
-          <Card className="border-0 shadow-md">
+          <Card className="border-0 shadow-xl rounded-[2rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
             <CardContent className="p-0">
               <Table>
                 <TableHeader>
-                  <TableRow className="bg-muted/50">
-                    <TableHead className="w-[120px]">Date</TableHead>
-                    <TableHead>Platform</TableHead>
-                    <TableHead>SKU / Product</TableHead>
-                    <TableHead className="text-right">Qty</TableHead>
-                    <TableHead className="text-center">Restockable</TableHead>
-                    <TableHead className="text-right">Total Loss</TableHead>
-                    <TableHead className="text-right w-[100px]">Actions</TableHead>
+                  <TableRow className="bg-muted/30 hover:bg-muted/30 border-border/50 h-14">
+                    <TableHead className="px-6 font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Date</TableHead>
+                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Platform</TableHead>
+                    <TableHead className="font-bold text-[10px] uppercase tracking-widest text-muted-foreground">SKU / Product</TableHead>
+                    <TableHead className="text-right font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Qty</TableHead>
+                    <TableHead className="text-center font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Restockable</TableHead>
+                    <TableHead className="text-right font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Total Loss</TableHead>
+                    <TableHead className="text-right w-[100px] px-6 font-bold text-[10px] uppercase tracking-widest text-muted-foreground">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {loading ? (
                     Array.from({ length: 5 }).map((_, i) => (
-                      <TableRow key={i}><TableCell colSpan={7}><Skeleton className="h-8 w-full" /></TableCell></TableRow>
+                      <TableRow key={i} className="h-20"><TableCell colSpan={7} className="px-6"><Skeleton className="h-10 w-full rounded-xl" /></TableCell></TableRow>
                     ))
                   ) : (activeTab === "returns" && data.length > 0) ? (
                     data.map((r) => (
-                      <TableRow key={r.id}>
-                        <TableCell className="font-medium">{safeFormatDate(r.return_date)}</TableCell>
-                        <TableCell><Badge variant="secondary">{r.platform}</Badge></TableCell>
+                      <TableRow key={r.id} className="hover:bg-primary/5 transition-colors border-border/50 h-20">
+                        <TableCell className="px-6 font-bold text-xs">{safeFormatDate(r.return_date)}</TableCell>
+                        <TableCell><Badge variant="secondary" className="rounded-lg font-black text-[9px] uppercase tracking-tighter">{r.platform}</Badge></TableCell>
                         <TableCell>
                           <div className="flex flex-col">
-                            <span className="font-bold text-sm font-code uppercase">{r.variant_sku}</span>
-                            <span className="text-[10px] text-muted-foreground truncate max-w-[200px]">{r.product_name}</span>
+                            <span className="font-black text-xs font-code uppercase tracking-tight text-foreground">{r.variant_sku}</span>
+                            <span className="text-[10px] text-muted-foreground truncate max-w-[180px] font-medium">{r.product_name || "Custom Item"}</span>
                           </div>
                         </TableCell>
-                        <TableCell className="text-right">{r.quantity}</TableCell>
+                        <TableCell className="text-right font-black text-xs">{r.quantity}</TableCell>
                         <TableCell className="text-center">
-                          <Badge variant={r.restockable ? "default" : "destructive"} className={r.restockable ? "bg-emerald-500" : ""}>
-                            {r.restockable ? "Yes" : "No"}
+                          <Badge variant={r.restockable ? "default" : "destructive"} className={cn("rounded-lg text-[9px] font-black uppercase", r.restockable ? "bg-emerald-500 hover:bg-emerald-600" : "")}>
+                            {r.restockable ? "RESTOCKED" : "SCRAPPED"}
                           </Badge>
                         </TableCell>
-                        <TableCell className="text-right font-bold text-red-600">{formatINR(r.total_loss)}</TableCell>
-                        <TableCell className="text-right">
+                        <TableCell className="text-right font-black text-rose-600 dark:text-rose-400">{formatINR(r.total_loss)}</TableCell>
+                        <TableCell className="px-6 text-right">
                           <div className="flex justify-end gap-1">
-                            <Button variant="ghost" size="icon" onClick={() => { setItemToEdit(r); setIsReturnModalOpen(true); }}>
+                            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl hover:bg-primary/10 hover:text-primary transition-colors" onClick={() => { setItemToEdit(r); setIsReturnModalOpen(true); }}>
                               <Pencil className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="hover:text-destructive" onClick={() => setItemToDelete({ id: r.id, description: `Return for ${r.variant_sku}` })}>
+                            <Button variant="ghost" size="icon" className="h-9 w-9 rounded-xl hover:bg-destructive/10 hover:text-destructive transition-colors" onClick={() => setItemToDelete({ id: r.id, description: `Return for ${r.variant_sku}` })}>
                               <Trash2 className="h-4 w-4" />
                             </Button>
                           </div>
@@ -527,7 +540,7 @@ export default function OrdersPage() {
                       </TableRow>
                     ))
                   ) : (
-                    <TableRow><TableCell colSpan={7} className="h-24 text-center text-muted-foreground">No returns found.</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={7} className="h-40 text-center text-muted-foreground italic font-medium">No return records found for this period.</TableCell></TableRow>
                   )}
                 </TableBody>
               </Table>
@@ -535,13 +548,19 @@ export default function OrdersPage() {
           </Card>
         </TabsContent>
 
-        {/* Pagination */}
-        <div className="flex items-center justify-end space-x-2 py-4 mt-2">
-          <span className="text-sm text-muted-foreground">
-            {totalRows > 0 ? `Page ${page} of ${Math.ceil(totalRows / pageSize)}` : 'Page 0 of 0'}
-          </span>
-          <Button variant="outline" size="sm" onClick={() => setPage(p => p - 1)} disabled={page === 1}>Previous</Button>
-          <Button variant="outline" size="sm" onClick={() => setPage(p => p + 1)} disabled={(page * pageSize) >= totalRows}>Next</Button>
+        <div className="flex items-center justify-between py-8">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
+            Total records found: <span className="text-foreground">{totalRows}</span>
+          </p>
+          <div className="flex items-center gap-3">
+            <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+              Page {page} of {Math.max(1, Math.ceil(totalRows / pageSize))}
+            </span>
+            <div className="flex items-center gap-1">
+              <Button variant="outline" size="sm" onClick={() => setPage(p => p - 1)} disabled={page === 1} className="h-9 px-4 rounded-xl font-bold text-[10px] uppercase tracking-tighter">Previous</Button>
+              <Button variant="outline" size="sm" onClick={() => setPage(p => p + 1)} disabled={(page * pageSize) >= totalRows} className="h-9 px-4 rounded-xl font-bold text-[10px] uppercase tracking-tighter">Next</Button>
+            </div>
+          </div>
         </div>
       </Tabs>
     </div>

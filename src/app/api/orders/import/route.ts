@@ -7,20 +7,11 @@ import Papa from 'papaparse';
 export const dynamic = "force-dynamic";
 
 /**
- * Helper to find a value in a row object based on a partial key match
+ * Universal Marketplace Order Importer
+ * Supports: Meesho, Flipkart, Amazon
+ * Formats: .csv, .tsv, .xlsx, .txt
  */
-function findValueByPattern(row: any, patterns: string[]) {
-  const key = Object.keys(row).find(k => 
-    patterns.some(p => k.toLowerCase().includes(p.toLowerCase()))
-  );
-  return key ? row[key] : undefined;
-}
 
-/**
- * POST /api/orders/import
- * Handles marketplace report uploads (Amazon, Flipkart, Meesho)
- * Supports CSV, XLSX, XLS, and TSV (Meesho/Amazon exports).
- */
 export async function POST(request: Request) {
   try {
     const accountId = request.headers.get("x-account-id");
@@ -35,181 +26,154 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: "No file provided" }, { status: 400 });
     }
 
-    const fileName = file.name.toLowerCase();
     const buffer = await file.arrayBuffer();
+    const fileName = file.name.toLowerCase();
     
     let jsonData: any[] = [];
 
-    // 1. Robust File Parsing
-    const isTextFile = fileName.endsWith('.txt') || fileName.endsWith('.tsv') || fileName.endsWith('.csv');
-    
-    if (isTextFile) {
-      const text = new TextDecoder().decode(buffer);
-      // PapaParse handles TSV/CSV with header detection automatically
-      const parseResult = Papa.parse(text, { 
-        header: true, 
-        skipEmptyLines: true,
-        transformHeader: (h) => h.trim()
-      });
-      jsonData = parseResult.data;
-    } else {
-      // XLSX / XLS logic
+    // 1. Parsing Logic based on file type
+    if (fileName.endsWith('.xlsx') || fileName.endsWith('.xls')) {
       const workbook = XLSX.read(buffer, { type: 'buffer' });
       const sheetName = workbook.SheetNames[0];
       jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+    } else {
+      const text = new TextDecoder().decode(buffer);
+      // Auto-detect delimiter: If it contains tabs, use TSV mode
+      const isTabDelimited = text.includes('\t');
+      const parseResult = Papa.parse(text, {
+        header: true,
+        skipEmptyLines: true,
+        delimiter: isTabDelimited ? "\t" : ",",
+        transformHeader: (h) => h.trim()
+      });
+      jsonData = parseResult.data;
     }
 
     if (jsonData.length === 0) {
-      return NextResponse.json({ success: false, message: "Report is empty or malformed" }, { status: 400 });
+      return NextResponse.json({ success: false, message: "Report is empty" }, { status: 400 });
     }
 
-    // 2. Normalize Headers for Detection
-    const headers = Object.keys(jsonData[0]);
-    console.log("Importer - Detected headers:", headers);
+    // 2. Platform Detection via Headers
+    const headers = Object.keys(jsonData[0]).map(h => h.toLowerCase());
+    let platform: 'Meesho' | 'Flipkart' | 'Amazon' | '' = '';
 
-    const normalizedHeaders = headers.map(h => 
-      h.toLowerCase().replace(/[^a-z0-9]/g, "")
-    );
-
-    let platform = "";
-
-    const isAmazon = normalizedHeaders.some(h => h.includes("orderid")) && normalizedHeaders.some(h => h.includes("purchasedate"));
-    const isMeesho = (
-      normalizedHeaders.some(h => h.includes("suborderno") || h.includes("meeshoorderid")) && 
-      normalizedHeaders.some(h => h.includes("supplierlistedprice") || h.includes("suppliersku"))
-    );
-    const isFlipkart = normalizedHeaders.some(h => h.includes("orderid") || h.includes("orderitemid")) && normalizedHeaders.some(h => h.includes("fsn") || h.includes("sku"));
-
-    if (isAmazon) platform = "Amazon";
-    else if (isMeesho) platform = "Meesho";
-    else if (isFlipkart) platform = "Flipkart";
+    if (headers.includes('sub order no')) platform = 'Meesho';
+    else if (headers.includes('order_item_id')) platform = 'Flipkart';
+    else if (headers.includes('order-id')) platform = 'Amazon';
 
     if (!platform) {
       return NextResponse.json({ 
         success: false, 
-        message: "Unsupported report format. Could not detect platform from headers.",
-        detectedHeaders: headers
+        message: "Unsupported report format. Could not detect marketplace.",
+        detectedHeaders: Object.keys(jsonData[0])
       }, { status: 400 });
     }
 
-    console.log(`Importer - Detected platform: ${platform}`);
     const stats = {
-      orders_imported: 0,
-      duplicates_skipped: 0,
-      new_skus_created: 0,
-      failed_rows: 0,
-      error_log: [] as any[]
+      imported: 0,
+      duplicates: 0,
+      new_skus: 0,
+      failed: 0,
+      errors: [] as { row: number; msg: string }[]
     };
 
     // 3. Process Rows
     for (let i = 0; i < jsonData.length; i++) {
       const row = jsonData[i];
-      const rowNum = i + 2; 
+      const rowNum = i + 2;
 
       try {
-        let external_id = "";
-        let raw_date = "";
+        let ext_id = "";
+        let date_str = "";
         let sku_str = "";
-        let qty = 1;
+        let qty = 0;
         let price = 0;
+        let status = "SHIPPED";
 
-        if (platform === "Amazon") {
-          external_id = String(findValueByPattern(row, ["order-id", "order_id"]) || "");
-          raw_date = findValueByPattern(row, ["purchase-date", "order_date"]) || "";
-          sku_str = String(findValueByPattern(row, ["sku"]) || "").trim().toUpperCase();
-          qty = parseInt(findValueByPattern(row, ["quantity-purchased", "quantity"])) || 1;
-          price = parseFloat(findValueByPattern(row, ["item-price", "selling_price"])) || 0;
+        // Mapping Logic
+        if (platform === 'Meesho') {
+          ext_id = String(row['Sub Order No'] || "");
+          date_str = String(row['Order Date'] || "");
+          sku_str = String(row['SKU'] || "").trim().toUpperCase();
+          qty = parseInt(row['Quantity']) || 0;
+          // Find price column flexibly as it often contains "(Incl. GST...)"
+          const priceKey = Object.keys(row).find(k => k.toLowerCase().includes('supplier listed price'));
+          price = priceKey ? parseFloat(row[priceKey]) || 0 : 0;
+          status = String(row['Reason for Credit Entry'] || "DELIVERED");
         } 
-        else if (platform === "Meesho") {
-          const orderIdCol = headers.find(h => h.toLowerCase().includes("sub order") || h.toLowerCase().includes("order id"));
-          const dateCol = headers.find(h => h.toLowerCase().includes("order date"));
-          const skuCol = headers.find(h => h.toLowerCase().includes("sku"));
-          const quantityCol = headers.find(h => h.toLowerCase().includes("quantity"));
-          const priceCol = headers.find(h => h.toLowerCase().includes("supplier listed price") || h.toLowerCase().includes("listed price"));
-
-          external_id = String(row[orderIdCol!] || "");
-          raw_date = String(row[dateCol!] || "");
-          sku_str = String(row[skuCol!] || "").trim().toUpperCase();
-          qty = Number(row[quantityCol!]) || 1;
-          price = Number(row[priceCol!]) || 0;
-        } 
-        else if (platform === "Flipkart") {
-          external_id = String(findValueByPattern(row, ["order_id", "order_item_id"]) || "");
-          raw_date = findValueByPattern(row, ["order_date"]) || "";
-          sku_str = String(findValueByPattern(row, ["sku", "fsn"]) || "").trim().toUpperCase();
-          qty = parseInt(findValueByPattern(row, ["quantity"])) || 1;
-          price = parseFloat(findValueByPattern(row, ["selling_price", "item_price"]) || 0);
+        else if (platform === 'Flipkart') {
+          ext_id = String(row['order_item_id'] || "");
+          date_str = String(row['order_date'] || "");
+          sku_str = String(row['sku'] || "").trim().toUpperCase();
+          qty = parseInt(row['quantity']) || 0;
+          price = 0; // Flipkart usually requires separate settlement files for pricing
+          status = String(row['order_item_status'] || "SHIPPED");
+        }
+        else if (platform === 'Amazon') {
+          ext_id = String(row['order-id'] || "");
+          date_str = String(row['purchase-date'] || "");
+          sku_str = String(row['sku'] || "").trim().toUpperCase();
+          qty = parseInt(row['quantity-purchased']) || 0;
+          price = parseFloat(row['item-price']) || 0;
+          status = "SHIPPED";
         }
 
-        if (!external_id || external_id === "undefined") continue; 
-        if (!sku_str || sku_str === "undefined") continue;
+        if (!ext_id || ext_id === "undefined") continue;
 
-        // Ensure SKU exists
+        // Duplicate Check
+        const existing = await sql`
+          SELECT id FROM orders WHERE external_order_id = ${ext_id} AND account_id = ${accountId} LIMIT 1
+        `;
+        if (existing.length > 0) {
+          stats.duplicates++;
+          continue;
+        }
+
+        // Variant Resolution
         let variantRes = await sql`
-          SELECT id FROM product_variants 
-          WHERE variant_sku = ${sku_str} AND account_id = ${accountId} AND is_deleted = false 
-          LIMIT 1
+          SELECT id FROM product_variants WHERE variant_sku = ${sku_str} AND account_id = ${accountId} AND is_deleted = false LIMIT 1
         `;
 
+        let variantId;
         if (variantRes.length === 0) {
-          let productRes = await sql`
-            SELECT id FROM allproducts 
-            WHERE sku = ${sku_str} AND account_id = ${accountId} AND is_deleted = false 
-            LIMIT 1
-          `;
-
-          let productId;
-          if (productRes.length === 0) {
-            const productName = findValueByPattern(row, ["product name", "title", "product_name"]) || `Auto Imported: ${sku_str}`;
-            const newProduct = await sql`
-              INSERT INTO allproducts (
-                sku, product_name, category, cost_price, margin, promo_ads, tax_other, packing, 
-                amazon_ship, flipkart_ship, meesho_price, flipkart_price, amazon_price, stock, account_id
-              )
-              VALUES (
-                ${sku_str}, ${productName}, 'Auto Imported', 0, 0, 20, 10, 15, 80, 80, 0, 0, 0, 0, ${accountId}
-              )
-              RETURNING id
-            `;
-            productId = newProduct[0].id;
-            stats.new_skus_created++;
-          } else {
-            productId = productRes[0].id;
-          }
-
+          // Auto-create missing variant
           const newVariant = await sql`
-            INSERT INTO product_variants (product_id, variant_sku, stock, account_id, low_stock_threshold)
-            VALUES (${productId}, ${sku_str}, 0, ${accountId}, 5)
+            INSERT INTO product_variants (variant_sku, stock, account_id, low_stock_threshold)
+            VALUES (${sku_str}, 0, ${accountId}, 5)
             RETURNING id
           `;
-          variantRes = [{ id: newVariant[0].id }];
+          variantId = newVariant[0].id;
+          stats.new_skus++;
+        } else {
+          variantId = variantRes[0].id;
         }
 
-        const variantId = variantRes[0].id;
         const total_amount = price * qty;
 
-        // Insert Order with Duplicate Protection
-        const insertRes = await sql`
+        // Atomic Insert and Stock Update
+        await sql`
+          BEGIN;
           INSERT INTO orders (
-            external_order_id, order_date, platform, variant_id, quantity, selling_price, total_amount, account_id, status
+            external_order_id, order_date, platform, variant_id, 
+            quantity, selling_price, total_amount, account_id, status
           )
           VALUES (
-            ${external_id}, ${raw_date}, ${platform}, ${variantId}, ${qty}, ${price}, ${total_amount}, ${accountId}, 'SHIPPED'
-          )
-          ON CONFLICT (external_order_id) DO NOTHING
-          RETURNING id
+            ${ext_id}, ${date_str}, ${platform}, ${variantId}, 
+            ${qty}, ${price}, ${total_amount}, ${accountId}, ${status}
+          );
+          
+          UPDATE product_variants 
+          SET stock = stock - ${qty}
+          WHERE id = ${variantId} AND account_id = ${accountId};
+          COMMIT;
         `;
 
-        if (insertRes.length > 0) {
-          stats.orders_imported++;
-        } else {
-          stats.duplicates_skipped++;
-        }
+        stats.imported++;
 
-      } catch (rowErr: any) {
-        stats.failed_rows++;
-        if (stats.error_log.length < 20) {
-          stats.error_log.push({ row: rowNum, message: rowErr.message });
+      } catch (err: any) {
+        stats.failed++;
+        if (stats.errors.length < 50) {
+          stats.errors.push({ row: rowNum, msg: err.message });
         }
       }
     }
@@ -217,10 +181,10 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, ...stats });
 
   } catch (error: any) {
-    console.error("Importer Fatal Error:", error);
+    console.error("FATAL IMPORT ERROR:", error);
     return NextResponse.json({ 
       success: false, 
-      message: "Parsing failed due to internal error", 
+      message: "An internal error occurred during import", 
       error: error.message 
     }, { status: 500 });
   }
