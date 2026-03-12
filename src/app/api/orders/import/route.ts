@@ -6,6 +6,16 @@ import * as XLSX from 'xlsx';
 export const dynamic = "force-dynamic";
 
 /**
+ * Helper to find a value in a row object based on a partial key match
+ */
+function findValueByPattern(row: any, patterns: string[]) {
+  const key = Object.keys(row).find(k => 
+    patterns.some(p => k.toLowerCase().includes(p.toLowerCase()))
+  );
+  return key ? row[key] : undefined;
+}
+
+/**
  * POST /api/orders/import
  * Handles marketplace report uploads (Amazon .txt/TSV, Flipkart, Meesho)
  * Detects platform, creates missing SKUs, and inserts orders.
@@ -29,14 +39,13 @@ export async function POST(request: Request) {
     
     let jsonData: any[] = [];
 
-    // Handle Amazon .txt (Tab Separated)
+    // 1. Parse File
     if (fileName.endsWith('.txt')) {
       const text = new TextDecoder().decode(buffer);
       const workbook = XLSX.read(text, { type: 'string', FS: '\t' });
       const sheetName = workbook.SheetNames[0];
       jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
     } else {
-      // Standard Excel/CSV
       const workbook = XLSX.read(buffer, { type: 'buffer' });
       const sheetName = workbook.SheetNames[0];
       jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
@@ -46,21 +55,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: "Report is empty or malformed" }, { status: 400 });
     }
 
-    // Platform Detection Logic (Case Insensitive)
+    // 2. Detect Platform
     const firstRowKeys = Object.keys(jsonData[0]).map(k => k.toLowerCase());
     let platform = "";
 
-    const amazonKeys = ["order-id", "order-item-id", "purchase-date", "quantity-purchased"];
-    const meeshoKeys = ["sub order no", "sub order number", "sku code", "order id"];
-    const flipkartKeys = ["order_id", "order_item_id", "fsn"];
+    const isAmazon = firstRowKeys.some(k => k.includes("order-id") || k.includes("quantity-purchased"));
+    const isMeesho = firstRowKeys.some(k => k.includes("sub order")) && firstRowKeys.some(k => k.includes("supplier listed price"));
+    const isFlipkart = firstRowKeys.some(k => k.includes("order_id") || k.includes("order_item_id") || k.includes("fsn"));
 
-    if (amazonKeys.some(k => firstRowKeys.includes(k))) {
-      platform = "Amazon";
-    } else if (meeshoKeys.some(k => firstRowKeys.includes(k))) {
-      platform = "Meesho";
-    } else if (flipkartKeys.some(k => firstRowKeys.includes(k))) {
-      platform = "Flipkart";
-    }
+    if (isAmazon) platform = "Amazon";
+    else if (isMeesho) platform = "Meesho";
+    else if (isFlipkart) platform = "Flipkart";
 
     if (!platform) {
       return NextResponse.json({ 
@@ -76,6 +81,7 @@ export async function POST(request: Request) {
       errors: 0
     };
 
+    // 3. Process Rows
     for (const row of jsonData) {
       try {
         let external_id = "";
@@ -84,30 +90,31 @@ export async function POST(request: Request) {
         let qty = 1;
         let price = 0;
 
-        // Platform Mapping
         if (platform === "Amazon") {
-          external_id = String(row["order-id"] || "");
+          external_id = String(row["order-id"] || row["order-item-id"] || "");
           raw_date = row["purchase-date"] || "";
           sku_str = String(row["sku"] || "").trim().toUpperCase();
           qty = parseInt(row["quantity-purchased"]) || 1;
           price = parseFloat(row["item-price"]) || 0;
-        } else if (platform === "Meesho") {
-          external_id = String(row["Sub Order No"] || row["Sub Order Number"] || row["Order ID"] || "");
-          raw_date = row["Order Date"] || "";
-          sku_str = String(row["SKU"] || row["SKU Code"] || "").trim().toUpperCase();
-          qty = parseInt(row["Quantity"]) || 1;
-          price = parseFloat(row["Supplier Listed Price"]) || 0;
-        } else if (platform === "Flipkart") {
+        } 
+        else if (platform === "Meesho") {
+          external_id = String(findValueByPattern(row, ["sub order"]) || "");
+          raw_date = String(findValueByPattern(row, ["order date"]) || "");
+          sku_str = String(row["SKU"] || row["sku"] || findValueByPattern(row, ["sku"]) || "").trim().toUpperCase();
+          qty = parseInt(findValueByPattern(row, ["quantity"])) || 1;
+          price = parseFloat(findValueByPattern(row, ["supplier listed price"])) || 0;
+        } 
+        else if (platform === "Flipkart") {
           external_id = String(row["order_id"] || row["order_item_id"] || "");
           raw_date = row["order_date"] || "";
-          sku_str = String(row["sku"] || "").trim().toUpperCase();
+          sku_str = String(row["sku"] || row["fsn"] || "").trim().toUpperCase();
           qty = parseInt(row["quantity"]) || 1;
           price = parseFloat(row["selling_price"] || row["item_price"] || 0);
         }
 
         if (!external_id || !sku_str) continue;
 
-        // Ensure SKU exists
+        // 4. Ensure SKU exists
         let variantRes = await sql`
           SELECT id FROM product_variants 
           WHERE variant_sku = ${sku_str} AND account_id = ${accountId} AND is_deleted = false 
@@ -123,7 +130,7 @@ export async function POST(request: Request) {
 
           let productId;
           if (productRes.length === 0) {
-            const productName = row["product_name"] || row["title"] || row["Product Name"] || `Auto Imported: ${sku_str}`;
+            const productName = row["product_name"] || row["title"] || row["Product Name"] || findValueByPattern(row, ["product name"]) || `Auto Imported: ${sku_str}`;
             const newProduct = await sql`
               INSERT INTO allproducts (
                 sku, product_name, category, cost_price, margin, promo_ads, tax_other, packing, 
@@ -150,7 +157,7 @@ export async function POST(request: Request) {
 
         const variantId = variantRes[0].id;
 
-        // Insert Order with Duplicate Protection
+        // 5. Insert Order with Duplicate Protection
         const insertRes = await sql`
           INSERT INTO orders (
             external_order_id, order_date, platform, variant_id, quantity, selling_price, account_id, status
