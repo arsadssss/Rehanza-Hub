@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState, useCallback, Suspense } from 'react';
+import React, { useEffect, useState, useCallback, useMemo, Suspense } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { formatINR } from '@/lib/format';
 import { useRouter, useSearchParams } from 'next/navigation';
@@ -18,7 +18,8 @@ import {
   FilterX, 
   Archive,
   AlertCircle,
-  FileUp
+  Pencil,
+  Trash2
 } from 'lucide-react';
 import { apiFetch } from '@/lib/apiFetch';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -27,6 +28,16 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { AddProductModal } from './components/add-product-modal';
 import { ProductViewToggle } from '@/components/ProductViewToggle';
 import { SummaryStatCard } from '@/components/SummaryStatCard';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export type Product = {
   id: string;
@@ -46,53 +57,48 @@ export type Product = {
 function ProductsContent() {
   const { toast } = useToast();
   const [isMounted, setIsMounted] = useState(false);
-  const router = useRouter();
   const searchParams = useSearchParams();
   
   const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
 
   const view = (searchParams.get('tab') as "products" | "variants") || "products";
-  const page = parseInt(searchParams.get('page') || '1', 10);
-  const limit = parseInt(searchParams.get('limit') || '10', 10);
-  const search = searchParams.get('search') || '';
-
+  
   const [products, setProducts] = useState<Product[]>([]);
   const [summary, setSummary] = useState<any>(null);
-  const [pagination, setPagination] = useState({ total: 0, totalPages: 0 });
   const [loading, setLoading] = useState(true);
   
-  const [searchTerm, setSearchTerm] = useState(search);
-  const [isAddProductOpen, setIsAddProductOpen] = useState(false);
+  // Filters State
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState('all');
+  const [stockStatus, setStockStatus] = useState('all');
+  
+  // Pagination State
+  const [page, setPage] = useState(1);
+  const pageSize = 10;
 
-  const updateQuery = useCallback((updates: Record<string, string | null>) => {
-    const params = new URLSearchParams(searchParams.toString());
-    Object.entries(updates).forEach(([key, value]) => {
-      if (value === null || value === '') params.delete(key);
-      else params.set(key, value);
-    });
-    if (!updates.page) params.set('page', '1');
-    router.push(`?${params.toString()}`);
-  }, [router, searchParams]);
+  // Modals State
+  const [isAddProductOpen, setIsAddProductOpen] = useState(false);
+  const [productToEdit, setProductToEdit] = useState<Product | null>(null);
+  const [itemToDelete, setItemToDelete] = useState<Product | null>(null);
 
   const fetchData = useCallback(async () => {
     if (!activeAccountId) return;
     setLoading(true);
     try {
-      const res = await apiFetch(`/api/products?page=${page}&limit=${limit}&search=${search}`);
+      const res = await apiFetch('/api/products');
       if (res.ok) {
         const json = await res.json();
         setProducts(json.data || []);
-        setPagination(json.pagination || { total: 0, totalPages: 0 });
       }
       
       const sRes = await apiFetch('/api/products/summary');
-      if (sRes.ok) setSummary(await sRes.ok ? await sRes.json() : null);
+      if (sRes.ok) setSummary(await sRes.json());
     } catch (error: any) {
       toast({ variant: 'destructive', title: 'Error', description: 'Failed to fetch products' });
     } finally {
       setLoading(false);
     }
-  }, [page, limit, search, activeAccountId, toast]);
+  }, [activeAccountId, toast]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -104,12 +110,68 @@ function ProductsContent() {
     if (activeAccountId) fetchData();
   }, [fetchData, activeAccountId]);
 
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      if (searchTerm !== search) updateQuery({ search: searchTerm });
-    }, 400);
-    return () => clearTimeout(handler);
-  }, [searchTerm, search, updateQuery]);
+  // Combined Filtering Logic
+  const filteredProducts = useMemo(() => {
+    return products.filter(p => {
+      const matchesSearch = 
+        p.sku.toLowerCase().includes(searchTerm.toLowerCase()) || 
+        p.product_name.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      const matchesCategory = selectedCategory === 'all' || p.category === selectedCategory;
+      
+      const matchesStock = 
+        stockStatus === 'all' || 
+        (stockStatus === 'in_stock' && p.stock > 0) || 
+        (stockStatus === 'out_of_stock' && p.stock === 0);
+
+      return matchesSearch && matchesCategory && matchesStock;
+    });
+  }, [products, searchTerm, selectedCategory, stockStatus]);
+
+  // Derived Categories for Filter
+  const categories = useMemo(() => {
+    const cats = new Set(products.map(p => p.category).filter(Boolean));
+    return Array.from(cats) as string[];
+  }, [products]);
+
+  // Pagination Logic (Slicing)
+  const totalPages = Math.ceil(filteredProducts.length / pageSize);
+  const paginatedProducts = useMemo(() => {
+    const start = (page - 1) * pageSize;
+    return filteredProducts.slice(start, start + pageSize);
+  }, [filteredProducts, page]);
+
+  const handleEdit = (product: Product) => {
+    setProductToEdit(product);
+    setIsAddProductOpen(true);
+  };
+
+  const handleDelete = async () => {
+    if (!itemToDelete) return;
+    try {
+      const res = await apiFetch('/api/products/delete', {
+        method: 'DELETE',
+        body: JSON.stringify({ sku: itemToDelete.sku })
+      });
+      if (res.ok) {
+        toast({ title: "Deleted", description: "Product removed successfully" });
+        fetchData();
+      } else {
+        throw new Error("Failed to delete");
+      }
+    } catch (e) {
+      toast({ variant: 'destructive', title: 'Error', description: "Could not delete product" });
+    } finally {
+      setItemToDelete(null);
+    }
+  };
+
+  const resetFilters = () => {
+    setSearchTerm('');
+    setSelectedCategory('all');
+    setStockStatus('all');
+    setPage(1);
+  };
 
   if (!isMounted) return null;
 
@@ -117,19 +179,35 @@ function ProductsContent() {
     <div className="p-6 w-full space-y-6">
       <AddProductModal 
         isOpen={isAddProductOpen} 
-        onClose={() => setIsAddProductOpen(false)} 
-        onSuccess={fetchData} 
+        onClose={() => { setIsAddProductOpen(false); setProductToEdit(null); }} 
+        onSuccess={fetchData}
+        productToEdit={productToEdit}
       />
 
+      <AlertDialog open={!!itemToDelete} onOpenChange={() => setItemToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete the product with SKU: <strong>{itemToDelete?.sku}</strong>.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive hover:bg-destructive/90 text-white">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
       <div className="flex justify-center w-full">
-        <ProductViewToggle value={view as any} onChange={(val) => updateQuery({ tab: val })} />
+        <ProductViewToggle value={view as any} onChange={(val) => {}} />
       </div>
 
       <div className="grid gap-6 grid-cols-1 md:grid-cols-2 lg:grid-cols-4 w-full">
         <SummaryStatCard title="Total Products" value={summary?.totalProducts || 0} icon={<Package className="h-5 w-5" />} loading={loading} />
         <SummaryStatCard title="In Stock" value={summary?.inStockProducts || 0} icon={<Warehouse className="h-5 w-5" />} loading={loading} />
         <SummaryStatCard title="Total Units" value={summary?.totalInventoryUnits || 0} icon={<Archive className="h-5 w-5" />} loading={loading} />
-        <SummaryStatCard title="Low Stock" value={0} icon={<AlertCircle className="h-5 w-5" />} loading={loading} />
+        <SummaryStatCard title="Out of Stock" value={summary?.outOfStockProducts || 0} icon={<AlertCircle className="h-5 w-5" />} loading={loading} />
       </div>
 
       <Card className="w-full shadow-md border-0">
@@ -142,14 +220,36 @@ function ProductsContent() {
           </Button>
         </CardHeader>
         <CardContent>
-          <div className="mb-6 relative">
-            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Search by SKU or Name..."
-              className="pl-8"
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-            />
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="relative md:col-span-2">
+              <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by SKU or Name..."
+                className="pl-8"
+                value={searchTerm}
+                onChange={(e) => { setSearchTerm(e.target.value); setPage(1); }}
+              />
+            </div>
+            <Select value={selectedCategory} onValueChange={(v) => { setSelectedCategory(v); setPage(1); }}>
+              <SelectTrigger><SelectValue placeholder="Category" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {categories.map(c => <SelectItem key={c} value={c}>{c}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <div className="flex gap-2">
+              <Select value={stockStatus} onValueChange={(v) => { setStockStatus(v); setPage(1); }}>
+                <SelectTrigger className="flex-1"><SelectValue placeholder="Stock Status" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Status</SelectItem>
+                  <SelectItem value="in_stock">In Stock</SelectItem>
+                  <SelectItem value="out_of_stock">Out of Stock</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="ghost" size="icon" onClick={resetFilters} title="Reset Filters">
+                <FilterX className="h-4 w-4" />
+              </Button>
+            </div>
           </div>
 
           <div className="rounded-md border overflow-x-auto">
@@ -164,7 +264,7 @@ function ProductsContent() {
                   <TableHead className="text-right">Flipkart</TableHead>
                   <TableHead className="text-right">Amazon</TableHead>
                   <TableHead className="text-center">Stock</TableHead>
-                  <TableHead className="text-center">Status</TableHead>
+                  <TableHead className="text-center">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -172,8 +272,8 @@ function ProductsContent() {
                   Array.from({ length: 5 }).map((_, i) => (
                     <TableRow key={i}><TableCell colSpan={9}><Skeleton className="h-10 w-full" /></TableCell></TableRow>
                   ))
-                ) : products.length > 0 ? products.map(p => (
-                  <TableRow key={p.id}>
+                ) : paginatedProducts.length > 0 ? paginatedProducts.map(p => (
+                  <TableRow key={p.sku}>
                     <TableCell className="font-bold font-code uppercase">{p.sku}</TableCell>
                     <TableCell className="font-medium max-w-[200px] truncate">{p.product_name}</TableCell>
                     <TableCell className="text-right text-xs text-muted-foreground">{formatINR(p.cost_price)}</TableCell>
@@ -181,11 +281,20 @@ function ProductsContent() {
                     <TableCell className="text-right font-black">{formatINR(p.meesho_price)}</TableCell>
                     <TableCell className="text-right font-black">{formatINR(p.flipkart_price)}</TableCell>
                     <TableCell className="text-right font-black">{formatINR(p.amazon_price)}</TableCell>
-                    <TableCell className="text-center font-bold">{p.stock}</TableCell>
                     <TableCell className="text-center">
                       <Badge variant={p.stock > 0 ? "default" : "destructive"}>
-                        {p.stock > 0 ? "In Stock" : "Sold Out"}
+                        {p.stock}
                       </Badge>
+                    </TableCell>
+                    <TableCell className="text-center">
+                      <div className="flex justify-center gap-1">
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => handleEdit(p)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => setItemToDelete(p)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 )) : (
@@ -196,11 +305,11 @@ function ProductsContent() {
           </div>
 
           <div className="flex items-center justify-end space-x-2 py-4">
-            <Button variant="outline" size="sm" onClick={() => updateQuery({ page: (page - 1).toString() })} disabled={page === 1}>
+            <Button variant="outline" size="sm" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="text-sm font-medium">Page {page} of {pagination.totalPages}</span>
-            <Button variant="outline" size="sm" onClick={() => updateQuery({ page: (page + 1).toString() })} disabled={page >= pagination.totalPages}>
+            <span className="text-sm font-medium">Page {page} of {totalPages || 1}</span>
+            <Button variant="outline" size="sm" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page >= totalPages}>
               <ChevronRight className="h-4 w-4" />
             </Button>
           </div>
