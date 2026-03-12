@@ -2,6 +2,7 @@
 import { sql } from '@/lib/db';
 import { NextResponse } from 'next/server';
 import * as XLSX from 'xlsx';
+import Papa from 'papaparse';
 
 export const dynamic = "force-dynamic";
 
@@ -17,8 +18,8 @@ function findValueByPattern(row: any, patterns: string[]) {
 
 /**
  * POST /api/orders/import
- * Handles marketplace report uploads (Amazon .txt/TSV, Flipkart, Meesho)
- * Detects platform, creates missing SKUs, and inserts orders.
+ * Handles marketplace report uploads (Amazon, Flipkart, Meesho)
+ * Supports CSV, XLSX, XLS, and TSV (Meesho/Amazon exports).
  */
 export async function POST(request: Request) {
   try {
@@ -39,13 +40,20 @@ export async function POST(request: Request) {
     
     let jsonData: any[] = [];
 
-    // 1. Parse File
-    if (fileName.endsWith('.txt')) {
+    // 1. Robust File Parsing
+    const isTextFile = fileName.endsWith('.txt') || fileName.endsWith('.tsv') || fileName.endsWith('.csv');
+    
+    if (isTextFile) {
       const text = new TextDecoder().decode(buffer);
-      const workbook = XLSX.read(text, { type: 'string', FS: '\t' });
-      const sheetName = workbook.SheetNames[0];
-      jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+      // PapaParse handles TSV/CSV with header detection automatically
+      const parseResult = Papa.parse(text, { 
+        header: true, 
+        skipEmptyLines: true,
+        transformHeader: (h) => h.trim()
+      });
+      jsonData = parseResult.data;
     } else {
+      // XLSX / XLS logic
       const workbook = XLSX.read(buffer, { type: 'buffer' });
       const sheetName = workbook.SheetNames[0];
       jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
@@ -55,7 +63,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ success: false, message: "Report is empty or malformed" }, { status: 400 });
     }
 
-    // 2. Detect Platform
+    // 2. Normalize Headers for Detection
     const headers = Object.keys(jsonData[0]);
     console.log("Importer - Detected headers:", headers);
 
@@ -66,7 +74,10 @@ export async function POST(request: Request) {
     let platform = "";
 
     const isAmazon = normalizedHeaders.some(h => h.includes("orderid")) && normalizedHeaders.some(h => h.includes("purchasedate"));
-    const isMeesho = normalizedHeaders.some(h => h.includes("suborderno")) && normalizedHeaders.some(h => h.includes("supplierlistedprice"));
+    const isMeesho = (
+      normalizedHeaders.some(h => h.includes("suborderno") || h.includes("meeshoorderid")) && 
+      normalizedHeaders.some(h => h.includes("supplierlistedprice") || h.includes("suppliersku"))
+    );
     const isFlipkart = normalizedHeaders.some(h => h.includes("orderid") || h.includes("orderitemid")) && normalizedHeaders.some(h => h.includes("fsn") || h.includes("sku"));
 
     if (isAmazon) platform = "Amazon";
@@ -76,13 +87,12 @@ export async function POST(request: Request) {
     if (!platform) {
       return NextResponse.json({ 
         success: false, 
-        message: "Unsupported report format. Could not detect platform from headers." 
+        message: "Unsupported report format. Could not detect platform from headers.",
+        detectedHeaders: headers
       }, { status: 400 });
     }
 
     console.log(`Importer - Detected platform: ${platform}`);
-    console.log(`Importer - Total Rows to process: ${jsonData.length}`);
-
     const stats = {
       orders_imported: 0,
       duplicates_skipped: 0,
@@ -94,7 +104,7 @@ export async function POST(request: Request) {
     // 3. Process Rows
     for (let i = 0; i < jsonData.length; i++) {
       const row = jsonData[i];
-      const rowNum = i + 2; // +1 for zero-index, +1 for header
+      const rowNum = i + 2; 
 
       try {
         let external_id = "";
@@ -111,11 +121,11 @@ export async function POST(request: Request) {
           price = parseFloat(findValueByPattern(row, ["item-price", "selling_price"])) || 0;
         } 
         else if (platform === "Meesho") {
-          const orderIdCol = headers.find(h => h.toLowerCase().includes("sub order"));
+          const orderIdCol = headers.find(h => h.toLowerCase().includes("sub order") || h.toLowerCase().includes("order id"));
           const dateCol = headers.find(h => h.toLowerCase().includes("order date"));
           const skuCol = headers.find(h => h.toLowerCase().includes("sku"));
           const quantityCol = headers.find(h => h.toLowerCase().includes("quantity"));
-          const priceCol = headers.find(h => h.toLowerCase().includes("supplier listed price"));
+          const priceCol = headers.find(h => h.toLowerCase().includes("supplier listed price") || h.toLowerCase().includes("listed price"));
 
           external_id = String(row[orderIdCol!] || "");
           raw_date = String(row[dateCol!] || "");
@@ -131,8 +141,8 @@ export async function POST(request: Request) {
           price = parseFloat(findValueByPattern(row, ["selling_price", "item_price"]) || 0);
         }
 
-        if (!external_id) throw new Error("Missing External Order ID");
-        if (!sku_str) throw new Error("Missing SKU");
+        if (!external_id || external_id === "undefined") continue; 
+        if (!sku_str || sku_str === "undefined") continue;
 
         // Ensure SKU exists
         let variantRes = await sql`
@@ -197,10 +207,9 @@ export async function POST(request: Request) {
         }
 
       } catch (rowErr: any) {
-        console.error(`Importer - Row ${rowNum} Error:`, rowErr.message);
         stats.failed_rows++;
         if (stats.error_log.length < 20) {
-          stats.error_log.push(`Row ${rowNum}: ${rowErr.message}`);
+          stats.error_log.push({ row: rowNum, message: rowErr.message });
         }
       }
     }
@@ -208,11 +217,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, ...stats });
 
   } catch (error: any) {
-    console.error("Importer System Error:", error);
+    console.error("Importer Fatal Error:", error);
     return NextResponse.json({ 
       success: false, 
-      message: "Importer failed due to internal error", 
-      details: error.message 
+      message: "Parsing failed due to internal error", 
+      error: error.message 
     }, { status: 500 });
   }
 }

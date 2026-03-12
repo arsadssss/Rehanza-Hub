@@ -204,7 +204,7 @@ export default function OrdersPage() {
       if (!res.ok) throw new Error(json.error || json.message || "Import failed");
 
       const errorText = json.failed_rows > 0 
-        ? ` | Failed: ${json.failed_rows}\nErrors: ${json.error_log.slice(0, 5).join(', ')}` 
+        ? ` | Failed: ${json.failed_rows}\nErrors: ${json.error_log.slice(0, 5).map((e: any) => e.message || e).join(', ')}` 
         : "";
 
       toast({
@@ -237,7 +237,7 @@ export default function OrdersPage() {
         ref={fileInputRef} 
         onChange={handleMarketplaceImport} 
         className="hidden" 
-        accept=".csv,.xlsx,.txt" 
+        accept=".csv,.xlsx,.xls,.tsv,.txt" 
       />
 
       {/* Modals */}
