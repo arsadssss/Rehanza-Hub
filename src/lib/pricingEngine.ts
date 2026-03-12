@@ -38,6 +38,6 @@ export function calculatePlatformPrices(product: {
   return {
     meesho_price,
     flipkart_price,
-    amazon_price
+    amazon_price,
   };
 }
