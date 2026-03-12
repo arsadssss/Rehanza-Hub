@@ -7,42 +7,66 @@ export const dynamic = "force-dynamic";
 
 /**
  * POST /api/orders/import
- * Handles marketplace report uploads (Amazon, Flipkart, Meesho)
+ * Handles marketplace report uploads (Amazon .txt/TSV, Flipkart, Meesho)
  * Detects platform, creates missing SKUs, and inserts orders.
  */
 export async function POST(request: Request) {
   try {
     const accountId = request.headers.get("x-account-id");
     if (!accountId) {
-      return NextResponse.json({ error: "Account context missing" }, { status: 400 });
+      return NextResponse.json({ success: false, message: "Account context missing" }, { status: 400 });
     }
 
     const formData = await request.formData();
     const file = formData.get("file") as File;
 
     if (!file || file.size === 0) {
-      return NextResponse.json({ error: "No file provided" }, { status: 400 });
+      return NextResponse.json({ success: false, message: "No file provided" }, { status: 400 });
     }
 
+    const fileName = file.name.toLowerCase();
     const buffer = await file.arrayBuffer();
-    const workbook = XLSX.read(buffer, { type: 'buffer' });
-    const sheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[sheetName];
-    const jsonData = XLSX.utils.sheet_to_json(worksheet) as any[];
+    
+    let jsonData: any[] = [];
+
+    // Handle Amazon .txt (Tab Separated)
+    if (fileName.endsWith('.txt')) {
+      const text = new TextDecoder().decode(buffer);
+      const workbook = XLSX.read(text, { type: 'string', FS: '\t' });
+      const sheetName = workbook.SheetNames[0];
+      jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+    } else {
+      // Standard Excel/CSV
+      const workbook = XLSX.read(buffer, { type: 'buffer' });
+      const sheetName = workbook.SheetNames[0];
+      jsonData = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]);
+    }
 
     if (jsonData.length === 0) {
-      return NextResponse.json({ error: "Report is empty" }, { status: 400 });
+      return NextResponse.json({ success: false, message: "Report is empty or malformed" }, { status: 400 });
     }
 
-    // Platform Detection
-    const keys = Object.keys(jsonData[0]);
+    // Platform Detection Logic (Case Insensitive)
+    const firstRowKeys = Object.keys(jsonData[0]).map(k => k.toLowerCase());
     let platform = "";
-    if (keys.includes("order-id")) platform = "Amazon";
-    else if (keys.includes("Sub Order No")) platform = "Meesho";
-    else if (keys.includes("order_item_id") || keys.includes("order_id")) platform = "Flipkart";
+
+    const amazonKeys = ["order-id", "order-item-id", "purchase-date", "quantity-purchased"];
+    const meeshoKeys = ["sub order no", "sub order number", "sku code", "order id"];
+    const flipkartKeys = ["order_id", "order_item_id", "fsn"];
+
+    if (amazonKeys.some(k => firstRowKeys.includes(k))) {
+      platform = "Amazon";
+    } else if (meeshoKeys.some(k => firstRowKeys.includes(k))) {
+      platform = "Meesho";
+    } else if (flipkartKeys.some(k => firstRowKeys.includes(k))) {
+      platform = "Flipkart";
+    }
 
     if (!platform) {
-      return NextResponse.json({ error: "Unsupported report format. Could not detect platform." }, { status: 400 });
+      return NextResponse.json({ 
+        success: false, 
+        message: "Unsupported report format. Could not detect platform from headers." 
+      }, { status: 400 });
     }
 
     const stats = {
@@ -60,6 +84,7 @@ export async function POST(request: Request) {
         let qty = 1;
         let price = 0;
 
+        // Platform Mapping
         if (platform === "Amazon") {
           external_id = String(row["order-id"] || "");
           raw_date = row["purchase-date"] || "";
@@ -67,9 +92,9 @@ export async function POST(request: Request) {
           qty = parseInt(row["quantity-purchased"]) || 1;
           price = parseFloat(row["item-price"]) || 0;
         } else if (platform === "Meesho") {
-          external_id = String(row["Sub Order No"] || "");
+          external_id = String(row["Sub Order No"] || row["Sub Order Number"] || row["Order ID"] || "");
           raw_date = row["Order Date"] || "";
-          sku_str = String(row["SKU"] || "").trim().toUpperCase();
+          sku_str = String(row["SKU"] || row["SKU Code"] || "").trim().toUpperCase();
           qty = parseInt(row["Quantity"]) || 1;
           price = parseFloat(row["Supplier Listed Price"]) || 0;
         } else if (platform === "Flipkart") {
@@ -77,7 +102,7 @@ export async function POST(request: Request) {
           raw_date = row["order_date"] || "";
           sku_str = String(row["sku"] || "").trim().toUpperCase();
           qty = parseInt(row["quantity"]) || 1;
-          price = parseFloat(row["selling_price"]) || 0;
+          price = parseFloat(row["selling_price"] || row["item_price"] || 0);
         }
 
         if (!external_id || !sku_str) continue;
@@ -90,7 +115,6 @@ export async function POST(request: Request) {
         `;
 
         if (variantRes.length === 0) {
-          // Check if base product exists
           let productRes = await sql`
             SELECT id FROM allproducts 
             WHERE sku = ${sku_str} AND account_id = ${accountId} AND is_deleted = false 
@@ -99,7 +123,6 @@ export async function POST(request: Request) {
 
           let productId;
           if (productRes.length === 0) {
-            // Auto Create Product
             const productName = row["product_name"] || row["title"] || row["Product Name"] || `Auto Imported: ${sku_str}`;
             const newProduct = await sql`
               INSERT INTO allproducts (
@@ -117,7 +140,6 @@ export async function POST(request: Request) {
             productId = productRes[0].id;
           }
 
-          // Create Variant
           const newVariant = await sql`
             INSERT INTO product_variants (product_id, variant_sku, stock, account_id, low_stock_threshold)
             VALUES (${productId}, ${sku_str}, 0, ${accountId}, 5)
@@ -128,7 +150,7 @@ export async function POST(request: Request) {
 
         const variantId = variantRes[0].id;
 
-        // Attempt Insert Order
+        // Insert Order with Duplicate Protection
         const insertRes = await sql`
           INSERT INTO orders (
             external_order_id, order_date, platform, variant_id, quantity, selling_price, account_id, status
@@ -155,7 +177,11 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, ...stats });
 
   } catch (error: any) {
-    console.error("Marketplace Import Error:", error);
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error("Importer System Error:", error);
+    return NextResponse.json({ 
+      success: false, 
+      message: "Importer failed due to internal error", 
+      details: error.message 
+    }, { status: 500 });
   }
 }
