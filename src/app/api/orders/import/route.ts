@@ -57,7 +57,7 @@ export async function POST(request: Request) {
 
     // 2. Detect Platform
     const headers = Object.keys(jsonData[0]);
-    console.log("Detected headers:", headers);
+    console.log("Importer - Detected headers:", headers);
 
     const normalizedHeaders = headers.map(h => 
       h.toLowerCase().replace(/[^a-z0-9]/g, "")
@@ -80,15 +80,22 @@ export async function POST(request: Request) {
       }, { status: 400 });
     }
 
+    console.log(`Importer - Detected platform: ${platform}`);
+    console.log(`Importer - Total Rows to process: ${jsonData.length}`);
+
     const stats = {
       orders_imported: 0,
       duplicates_skipped: 0,
       new_skus_created: 0,
-      errors: 0
+      failed_rows: 0,
+      error_log: [] as any[]
     };
 
     // 3. Process Rows
-    for (const row of jsonData) {
+    for (let i = 0; i < jsonData.length; i++) {
+      const row = jsonData[i];
+      const rowNum = i + 2; // +1 for zero-index, +1 for header
+
       try {
         let external_id = "";
         let raw_date = "";
@@ -107,13 +114,13 @@ export async function POST(request: Request) {
           const orderIdCol = headers.find(h => h.toLowerCase().includes("sub order"));
           const dateCol = headers.find(h => h.toLowerCase().includes("order date"));
           const skuCol = headers.find(h => h.toLowerCase().includes("sku"));
-          const qtyCol = headers.find(h => h.toLowerCase().includes("quantity"));
+          const quantityCol = headers.find(h => h.toLowerCase().includes("quantity"));
           const priceCol = headers.find(h => h.toLowerCase().includes("supplier listed price"));
 
           external_id = String(row[orderIdCol!] || "");
           raw_date = String(row[dateCol!] || "");
           sku_str = String(row[skuCol!] || "").trim().toUpperCase();
-          qty = Number(row[qtyCol!]) || 1;
+          qty = Number(row[quantityCol!]) || 1;
           price = Number(row[priceCol!]) || 0;
         } 
         else if (platform === "Flipkart") {
@@ -124,7 +131,8 @@ export async function POST(request: Request) {
           price = parseFloat(findValueByPattern(row, ["selling_price", "item_price"]) || 0);
         }
 
-        if (!external_id || !sku_str) continue;
+        if (!external_id) throw new Error("Missing External Order ID");
+        if (!sku_str) throw new Error("Missing SKU");
 
         // Ensure SKU exists
         let variantRes = await sql`
@@ -188,9 +196,12 @@ export async function POST(request: Request) {
           stats.duplicates_skipped++;
         }
 
-      } catch (rowErr) {
-        console.error("Error processing row:", rowErr);
-        stats.errors++;
+      } catch (rowErr: any) {
+        console.error(`Importer - Row ${rowNum} Error:`, rowErr.message);
+        stats.failed_rows++;
+        if (stats.error_log.length < 20) {
+          stats.error_log.push(`Row ${rowNum}: ${rowErr.message}`);
+        }
       }
     }
 

@@ -203,9 +203,13 @@ export default function OrdersPage() {
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || json.message || "Import failed");
 
+      const errorText = json.failed_rows > 0 
+        ? ` | Failed: ${json.failed_rows}\nErrors: ${json.error_log.slice(0, 5).join(', ')}` 
+        : "";
+
       toast({
         title: "Import Summary",
-        description: `Imported: ${json.orders_imported} | Skipped: ${json.duplicates_skipped} | New SKUs: ${json.new_skus_created}`,
+        description: `Imported: ${json.orders_imported} | Skipped: ${json.duplicates_skipped} | New SKUs: ${json.new_skus_created}${errorText}`,
       });
 
       fetchData();
