@@ -5,38 +5,49 @@ import * as XLSX from 'xlsx'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
-export async function POST(request: Request) {
+function parseExcelDate(value:any){
+
+  if(!value) return new Date()
+
+  const d = new Date(value)
+
+  if(!isNaN(d.getTime())) return d
+
+  return new Date()
+}
+
+export async function POST(request:Request){
 
   const startTime = Date.now()
 
   const summary = {
-    total_rows: 0,
-    processed: 0,
-    imported: 0,
-    duplicates: 0,
-    failed: 0,
-    new_skus: 0,
-    errors: [] as any[]
+    total_rows:0,
+    processed:0,
+    imported:0,
+    duplicates:0,
+    failed:0,
+    new_skus:0,
+    errors:[] as any[]
   }
 
-  try {
+  try{
 
     const accountId = request.headers.get("x-account-id")
 
-    if (!accountId) {
+    if(!accountId){
       return NextResponse.json(
-        { success:false,message:"Account context missing" },
-        { status:400 }
+        {success:false,message:"Account context missing"},
+        {status:400}
       )
     }
 
     const formData = await request.formData()
     const file = formData.get('file') as File
 
-    if (!file) {
+    if(!file){
       return NextResponse.json(
-        { success:false,message:"No file uploaded" },
-        { status:400 }
+        {success:false,message:"No file uploaded"},
+        {status:400}
       )
     }
 
@@ -50,76 +61,65 @@ export async function POST(request: Request) {
     summary.total_rows = rows.length
 
     if(rows.length === 0){
-      return NextResponse.json({ success:false,message:"Empty file"})
+      return NextResponse.json({success:false,message:"Empty file"})
     }
 
-    // -------------------------
-    // COLLECT SKUs
-    // -------------------------
+    // --------------------------------
+    // Collect SKUs
+    // --------------------------------
 
     const skuSet = new Set<string>()
 
     rows.forEach(r=>{
-      const sku = String(r['SKU'] || '').trim()
+      const sku = String(r['sku'] || '').trim()
       if(sku) skuSet.add(sku)
     })
 
     const skus = Array.from(skuSet)
 
-    // -------------------------
-    // FETCH VARIANTS
-    // -------------------------
+    // --------------------------------
+    // Fetch Variant IDs
+    // --------------------------------
 
     const variantMap = new Map<string,string>()
 
-    const existingVariants = await pool.query(
-      `SELECT id, variant_sku 
-       FROM product_variants 
-       WHERE account_id=$1 
-       AND variant_sku = ANY($2)`,
-      [accountId, skus]
+    const variantRes = await pool.query(
+      `
+      SELECT id,variant_sku
+      FROM product_variants
+      WHERE account_id=$1
+      AND variant_sku = ANY($2)
+      `,
+      [accountId,skus]
     )
 
-    existingVariants.rows.forEach(v=>{
-      variantMap.set(v.variant_sku, v.id)
+    variantRes.rows.forEach(v=>{
+      variantMap.set(v.variant_sku,v.id)
     })
 
-    // -------------------------
-    // CREATE MISSING SKUs
-    // -------------------------
+    // --------------------------------
+    // Fetch Flipkart Prices
+    // --------------------------------
 
-    const missingSkus = skus.filter(s => !variantMap.has(s))
+    const priceMap = new Map<string,number>()
 
-    if(missingSkus.length>0){
+    const priceRes = await pool.query(
+      `
+      SELECT sku,flipkart_price
+      FROM allproducts
+      WHERE account_id=$1
+      AND sku = ANY($2)
+      `,
+      [accountId,skus]
+    )
 
-      const insertValues:string[]=[]
-      const params:any[]=[]
+    priceRes.rows.forEach(p=>{
+      priceMap.set(p.sku,Number(p.flipkart_price)||0)
+    })
 
-      missingSkus.forEach((sku,i)=>{
-        insertValues.push(`($${i*2+1},0,$${i*2+2},NOW())`)
-        params.push(sku,accountId)
-      })
-
-      const newVariants = await pool.query(
-        `
-        INSERT INTO product_variants
-        (variant_sku,stock,account_id,created_at)
-        VALUES ${insertValues.join(',')}
-        RETURNING id,variant_sku
-        `,
-        params
-      )
-
-      newVariants.rows.forEach(v=>{
-        variantMap.set(v.variant_sku,v.id)
-      })
-
-      summary.new_skus = newVariants.rows.length
-    }
-
-    // -------------------------
-    // PREPARE ORDER INSERT
-    // -------------------------
+    // --------------------------------
+    // Prepare Inserts
+    // --------------------------------
 
     const insertValues:string[]=[]
     const params:any[]=[]
@@ -129,38 +129,40 @@ export async function POST(request: Request) {
 
       try{
 
-        const external_id = String(row['Sub Order No'] || '').trim()
-        const sku = String(row['SKU'] || '').trim()
+        const external_id = String(row['order_id']||'').trim()
+        const sku = String(row['sku']||'').trim()
 
-        const quantity = parseInt(row['Quantity']) || 0
+        const quantity = parseInt(row['quantity']) || 1
 
-        const selling_price = parseFloat(
-          row['Supplier Listed Price (Incl. GST + Commission)']
-        ) || 0
-
-        const status = String(
-          row['Reason for Credit Entry'] || 'UNKNOWN'
-        ).trim()
+        const status = String(row['order_item_status'] || 'UNKNOWN').trim()
 
         if(!external_id || !sku){
+
           summary.failed++
+
           summary.errors.push({
             row:index+2,
             message:'Missing Order ID or SKU'
           })
+
           return
         }
 
         const variant_id = variantMap.get(sku)
 
         if(!variant_id){
+
           summary.failed++
+
           summary.errors.push({
             row:index+2,
-            message:'Variant not resolved'
+            message:'Variant not found'
           })
+
           return
         }
+
+        const selling_price = priceMap.get(sku) || 0
 
         insertValues.push(
           `(
@@ -177,8 +179,8 @@ export async function POST(request: Request) {
         )
 
         params.push(
-          new Date(row['Order Date']),
-          'Meesho',
+          parseExcelDate(row['order_date']),
+          'Flipkart',
           variant_id,
           quantity,
           selling_price,
@@ -202,9 +204,9 @@ export async function POST(request: Request) {
 
     })
 
-    // -------------------------
-    // INSERT ORDERS
-    // -------------------------
+    // --------------------------------
+    // Insert Orders
+    // --------------------------------
 
     if(insertValues.length>0){
 
@@ -245,7 +247,7 @@ export async function POST(request: Request) {
 
   }catch(error:any){
 
-    console.error("Meesho Import Fatal Error:",error)
+    console.error("Flipkart Import Error:",error)
 
     return NextResponse.json(
       {
@@ -253,7 +255,7 @@ export async function POST(request: Request) {
         message:"Import failed",
         error:error.message
       },
-      { status:500 }
+      {status:500}
     )
 
   }

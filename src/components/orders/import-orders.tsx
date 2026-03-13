@@ -10,6 +10,13 @@ import { useToast } from '@/hooks/use-toast';
 import { apiFetch } from '@/lib/apiFetch';
 import { cn } from '@/lib/utils';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface ImportOrdersProps {
   onSuccess: () => void;
@@ -18,6 +25,7 @@ interface ImportOrdersProps {
 export function ImportOrders({ onSuccess }: ImportOrdersProps) {
   const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
+  const [platform, setPlatform] = useState('meesho');
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<any>(null);
 
@@ -46,7 +54,12 @@ export function ImportOrders({ onSuccess }: ImportOrdersProps) {
       const formData = new FormData();
       formData.append('file', file);
 
-      const res = await apiFetch('/api/orders/import/meesho', {
+      // Dynamic endpoint based on selected platform
+      const apiEndpoint = platform === 'flipkart' 
+        ? '/api/orders/import/flipkart' 
+        : '/api/orders/import/meesho';
+
+      const res = await apiFetch(apiEndpoint, {
         method: 'POST',
         body: formData
       });
@@ -55,9 +68,11 @@ export function ImportOrders({ onSuccess }: ImportOrdersProps) {
 
       if (res.ok) {
         setResult(data);
-        toast({ title: 'Import Complete', description: `Successfully imported ${data.imported} orders.` });
-        if (data.imported > 0) {
-          // Delay callback slightly so user can see result
+        toast({ 
+          title: 'Import Complete', 
+          description: `Successfully imported ${data.imported || data.orders_imported || 0} orders from ${platform.charAt(0).toUpperCase() + platform.slice(1)}.` 
+        });
+        if ((data.imported || data.orders_imported) > 0) {
           setTimeout(() => {
             if (!data.errors?.length) onSuccess();
           }, 3000);
@@ -73,16 +88,20 @@ export function ImportOrders({ onSuccess }: ImportOrdersProps) {
   };
 
   if (result) {
+    const imported = result.imported ?? result.orders_imported ?? 0;
+    const duplicates = result.duplicates ?? result.duplicates_skipped ?? 0;
+    const failed = result.failed ?? result.failed_rows ?? 0;
+
     return (
       <div className="space-y-6 py-4">
         <div className="grid grid-cols-2 gap-4">
           <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/20 border border-emerald-100 dark:border-emerald-900/30 text-center">
             <p className="text-[10px] font-bold uppercase text-emerald-600 mb-1">Imported</p>
-            <p className="text-3xl font-black text-emerald-700 dark:text-emerald-400">{result.imported}</p>
+            <p className="text-3xl font-black text-emerald-700 dark:text-emerald-400">{imported}</p>
           </div>
           <div className="p-4 rounded-2xl bg-blue-50 dark:bg-blue-950/20 border border-blue-100 dark:border-blue-900/30 text-center">
             <p className="text-[10px] font-bold uppercase text-blue-600 mb-1">Duplicates</p>
-            <p className="text-3xl font-black text-blue-700 dark:text-blue-400">{result.duplicates}</p>
+            <p className="text-3xl font-black text-blue-700 dark:text-blue-400">{duplicates}</p>
           </div>
         </div>
 
@@ -90,7 +109,7 @@ export function ImportOrders({ onSuccess }: ImportOrdersProps) {
           <div className="space-y-2">
             <p className="text-xs font-bold uppercase text-muted-foreground flex items-center gap-2">
               <AlertCircle className="h-3 w-3 text-rose-500" />
-              Failed Rows ({result.failed})
+              Failed Rows ({failed})
             </p>
             <ScrollArea className="h-40 rounded-xl border bg-muted/30 p-4">
               <ul className="space-y-2">
@@ -117,6 +136,23 @@ export function ImportOrders({ onSuccess }: ImportOrdersProps) {
 
   return (
     <div className="space-y-6 py-4">
+      {/* Platform Selector */}
+      <div className="space-y-2">
+        <label className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground ml-1">
+          Select Marketplace Platform
+        </label>
+        <Select value={platform} onValueChange={setPlatform} disabled={uploading}>
+          <SelectTrigger className="h-11 rounded-xl bg-background border-border/50">
+            <SelectValue placeholder="Select platform" />
+          </SelectTrigger>
+          <SelectContent className="rounded-xl">
+            <SelectItem value="meesho">Meesho</SelectItem>
+            <SelectItem value="flipkart">Flipkart</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Dropzone */}
       <div 
         {...getRootProps()} 
         className={cn(
@@ -130,7 +166,7 @@ export function ImportOrders({ onSuccess }: ImportOrdersProps) {
           {uploading ? <RefreshCw className="h-10 w-10 text-primary animate-spin" /> : <FileUp className="h-10 w-10 text-primary" />}
         </div>
         <div>
-          <h3 className="text-lg font-bold font-headline">{file ? file.name : "Select Marketplace Report"}</h3>
+          <h3 className="text-lg font-bold font-headline">{file ? file.name : `Select ${platform.charAt(0).toUpperCase() + platform.slice(1)} Report`}</h3>
           <p className="text-sm text-muted-foreground mt-1">
             {file ? `${(file.size / 1024).toFixed(1)} KB` : "Drag and drop your report here, or click to browse"}
           </p>
@@ -141,7 +177,7 @@ export function ImportOrders({ onSuccess }: ImportOrdersProps) {
         <p className="font-bold uppercase tracking-widest mb-1 flex items-center gap-2">
           <Upload className="h-3 w-3" /> Supporting
         </p>
-        Currently supporting <strong>Meesho</strong> Order Reports (.xlsx, .csv). Ensure the column headers remain unchanged from the platform export.
+        Currently supporting <strong>{platform.charAt(0).toUpperCase() + platform.slice(1)}</strong> Order Reports (.xlsx, .csv, .tsv). Ensure the column headers remain unchanged from the platform export.
       </div>
 
       {uploading && (
