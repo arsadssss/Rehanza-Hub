@@ -6,11 +6,7 @@ export const dynamic = "force-dynamic";
 
 /**
  * POST /api/orders/import/meesho
- * Handles bulk import of Meesho order reports.
- * 1. Parses XLSX/CSV
- * 2. Checks for existing orders (external_order_id)
- * 3. Resolves/Creates missing SKUs (with uniqueness check)
- * 4. Inserts orders sequentially with error recovery
+ * Handles Meesho report ingestion.
  */
 export async function POST(request: Request) {
   try {
@@ -31,101 +27,53 @@ export async function POST(request: Request) {
     const rows: any[] = XLSX.utils.sheet_to_json(sheet);
 
     const summary = {
-      processed: 0,
+      total_rows: rows.length,
       imported: 0,
       duplicates: 0,
       failed: 0,
-      new_skus: 0,
       errors: [] as any[]
     };
 
-    if (rows.length === 0) return NextResponse.json({ success: true, ...summary });
-
-    // Cache SKU lookups in memory to prevent duplicate DB hits and UNIQUE constraint errors
-    const skuCache = new Map<string, string>();
-
     for (let i = 0; i < rows.length; i++) {
-      summary.processed++;
       const row = rows[i];
-      const rowNum = i + 2; // +1 for header, +1 for 0-index
+      const rowNum = i + 2;
 
       try {
         const externalId = String(row['Sub Order No'] || '').trim();
-        const skuRaw = String(row['SKU'] || '').trim();
-        const sku = skuRaw.toUpperCase();
-        const orderDateRaw = row['Order Date'];
+        const sku = String(row['SKU'] || '').trim();
+        const orderDate = row['Order Date'];
         const qty = parseInt(row['Quantity']) || 1;
         const price = parseFloat(row['Supplier Listed Price (Incl. GST + Commission)']) || 0;
-        const status = String(row['Reason for Credit Entry'] || 'SHIPPED').trim();
+        const status = String(row['Reason for Credit Entry'] || 'SHIPPED');
 
-        if (!externalId) {
-          throw new Error("Missing 'Sub Order No'");
-        }
+        if (!externalId) throw new Error("Missing Sub Order No");
 
-        // 1. Check for existing order to prevent duplicates
-        const existingOrder = await sql`
-          SELECT id FROM orders 
-          WHERE external_order_id = ${externalId} AND account_id = ${accountId} AND is_deleted = false
-          LIMIT 1
-        `;
-
-        if (existingOrder.length > 0) {
+        // 1. Check duplicate
+        const existing = await sql`SELECT id FROM orders WHERE external_order_id = ${externalId} AND account_id = ${accountId} LIMIT 1`;
+        if (existing.length > 0) {
           summary.duplicates++;
           continue;
         }
 
-        // 2. Resolve Variant ID (Check Cache -> Check DB -> Create)
-        let variantId = skuCache.get(sku);
+        // 2. Resolve SKU
+        let variantRes = await sql`SELECT id FROM product_variants WHERE variant_sku = ${sku} AND account_id = ${accountId} LIMIT 1`;
+        let variantId;
 
-        if (!variantId && sku) {
-          // Check DB for existing variant
-          const dbVariant = await sql`
-            SELECT id FROM product_variants 
-            WHERE variant_sku = ${sku} AND account_id = ${accountId}
-            LIMIT 1
+        if (variantRes.length > 0) {
+          variantId = variantRes[0].id;
+        } else {
+          const newVar = await sql`
+            INSERT INTO product_variants (variant_sku, stock, account_id, created_at)
+            VALUES (${sku}, 0, ${accountId}, NOW())
+            RETURNING id
           `;
-
-          if (dbVariant.length > 0) {
-            variantId = dbVariant[0].id;
-          } else {
-            // Create new variant
-            const newVar = await sql`
-              INSERT INTO product_variants (variant_sku, stock, account_id, low_stock_threshold, created_at)
-              VALUES (${sku}, 0, ${accountId}, 5, NOW())
-              RETURNING id
-            `;
-            variantId = newVar[0].id;
-            summary.new_skus++;
-          }
-          
-          if (variantId) {
-            skuCache.set(sku, variantId);
-          }
+          variantId = newVar[0].id;
         }
 
-        if (!variantId) {
-          throw new Error(`SKU "${sku}" could not be resolved.`);
-        }
-
-        // 3. Handle Date Parsing
-        let orderDate = orderDateRaw;
-        if (typeof orderDateRaw === 'number') {
-          // XLSX serial date conversion
-          orderDate = XLSX.utils.format_cell({ v: orderDateRaw, t: 'd' });
-        }
-
-        // 4. Atomic Insert
+        // 3. Insert Order
         await sql`
-          INSERT INTO orders (
-            order_date, platform, variant_id, quantity, 
-            selling_price, total_amount, external_order_id, 
-            status, account_id
-          )
-          VALUES (
-            ${orderDate}, 'Meesho', ${variantId}, ${qty},
-            ${price}, ${price * qty}, ${externalId},
-            ${status}, ${accountId}
-          )
+          INSERT INTO orders (order_date, platform, variant_id, quantity, selling_price, total_amount, external_order_id, status, account_id)
+          VALUES (${orderDate}, 'Meesho', ${variantId}, ${qty}, ${price}, ${price * qty}, ${externalId}, ${status}, ${accountId})
         `;
 
         summary.imported++;
@@ -135,10 +83,7 @@ export async function POST(request: Request) {
       }
     }
 
-    return NextResponse.json({
-      success: true,
-      ...summary
-    });
+    return NextResponse.json({ success: true, ...summary });
 
   } catch (error: any) {
     console.error("MEESHO IMPORT ERROR:", error);
