@@ -58,17 +58,24 @@ export async function POST(request: Request) {
     const uniqueSkus = Array.from(skuSet);
 
     // 2. Bulk fetch existing variants and prices
-    const variantRes = await pool.query(
-      'SELECT id, variant_sku FROM product_variants WHERE account_id = $1 AND variant_sku = ANY($2)',
-      [accountId, uniqueSkus]
-    );
-    const priceRes = await pool.query(
-      'SELECT sku, flipkart_price FROM allproducts WHERE account_id = $1 AND sku = ANY($2)',
-      [accountId, uniqueSkus]
-    );
+    const variantMap = new Map<string, string>();
+    const priceMap = new Map<string, number>();
 
-    const variantMap = new Map(variantRes.rows.map(v => [v.variant_sku, v.id]));
-    const priceMap = new Map(priceRes.rows.map(p => [p.sku, Number(p.flipkart_price) || 0]));
+    if (uniqueSkus.length > 0) {
+      const [variantRes, priceRes] = await Promise.all([
+        pool.query(
+          'SELECT id, variant_sku FROM product_variants WHERE account_id = $1 AND variant_sku = ANY($2)',
+          [accountId, uniqueSkus]
+        ),
+        pool.query(
+          'SELECT sku, flipkart_price FROM allproducts WHERE account_id = $1 AND sku = ANY($2)',
+          [accountId, uniqueSkus]
+        )
+      ]);
+
+      variantRes.rows.forEach(v => variantMap.set(v.variant_sku, v.id));
+      priceRes.rows.forEach(p => priceMap.set(p.sku, Number(p.flipkart_price) || 0));
+    }
 
     // 3. Process Rows
     const ordersToInsert: any[] = [];
@@ -88,7 +95,7 @@ export async function POST(request: Request) {
           continue;
         }
 
-        // Resolve Variant ID (DECLARE WITH LET TO ALLOW REASSIGNMENT)
+        // Resolve Variant ID (Using let to allow reassignment if we create a new one)
         let variant_id = variantMap.get(sku);
         if (!variant_id) {
           const createRes = await pool.query(
@@ -148,7 +155,7 @@ export async function POST(request: Request) {
         `;
 
         const result = await pool.query(insertQuery, values);
-        summary.imported += result.rowCount;
+        summary.imported += result.rowCount || 0;
       }
       summary.duplicates = summary.processed - summary.imported;
     }
