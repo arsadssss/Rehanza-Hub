@@ -10,7 +10,7 @@ import { OrderFilters } from '@/components/orders/order-filters';
 import { ImportOrders } from '@/components/orders/import-orders';
 import { Button } from '@/components/ui/button';
 import { ShoppingCart, Upload } from 'lucide-react';
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 export default function OrdersPage() {
   const { toast } = useToast();
@@ -18,6 +18,7 @@ export default function OrdersPage() {
   const [stats, setStats] = useState<any>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [isImportOpen, setIsImportOpen] = useState(false);
+  const [importPlatform, setImportPlatform] = useState<string>('meesho');
   
   // Filters
   const [search, setSearch] = useState('');
@@ -70,6 +71,11 @@ export default function OrdersPage() {
     fetchOrders();
   };
 
+  const openImportDialog = (platform: string) => {
+    setImportPlatform(platform);
+    setIsImportOpen(true);
+  };
+
   return (
     <div className="p-6 md:p-8 space-y-8 bg-gray-50/50 dark:bg-black/50 min-h-full font-body">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -81,17 +87,37 @@ export default function OrdersPage() {
           <p className="text-muted-foreground font-medium mt-1">Manage marketplace sales and inventory fulfillment.</p>
         </div>
 
+        <div className="flex flex-wrap gap-3">
+          <Button 
+            onClick={() => openImportDialog('meesho')}
+            className="rounded-xl h-12 px-6 font-bold shadow-lg shadow-primary/20"
+          >
+            <Upload className="mr-2 h-4 w-4" /> Upload Meesho Orders
+          </Button>
+          <Button 
+            onClick={() => openImportDialog('flipkart')}
+            className="rounded-xl h-12 px-6 font-bold shadow-lg shadow-primary/20"
+          >
+            <Upload className="mr-2 h-4 w-4" /> Upload Flipkart Orders
+          </Button>
+          <Button 
+            onClick={() => openImportDialog('amazon')}
+            className="rounded-xl h-12 px-6 font-bold shadow-lg shadow-primary/20"
+          >
+            <Upload className="mr-2 h-4 w-4" /> Upload Amazon Orders
+          </Button>
+        </div>
+
         <Dialog open={isImportOpen} onOpenChange={setIsImportOpen}>
-          <DialogTrigger asChild>
-            <Button className="rounded-xl h-12 px-6 font-bold shadow-lg shadow-primary/20">
-              <Upload className="mr-2 h-4 w-4" /> Upload Marketplace Report
-            </Button>
-          </DialogTrigger>
           <DialogContent className="sm:max-w-xl rounded-[2rem]">
             <DialogHeader>
               <DialogTitle className="font-headline text-2xl font-bold">Import Marketplace Orders</DialogTitle>
             </DialogHeader>
-            <ImportOrders onSuccess={handleImportSuccess} />
+            <ImportOrders 
+              key={importPlatform}
+              onSuccess={handleImportSuccess} 
+              initialPlatform={importPlatform}
+            />
           </DialogContent>
         </Dialog>
       </div>

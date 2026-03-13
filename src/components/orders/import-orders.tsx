@@ -20,12 +20,13 @@ import {
 
 interface ImportOrdersProps {
   onSuccess: () => void;
+  initialPlatform?: string;
 }
 
-export function ImportOrders({ onSuccess }: ImportOrdersProps) {
+export function ImportOrders({ onSuccess, initialPlatform = 'meesho' }: ImportOrdersProps) {
   const { toast } = useToast();
   const [file, setFile] = useState<File | null>(null);
-  const [platform, setPlatform] = useState('meesho');
+  const [platform, setPlatform] = useState(initialPlatform);
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<any>(null);
 
@@ -41,7 +42,8 @@ export function ImportOrders({ onSuccess }: ImportOrdersProps) {
     accept: {
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx'],
       'text/csv': ['.csv'],
-      'text/tab-separated-values': ['.tsv']
+      'text/tab-separated-values': ['.tsv'],
+      'text/plain': ['.txt']
     },
     multiple: false
   });
@@ -55,9 +57,9 @@ export function ImportOrders({ onSuccess }: ImportOrdersProps) {
       formData.append('file', file);
 
       // Dynamic endpoint based on selected platform
-      const apiEndpoint = platform === 'flipkart' 
-        ? '/api/orders/import/flipkart' 
-        : '/api/orders/import/meesho';
+      let apiEndpoint = '/api/orders/import/meesho';
+      if (platform === 'flipkart') apiEndpoint = '/api/orders/import/flipkart';
+      if (platform === 'amazon') apiEndpoint = '/api/orders/import/amazon';
 
       const res = await apiFetch(apiEndpoint, {
         method: 'POST',
@@ -68,6 +70,7 @@ export function ImportOrders({ onSuccess }: ImportOrdersProps) {
 
       if (res.ok) {
         setResult(data);
+        console.log(`Import result for ${platform}:`, data);
         toast({ 
           title: 'Import Complete', 
           description: `Successfully imported ${data.imported || data.orders_imported || 0} orders from ${platform.charAt(0).toUpperCase() + platform.slice(1)}.` 
@@ -148,6 +151,7 @@ export function ImportOrders({ onSuccess }: ImportOrdersProps) {
           <SelectContent className="rounded-xl">
             <SelectItem value="meesho">Meesho</SelectItem>
             <SelectItem value="flipkart">Flipkart</SelectItem>
+            <SelectItem value="amazon">Amazon</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -177,7 +181,7 @@ export function ImportOrders({ onSuccess }: ImportOrdersProps) {
         <p className="font-bold uppercase tracking-widest mb-1 flex items-center gap-2">
           <Upload className="h-3 w-3" /> Supporting
         </p>
-        Currently supporting <strong>{platform.charAt(0).toUpperCase() + platform.slice(1)}</strong> Order Reports (.xlsx, .csv, .tsv). Ensure the column headers remain unchanged from the platform export.
+        Currently supporting <strong>{platform.charAt(0).toUpperCase() + platform.slice(1)}</strong> Order Reports (.xlsx, .csv, .tsv, .txt). Ensure the column headers remain unchanged from the platform export.
       </div>
 
       {uploading && (

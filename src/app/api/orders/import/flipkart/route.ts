@@ -15,7 +15,9 @@ function parseExcelDate(val: any) {
 }
 
 export async function POST(request: Request) {
+
   const startTime = Date.now();
+
   const summary = {
     total_rows: 0,
     processed: 0,
@@ -27,88 +29,150 @@ export async function POST(request: Request) {
   };
 
   try {
+
     const accountId = request.headers.get("x-account-id");
+
     if (!accountId) {
-      return NextResponse.json({ success: false, message: "Account context missing" }, { status: 400 });
+      return NextResponse.json(
+        { success: false, message: "Account context missing" },
+        { status: 400 }
+      );
     }
 
     const formData = await request.formData();
     const file = formData.get('file') as File;
 
     if (!file) {
-      return NextResponse.json({ success: false, message: "No file uploaded" }, { status: 400 });
+      return NextResponse.json(
+        { success: false, message: "No file uploaded" },
+        { status: 400 }
+      );
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
+
     const workbook = XLSX.read(buffer, { type: 'buffer' });
     const sheetName = workbook.SheetNames[0];
     const rows = XLSX.utils.sheet_to_json(workbook.Sheets[sheetName]) as any[];
 
     summary.total_rows = rows.length;
+
     if (rows.length === 0) {
-      return NextResponse.json({ success: false, message: "The uploaded file is empty" });
+      return NextResponse.json({
+        success: false,
+        message: "The uploaded file is empty"
+      });
     }
 
-    // 1. Pre-process SKUs for bulk resolution
+    // -----------------------------------------
+    // Collect SKUs
+    // -----------------------------------------
+
     const skuSet = new Set<string>();
+
     rows.forEach(row => {
       const sku = String(row['sku'] || row['SKU'] || '').trim();
       if (sku) skuSet.add(sku);
     });
+
     const uniqueSkus = Array.from(skuSet);
 
-    // 2. Bulk fetch existing variants and prices
+    // -----------------------------------------
+    // Fetch Variants + Prices
+    // -----------------------------------------
+
     const variantMap = new Map<string, string>();
     const priceMap = new Map<string, number>();
 
     if (uniqueSkus.length > 0) {
+
       const [variantRes, priceRes] = await Promise.all([
+
         pool.query(
-          'SELECT id, variant_sku FROM product_variants WHERE account_id = $1 AND variant_sku = ANY($2)',
+          `SELECT id, variant_sku
+           FROM product_variants
+           WHERE account_id = $1
+           AND variant_sku = ANY($2)`,
           [accountId, uniqueSkus]
         ),
+
         pool.query(
-          'SELECT sku, flipkart_price FROM allproducts WHERE account_id = $1 AND sku = ANY($2)',
+          `SELECT sku, flipkart_price
+           FROM allproducts
+           WHERE account_id = $1
+           AND sku = ANY($2)`,
           [accountId, uniqueSkus]
         )
+
       ]);
 
-      variantRes.rows.forEach(v => variantMap.set(v.variant_sku, v.id));
-      priceRes.rows.forEach(p => priceMap.set(p.sku, Number(p.flipkart_price) || 0));
+      variantRes.rows.forEach(v => {
+        variantMap.set(v.variant_sku, v.id);
+      });
+
+      priceRes.rows.forEach(p => {
+        priceMap.set(p.sku, Number(p.flipkart_price) || 0);
+      });
     }
 
-    // 3. Process Rows
+    // -----------------------------------------
+    // Process Rows
+    // -----------------------------------------
+
     const ordersToInsert: any[] = [];
 
     for (let i = 0; i < rows.length; i++) {
+
       const row = rows[i];
+
       try {
+
         const orderId = String(row['order_id'] || row['Order ID'] || '').trim();
         const sku = String(row['sku'] || row['SKU'] || '').trim();
+
         const quantity = parseInt(row['quantity'] || row['Quantity']) || 1;
-        const status = String(row['order_item_status'] || row['Status'] || 'UNKNOWN').trim();
-        const orderDate = parseExcelDate(row['order_date'] || row['Order Date']);
+
+        const status = String(
+          row['order_item_status'] || row['Status'] || 'UNKNOWN'
+        ).trim();
+
+        const orderDate = parseExcelDate(
+          row['order_date'] || row['Order Date']
+        );
 
         if (!orderId || !sku) {
+
           summary.failed++;
-          summary.errors.push({ row: i + 2, message: "Missing required Order ID or SKU column" });
+
+          summary.errors.push({
+            row: i + 2,
+            message: "Missing Order ID or SKU"
+          });
+
           continue;
         }
 
-        // Resolve Variant ID (Using let to allow reassignment if we create a new one)
+        // Resolve Variant
         let variant_id = variantMap.get(sku);
+
         if (!variant_id) {
+
           const createRes = await pool.query(
-            'INSERT INTO product_variants (variant_sku, stock, account_id, created_at) VALUES ($1, 0, $2, NOW()) RETURNING id',
+            `INSERT INTO product_variants
+             (variant_sku, stock, account_id, created_at)
+             VALUES ($1,0,$2,NOW())
+             RETURNING id`,
             [sku, accountId]
           );
+
           variant_id = createRes.rows[0].id;
+
           variantMap.set(sku, variant_id);
+
           summary.new_skus++;
         }
 
         const selling_price = priceMap.get(sku) || 0;
-        const total_amount = selling_price * quantity;
 
         ordersToInsert.push({
           orderDate,
@@ -116,38 +180,79 @@ export async function POST(request: Request) {
           variant_id,
           quantity,
           selling_price,
-          total_amount,
           orderId,
           status,
           accountId
         });
 
         summary.processed++;
-      } catch (err: any) {
+
+      }
+      catch (err: any) {
+
         summary.failed++;
-        summary.errors.push({ row: i + 2, message: err.message });
+
+        summary.errors.push({
+          row: i + 2,
+          message: err.message
+        });
       }
     }
 
-    // 4. Batch Insertion (50 records per query)
+    // -----------------------------------------
+    // Batch Insert Orders
+    // -----------------------------------------
+
     if (ordersToInsert.length > 0) {
+
       const batchSize = 50;
+
       for (let i = 0; i < ordersToInsert.length; i += batchSize) {
+
         const batch = ordersToInsert.slice(i, i + batchSize);
+
         const values: any[] = [];
+
         const placeholders = batch.map((o, idx) => {
-          const offset = idx * 9;
+
+          const offset = idx * 8;
+
           values.push(
-            o.orderDate, o.platform, o.variant_id, o.quantity, 
-            o.selling_price, o.total_amount, o.orderId, o.status, o.accountId
+            o.orderDate,
+            o.platform,
+            o.variant_id,
+            o.quantity,
+            o.selling_price,
+            o.orderId,
+            o.status,
+            o.accountId
           );
-          return `($${offset + 1}, $${offset + 2}, $${offset + 3}, $${offset + 4}, $${offset + 5}, $${offset + 6}, $${offset + 7}, $${offset + 8}, $${offset + 9}, NOW())`;
+
+          return `(
+            $${offset + 1},
+            $${offset + 2},
+            $${offset + 3},
+            $${offset + 4},
+            $${offset + 5},
+            $${offset + 6},
+            $${offset + 7},
+            $${offset + 8},
+            NOW()
+          )`;
         }).join(',');
 
         const insertQuery = `
-          INSERT INTO orders (
-            order_date, platform, variant_id, quantity, 
-            selling_price, total_amount, external_order_id, status, account_id, created_at
+          INSERT INTO orders
+          (
+            order_date,
+            platform,
+            variant_id,
+            quantity,
+            selling_price,
+            external_order_id,
+            status,
+            account_id,
+            created_at
           )
           VALUES ${placeholders}
           ON CONFLICT (external_order_id) DO NOTHING
@@ -155,8 +260,10 @@ export async function POST(request: Request) {
         `;
 
         const result = await pool.query(insertQuery, values);
+
         summary.imported += result.rowCount || 0;
       }
+
       summary.duplicates = summary.processed - summary.imported;
     }
 
@@ -168,12 +275,18 @@ export async function POST(request: Request) {
       duration: `${duration}s`
     });
 
-  } catch (error: any) {
+  }
+  catch (error: any) {
+
     console.error("FLIPKART_IMPORT_FATAL_ERROR:", error);
-    return NextResponse.json({
-      success: false,
-      message: "A fatal error occurred during the import process",
-      error: error.message
-    }, { status: 500 });
+
+    return NextResponse.json(
+      {
+        success: false,
+        message: "A fatal error occurred during the import process",
+        error: error.message
+      },
+      { status: 500 }
+    );
   }
 }
