@@ -58,6 +58,10 @@ export async function POST(request:Request){
       return NextResponse.json({success:false,message:"Empty file"})
     }
 
+    // -----------------------------
+    // Collect SKUs
+    // -----------------------------
+
     const skuSet = new Set<string>()
 
     rows.forEach(r=>{
@@ -67,21 +71,32 @@ export async function POST(request:Request){
 
     const skus = Array.from(skuSet)
 
+    // -----------------------------
+    // Fetch Existing Variants
+    // -----------------------------
+
     const variantMap = new Map<string,string>()
 
-    const variantRes = await pool.query(
-      `
-      SELECT id,variant_sku
-      FROM product_variants
-      WHERE account_id=$1
-      AND variant_sku = ANY($2)
-      `,
-      [accountId,skus]
-    )
+    if(skus.length>0){
 
-    variantRes.rows.forEach(v=>{
-      variantMap.set(v.variant_sku.toUpperCase(),v.id)
-    })
+      const variantRes = await pool.query(
+        `
+        SELECT id,variant_sku
+        FROM product_variants
+        WHERE account_id=$1
+        AND variant_sku = ANY($2)
+        `,
+        [accountId,skus]
+      )
+
+      variantRes.rows.forEach(v=>{
+        variantMap.set(v.variant_sku.toUpperCase(),v.id)
+      })
+    }
+
+    // -----------------------------
+    // Prepare Inserts
+    // -----------------------------
 
     const rowsToInsert:string[]=[]
     const params:any[]=[]
@@ -97,7 +112,6 @@ export async function POST(request:Request){
         const sku = String(row['sku']||'').trim().toUpperCase()
 
         const quantity = parseInt(row['quantity-purchased']) || 1
-
         const price = parseFloat(row['item-price']) || 0
 
         const orderDate = parseDate(row['purchase-date'])
@@ -108,6 +122,10 @@ export async function POST(request:Request){
         }
 
         let variant_id = variantMap.get(sku)
+
+        // -----------------------------
+        // Create Variant if Missing
+        // -----------------------------
 
         if(!variant_id){
 
@@ -122,7 +140,6 @@ export async function POST(request:Request){
           )
 
           variant_id = createRes.rows[0].id
-
           variantMap.set(sku,variant_id)
 
           summary.new_skus++
@@ -130,6 +147,7 @@ export async function POST(request:Request){
 
         rowsToInsert.push(
           `(
+          $${paramIndex++},
           $${paramIndex++},
           $${paramIndex++},
           $${paramIndex++},
@@ -166,6 +184,10 @@ export async function POST(request:Request){
       }
 
     }
+
+    // -----------------------------
+    // Insert Orders
+    // -----------------------------
 
     if(rowsToInsert.length>0){
 
