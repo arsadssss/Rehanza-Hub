@@ -46,10 +46,8 @@ export async function POST(request: Request) {
     }
 
     const buffer = Buffer.from(await file.arrayBuffer());
-
     const workbook = XLSX.read(buffer, { type: 'buffer' });
     const sheet = workbook.Sheets[workbook.SheetNames[0]];
-
     const rows = XLSX.utils.sheet_to_json(sheet) as any[];
 
     summary.total_rows = rows.length;
@@ -64,53 +62,38 @@ export async function POST(request: Request) {
       const sku = String(r['sku'] || '').trim();
       if (sku) skuSet.add(sku);
     });
-
     const skus = Array.from(skuSet);
 
-    // 2. Fetch Existing Variants
+    // 2. Map existing variants
     const variantMap = new Map<string, string>();
     if (skus.length > 0) {
       const variantRes = await pool.query(
-        `
-        SELECT id, variant_sku
-        FROM product_variants
-        WHERE account_id = $1
-        AND variant_sku = ANY($2)
-        `,
+        `SELECT id, variant_sku FROM product_variants WHERE account_id = $1 AND variant_sku = ANY($2)`,
         [accountId, skus]
       );
-
       variantRes.rows.forEach((v) => {
         variantMap.set(v.variant_sku, v.id);
       });
     }
 
-    // 3. Fetch Flipkart Prices from allproducts for total_amount calculation
+    // 3. Map listing prices for amount calculation
     const priceMap = new Map<string, number>();
     if (skus.length > 0) {
       const priceRes = await pool.query(
-        `
-        SELECT sku, flipkart_price
-        FROM allproducts
-        WHERE account_id = $1
-        AND sku = ANY($2)
-        `,
+        `SELECT sku, flipkart_price FROM allproducts WHERE account_id = $1 AND sku = ANY($2)`,
         [accountId, skus]
       );
-
       priceRes.rows.forEach((p) => {
         priceMap.set(p.sku, Number(p.flipkart_price) || 0);
       });
     }
 
-    // 4. Prepare Inserts
     const insertValues: string[] = [];
     const params: any[] = [];
     let paramIndex = 1;
 
     for (let index = 0; index < rows.length; index++) {
       const row = rows[index];
-
       try {
         const external_id = String(row['order_id'] || '').trim();
         const sku = String(row['sku'] || '').trim();
@@ -126,21 +109,15 @@ export async function POST(request: Request) {
           continue;
         }
 
-        // Use let instead of const to allow reassignment when creating missing SKUs
+        // Fix: Use let to allow reassignment when creating new variants
         let variant_id = variantMap.get(sku);
 
-        // Create Variant if Missing
+        // 4. Create Variant if Missing
         if (!variant_id) {
           const createVariant = await pool.query(
-            `
-            INSERT INTO product_variants
-            (variant_sku, stock, account_id, created_at)
-            VALUES ($1, 0, $2, NOW())
-            RETURNING id
-            `,
+            `INSERT INTO product_variants (variant_sku, stock, account_id, created_at) VALUES ($1, 0, $2, NOW()) RETURNING id`,
             [sku, accountId]
           );
-
           variant_id = createVariant.rows[0].id;
           variantMap.set(sku, variant_id);
           summary.new_skus++;
@@ -186,7 +163,7 @@ export async function POST(request: Request) {
       }
     }
 
-    // 5. Insert Orders in Batch
+    // 5. Batch Insert with Duplicate Guard
     if (insertValues.length > 0) {
       const insertResult = await pool.query(
         `
@@ -212,7 +189,7 @@ export async function POST(request: Request) {
       );
 
       summary.imported = insertResult.rowCount || 0;
-      summary.duplicates = summary.processed - summary.imported;
+      summary.duplicates = summary.processed - (insertResult.rowCount || 0);
     }
 
     const duration = ((Date.now() - startTime) / 1000).toFixed(2);
