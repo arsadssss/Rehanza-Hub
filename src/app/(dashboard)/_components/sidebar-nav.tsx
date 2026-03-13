@@ -1,4 +1,3 @@
-
 'use client';
 
 import Link from 'next/link';
@@ -19,7 +18,6 @@ import {
   LayoutDashboard,
   Package,
   Warehouse,
-  ShoppingCart,
   Building,
   BarChart2,
   Settings,
@@ -45,7 +43,6 @@ const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/products', icon: Package, label: 'Products' },
   { href: '/inventory', icon: Warehouse, label: 'Inventory' },
-  { href: '/orders', icon: ShoppingCart, label: 'Orders' },
   { href: '/tasks', icon: ListTodo, label: 'Tasks' },
   { href: '/vendors', icon: Building, label: 'Vendors' },
   { href: '/analytics', icon: BarChart2, label: 'Report' },

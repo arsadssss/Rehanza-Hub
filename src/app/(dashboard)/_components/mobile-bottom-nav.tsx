@@ -5,7 +5,6 @@ import { usePathname } from 'next/navigation';
 import { 
   LayoutDashboard, 
   Package, 
-  ShoppingCart, 
   BarChart2, 
   User 
 } from 'lucide-react';
@@ -14,7 +13,6 @@ import { cn } from '@/lib/utils';
 const bottomNavItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Home' },
   { href: '/products', icon: Package, label: 'Products' },
-  { href: '/orders', icon: ShoppingCart, label: 'Orders' },
   { href: '/analytics', icon: BarChart2, label: 'Report' },
   { href: '/profile', icon: User, label: 'Profile' },
 ];

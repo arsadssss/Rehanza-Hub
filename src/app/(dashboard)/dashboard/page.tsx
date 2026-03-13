@@ -3,9 +3,6 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { formatINR } from '@/lib/format';
-import { Card, CardHeader, CardTitle, CardContent } from '@/components/ui/card';
-import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
-import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Wallet, Archive } from 'lucide-react';
 import { apiFetch } from '@/lib/apiFetch';
@@ -21,7 +18,6 @@ export default function DashboardPage() {
 
   // High level data
   const [summary, setSummary] = useState<any>(null);
-  const [recentOrders, setRecentOrders] = useState<any[]>([]);
   const [trackRecord, setTrackRecord] = useState<TrackRecordEntry[]>([]);
   const [totalDueAllVendors, setTotalDueAllVendors] = useState(0);
   const [totalInventoryValue, setTotalInventoryValue] = useState(0);
@@ -83,7 +79,6 @@ export default function DashboardPage() {
         if (dashRes.ok) {
           const data = await dashRes.json();
           setSummary(data.summary);
-          setRecentOrders(data.recentOrders || []);
         }
 
         if (vendorRes.ok) {
@@ -157,28 +152,6 @@ export default function DashboardPage() {
           )}
         </div>
       </div>
-      
-      {/* 6. Recent Orders Table */}
-      <Card className="rounded-2xl shadow-md border-0">
-        <CardHeader><CardTitle>Recent Orders</CardTitle></CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader><TableRow><TableHead>Date</TableHead><TableHead>Platform</TableHead><TableHead>SKU</TableHead><TableHead>Quantity</TableHead><TableHead className="text-right">Amount</TableHead></TableRow></TableHeader>
-            <TableBody>
-              {loading ? Array.from({ length: 5 }).map((_, i) => <TableRow key={i}><TableCell colSpan={5}><Skeleton className="h-8 w-full" /></TableCell></TableRow>) : recentOrders.map((o) => (
-                <TableRow key={o.id}>
-                  <TableCell>{isMounted ? new Date(o.created_at).toLocaleDateString('en-IN') : '...'}</TableCell>
-                  <TableCell><Badge variant="secondary">{o.platform}</Badge></TableCell>
-                  <TableCell className="font-medium">{o.variant_sku || 'N/A'}</TableCell>
-                  <TableCell>{o.quantity}</TableCell>
-                  <TableCell className="text-right">{formatINR(o.total_amount)}</TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-      
     </div>
   );
 }
