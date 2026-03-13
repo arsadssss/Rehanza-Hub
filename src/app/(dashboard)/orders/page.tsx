@@ -92,6 +92,12 @@ export default function OrdersPage() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    // Security & Size Check
+    if (file.size > 10 * 1024 * 1024) {
+      toast({ variant: "destructive", title: "File too large", description: "Max file size is 10MB" });
+      return;
+    }
+
     setIsImporting(true);
     const formData = new FormData();
     formData.append("file", file);
@@ -102,11 +108,13 @@ export default function OrdersPage() {
         body: formData,
       });
       const result = await res.json();
+      
       if (res.ok) {
         setImportResult(result);
         fetchData();
+        toast({ title: "Import Processed", description: `Successfully imported ${result.imported} orders.` });
       } else {
-        throw new Error(result.error);
+        throw new Error(result.error || "Failed to process file");
       }
     } catch (err: any) {
       toast({ variant: "destructive", title: "Import Failed", description: err.message });
@@ -139,7 +147,7 @@ export default function OrdersPage() {
           <div className="relative">
             <input 
               type="file" 
-              accept=".xlsx" 
+              accept=".xlsx,.csv,.tsv" 
               onChange={handleImport} 
               className="hidden" 
               id="meesho-import" 
@@ -152,7 +160,7 @@ export default function OrdersPage() {
             >
               <label htmlFor="meesho-import" className="flex items-center gap-2">
                 <FileUp className={cn("h-4 w-4", isImporting && "animate-spin")} />
-                {isImporting ? "Analyzing..." : "Import Meesho"}
+                {isImporting ? "Processing Batch..." : "Import Meesho"}
               </label>
             </Button>
           </div>
