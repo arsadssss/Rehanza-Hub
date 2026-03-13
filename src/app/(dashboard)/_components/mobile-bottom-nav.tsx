@@ -14,7 +14,6 @@ import { cn } from '@/lib/utils';
 
 const bottomNavItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Home' },
-  { href: '/orders', icon: ShoppingCart, label: 'Orders' },
   { href: '/products', icon: Package, label: 'Products' },
   { href: '/analytics', icon: BarChart2, label: 'Report' },
   { href: '/profile', icon: User, label: 'Profile' },
