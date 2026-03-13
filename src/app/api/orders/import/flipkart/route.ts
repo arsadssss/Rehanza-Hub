@@ -78,7 +78,7 @@ export async function POST(request:Request){
     const skus = Array.from(skuSet)
 
     // --------------------------------
-    // Fetch Variant IDs
+    // Fetch Existing Variants
     // --------------------------------
 
     const variantMap = new Map<string,string>()
@@ -125,7 +125,9 @@ export async function POST(request:Request){
     const params:any[]=[]
     let paramIndex=1
 
-    rows.forEach((row,index)=>{
+    for(let index=0; index<rows.length; index++){
+
+      const row = rows[index]
 
       try{
 
@@ -133,7 +135,6 @@ export async function POST(request:Request){
         const sku = String(row['sku']||'').trim()
 
         const quantity = parseInt(row['quantity']) || 1
-
         const status = String(row['order_item_status'] || 'UNKNOWN').trim()
 
         if(!external_id || !sku){
@@ -145,21 +146,32 @@ export async function POST(request:Request){
             message:'Missing Order ID or SKU'
           })
 
-          return
+          continue
         }
 
-        const variant_id = variantMap.get(sku)
+        let variant_id = variantMap.get(sku)
+
+        // ------------------------------
+        // Create Variant if Missing
+        // ------------------------------
 
         if(!variant_id){
 
-          summary.failed++
+          const createVariant = await pool.query(
+          `
+          INSERT INTO product_variants
+          (variant_sku,stock,account_id,created_at)
+          VALUES ($1,0,$2,NOW())
+          RETURNING id
+          `,
+          [sku,accountId]
+          )
 
-          summary.errors.push({
-            row:index+2,
-            message:'Variant not found'
-          })
+          variant_id = createVariant.rows[0].id
 
-          return
+          variantMap.set(sku,variant_id)
+
+          summary.new_skus++
         }
 
         const selling_price = priceMap.get(sku) || 0
@@ -202,7 +214,7 @@ export async function POST(request:Request){
 
       }
 
-    })
+    }
 
     // --------------------------------
     // Insert Orders
