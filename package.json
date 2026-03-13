@@ -54,6 +54,7 @@
     "patch-package": "^8.0.0",
     "pdf-lib": "^1.17.1",
     "pdfjs-dist": "^4.10.38",
+    "pg": "^8.13.1",
     "react": "^19.2.1",
     "react-day-picker": "^9.11.3",
     "react-dom": "^19.2.1",
@@ -72,6 +73,7 @@
   },
   "devDependencies": {
     "@types/node": "^20",
+    "@types/pg": "^8.11.10",
     "@types/react": "^19.2.1",
     "@types/react-dom": "^19.2.1",
     "genkit-cli": "^1.28.0",
