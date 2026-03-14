@@ -5,6 +5,26 @@ import * as XLSX from 'xlsx'
 export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
+function parseExcelDate(value:any){
+
+  if(!value) return new Date()
+
+  // Excel numeric serial date
+  if(typeof value === "number"){
+    const excelEpoch = new Date(Date.UTC(1899,11,30))
+    return new Date(excelEpoch.getTime() + value * 86400000)
+  }
+
+  // String date
+  const parsed = new Date(value)
+
+  if(!isNaN(parsed.getTime())){
+    return parsed
+  }
+
+  return new Date()
+}
+
 export async function POST(request: Request) {
 
   const startTime = Date.now()
@@ -60,7 +80,7 @@ export async function POST(request: Request) {
     const skuSet = new Set<string>()
 
     rows.forEach(r=>{
-      const sku = String(r['SKU'] || '').trim()
+      const sku = String(r['SKU'] || '').trim().toUpperCase()
       if(sku) skuSet.add(sku)
     })
 
@@ -81,7 +101,7 @@ export async function POST(request: Request) {
     )
 
     existingVariants.rows.forEach(v=>{
-      variantMap.set(v.variant_sku, v.id)
+      variantMap.set(v.variant_sku.toUpperCase(), v.id)
     })
 
     // -------------------------
@@ -111,7 +131,7 @@ export async function POST(request: Request) {
       )
 
       newVariants.rows.forEach(v=>{
-        variantMap.set(v.variant_sku,v.id)
+        variantMap.set(v.variant_sku.toUpperCase(),v.id)
       })
 
       summary.new_skus = newVariants.rows.length
@@ -130,7 +150,10 @@ export async function POST(request: Request) {
       try{
 
         const external_id = String(row['Sub Order No'] || '').trim()
-        const sku = String(row['SKU'] || '').trim()
+
+        const sku = String(row['SKU'] || '')
+        .trim()
+        .toUpperCase()
 
         const quantity = parseInt(row['Quantity']) || 0
 
@@ -141,6 +164,8 @@ export async function POST(request: Request) {
         const status = String(
           row['Reason for Credit Entry'] || 'UNKNOWN'
         ).trim()
+
+        const orderDate = parseExcelDate(row['Order Date'])
 
         if(!external_id || !sku){
           summary.failed++
@@ -177,7 +202,7 @@ export async function POST(request: Request) {
         )
 
         params.push(
-          new Date(row['Order Date']),
+          orderDate,
           'Meesho',
           variant_id,
           quantity,

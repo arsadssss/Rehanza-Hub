@@ -1,4 +1,3 @@
-
 import { sql } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
@@ -15,6 +14,7 @@ export async function GET(request: Request) {
 
     const search = searchParams.get('search');
     const platform = searchParams.get('platform');
+    const status = searchParams.get('status');
     const from = searchParams.get('from');
     const to = searchParams.get('to');
 
@@ -26,6 +26,11 @@ export async function GET(request: Request) {
     if (platform && platform !== 'all') {
       whereClauses.push(`o.platform = $${paramIndex++}`);
       params.push(platform);
+    }
+
+    if (status && status !== 'all') {
+      whereClauses.push(`o.status ILIKE $${paramIndex++}`);
+      params.push(`%${status}%`);
     }
 
     if (search) {

@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useCallback } from 'react';
@@ -25,6 +24,7 @@ export default function OrdersPage() {
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1 });
   const [search, setSearch] = useState('');
   const [platform, setPlatform] = useState('all');
+  const [status, setStatus] = useState('all');
   const [dateRange, setDateRange] = useState<{ from?: string; to?: string }>({});
 
   // Sync account ID from session storage
@@ -47,6 +47,7 @@ export default function OrdersPage() {
       const params = new URLSearchParams();
       if (search) params.append('search', search);
       if (platform !== 'all') params.append('platform', platform);
+      if (status !== 'all') params.append('status', status);
       if (dateRange.from) params.append('from', dateRange.from);
       if (dateRange.to) params.append('to', dateRange.to);
 
@@ -58,7 +59,7 @@ export default function OrdersPage() {
     } catch (error) {
       console.error('Failed to load stats', error);
     }
-  }, [activeAccountId, search, platform, dateRange]);
+  }, [activeAccountId, search, platform, status, dateRange]);
 
   const fetchOrders = useCallback(async () => {
     if (!activeAccountId) return;
@@ -69,6 +70,7 @@ export default function OrdersPage() {
       params.append('limit', '100');
       if (search) params.append('search', search);
       if (platform !== 'all') params.append('platform', platform);
+      if (status !== 'all') params.append('status', status);
       if (dateRange.from) params.append('from', dateRange.from);
       if (dateRange.to) params.append('to', dateRange.to);
 
@@ -88,7 +90,7 @@ export default function OrdersPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, platform, dateRange, toast, activeAccountId]);
+  }, [page, search, platform, status, dateRange, toast, activeAccountId]);
 
   useEffect(() => {
     if (activeAccountId) {
@@ -100,7 +102,7 @@ export default function OrdersPage() {
   // Reset to page 1 when filters change
   useEffect(() => {
     setPage(1);
-  }, [search, platform, dateRange]);
+  }, [search, platform, status, dateRange]);
 
   const handleImportSuccess = () => {
     setIsImportOpen(false);
@@ -149,6 +151,8 @@ export default function OrdersPage() {
           onSearchChange={setSearch}
           platform={platform}
           onPlatformChange={setPlatform}
+          status={status}
+          onStatusChange={setStatus}
           onDateRangeChange={setDateRange}
         />
 

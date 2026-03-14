@@ -1,10 +1,9 @@
-
 "use client";
 
 import React, { useEffect, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, FilterX, Calendar as CalendarIcon } from 'lucide-react';
+import { Search, FilterX, Calendar as CalendarIcon, Tag } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
@@ -15,10 +14,20 @@ interface OrderFiltersProps {
   onSearchChange: (val: string) => void;
   platform: string;
   onPlatformChange: (val: string) => void;
+  status: string;
+  onStatusChange: (val: string) => void;
   onDateRangeChange: (range: { from?: string; to?: string }) => void;
 }
 
-export function OrderFilters({ search, onSearchChange, platform, onPlatformChange, onDateRangeChange }: OrderFiltersProps) {
+export function OrderFilters({ 
+  search, 
+  onSearchChange, 
+  platform, 
+  onPlatformChange, 
+  status,
+  onStatusChange,
+  onDateRangeChange 
+}: OrderFiltersProps) {
   const [date, setDate] = useState<any>(null);
   const [mounted, setMounted] = useState(false);
 
@@ -41,11 +50,11 @@ export function OrderFilters({ search, onSearchChange, platform, onPlatformChang
   const reset = () => {
     onSearchChange('');
     onPlatformChange('all');
+    onStatusChange('all');
     setDate(null);
     onDateRangeChange({});
   };
 
-  // Prevent hydration mismatch for dynamic IDs in Select and Popover
   if (!mounted) {
     return (
       <div className="flex flex-col md:flex-row gap-4 items-center bg-white/40 dark:bg-slate-900/40 backdrop-blur-xl p-4 rounded-2xl shadow-sm border border-border/50">
@@ -59,8 +68,9 @@ export function OrderFilters({ search, onSearchChange, platform, onPlatformChang
           />
         </div>
         <div className="flex gap-3 w-full md:w-auto h-11 items-center">
-          <div className="w-full md:w-[160px] h-full bg-background/50 rounded-xl border border-dashed border-border/50" />
-          <div className="w-full md:w-[240px] h-full bg-background/50 rounded-xl border border-dashed border-border/50" />
+          <div className="w-full md:w-[140px] h-full bg-background/50 rounded-xl border border-dashed border-border/50" />
+          <div className="w-full md:w-[140px] h-full bg-background/50 rounded-xl border border-dashed border-border/50" />
+          <div className="w-full md:w-[200px] h-full bg-background/50 rounded-xl border border-dashed border-border/50" />
           <div className="w-11 h-11 bg-background/50 rounded-xl border border-dashed border-border/50" />
         </div>
       </div>
@@ -79,9 +89,9 @@ export function OrderFilters({ search, onSearchChange, platform, onPlatformChang
         />
       </div>
 
-      <div className="flex gap-3 w-full md:w-auto">
+      <div className="flex flex-wrap md:flex-nowrap gap-3 w-full md:w-auto">
         <Select value={platform} onValueChange={onPlatformChange}>
-          <SelectTrigger className="h-11 w-full md:w-[160px] bg-background rounded-xl border-border/50">
+          <SelectTrigger className="h-11 w-full md:w-[140px] bg-background rounded-xl border-border/50">
             <SelectValue placeholder="Platform" />
           </SelectTrigger>
           <SelectContent className="rounded-xl">
@@ -92,18 +102,32 @@ export function OrderFilters({ search, onSearchChange, platform, onPlatformChang
           </SelectContent>
         </Select>
 
+        <Select value={status} onValueChange={onStatusChange}>
+          <SelectTrigger className="h-11 w-full md:w-[140px] bg-background rounded-xl border-border/50">
+            <SelectValue placeholder="Status" />
+          </SelectTrigger>
+          <SelectContent className="rounded-xl">
+            <SelectItem value="all">All Statuses</SelectItem>
+            <SelectItem value="SHIPPED">Shipped</SelectItem>
+            <SelectItem value="DELIVERED">Delivered</SelectItem>
+            <SelectItem value="CANCELLED">Cancelled</SelectItem>
+            <SelectItem value="READY_TO_SHIP">Ready to Ship</SelectItem>
+            <SelectItem value="RETURNED">Returned</SelectItem>
+          </SelectContent>
+        </Select>
+
         <Popover>
           <PopoverTrigger asChild>
-            <Button variant="outline" className="h-11 w-full md:w-[240px] rounded-xl bg-background border-border/50 justify-start text-left font-normal text-muted-foreground">
+            <Button variant="outline" className="h-11 w-full md:w-[200px] rounded-xl bg-background border-border/50 justify-start text-left font-normal text-muted-foreground">
               <CalendarIcon className="mr-2 h-4 w-4" />
               {date?.from ? (
                 date.to ? (
-                  <>{format(date.from, "LLL dd, y") + " - " + format(date.to, "LLL dd, y")}</>
+                  <>{format(date.from, "MMM dd") + " - " + format(date.to, "MMM dd")}</>
                 ) : (
-                  format(date.from, "LLL dd, y")
+                  format(date.from, "MMM dd")
                 )
               ) : (
-                <span>Pick a date range</span>
+                <span className="truncate">Date Range</span>
               )}
             </Button>
           </PopoverTrigger>
@@ -119,7 +143,7 @@ export function OrderFilters({ search, onSearchChange, platform, onPlatformChang
           </PopoverContent>
         </Popover>
 
-        <Button variant="ghost" size="icon" onClick={reset} className="h-11 w-11 rounded-xl hover:bg-rose-500/10 hover:text-rose-500">
+        <Button variant="ghost" size="icon" onClick={reset} className="h-11 w-11 shrink-0 rounded-xl hover:bg-rose-500/10 hover:text-rose-500">
           <FilterX className="h-4 w-4" />
         </Button>
       </div>
