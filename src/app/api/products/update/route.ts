@@ -16,7 +16,7 @@ export async function PUT(request: Request) {
     const {
       id, sku, category, product_name, 
       cost_price, margin, promo_ads, tax_other, packing,
-      flipkart_ship, amazon_ship,
+      flipkart_ship, amazon_ship, platform_fee,
       meesho_price, flipkart_price, amazon_price,
       stock, low_stock_threshold
     } = body;
@@ -38,6 +38,7 @@ export async function PUT(request: Request) {
         packing = ${packing},
         flipkart_ship = ${flipkart_ship},
         amazon_ship = ${amazon_ship},
+        platform_fee = ${platform_fee},
         meesho_price = ${meesho_price},
         flipkart_price = ${flipkart_price},
         amazon_price = ${amazon_price},

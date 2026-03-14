@@ -11,6 +11,7 @@ const DEFAULT_TAX_OTHER = 10;
 const DEFAULT_PACKING = 15;
 const DEFAULT_AMAZON_SHIP = 80;
 const DEFAULT_FLIPKART_SHIP = 80;
+const DEFAULT_PLATFORM_FEE = 8;
 
 /**
  * POST /api/products/bulk-import
@@ -49,8 +50,8 @@ export async function POST(request: Request) {
       // Calculate dynamic prices based on new formula
       const baseCost = cost + margin + DEFAULT_PROMO_ADS + DEFAULT_TAX_OTHER + DEFAULT_PACKING;
       const meeshoPrice = Math.round(baseCost * 1.18);
-      const flipkartPrice = Math.round((baseCost + DEFAULT_FLIPKART_SHIP) * 1.18);
-      const amazonPrice = Math.round((baseCost + DEFAULT_AMAZON_SHIP) * 1.18);
+      const flipkartPrice = Math.round((baseCost + DEFAULT_FLIPKART_SHIP + DEFAULT_PLATFORM_FEE) * 1.18);
+      const amazonPrice = Math.round((baseCost + DEFAULT_AMAZON_SHIP + DEFAULT_PLATFORM_FEE) * 1.18);
 
       const preparedItem = {
         sku,
@@ -67,6 +68,7 @@ export async function POST(request: Request) {
         packing: DEFAULT_PACKING,
         amazon_ship: DEFAULT_AMAZON_SHIP,
         flipkart_ship: DEFAULT_FLIPKART_SHIP,
+        platform_fee: DEFAULT_PLATFORM_FEE,
         account_id: accountId
       };
 
@@ -85,12 +87,12 @@ export async function POST(request: Request) {
         await sql`
           INSERT INTO allproducts (
             sku, product_name, category, cost_price, margin, low_stock_threshold, 
-            promo_ads, tax_other, packing, amazon_ship, flipkart_ship,
+            promo_ads, tax_other, packing, amazon_ship, flipkart_ship, platform_fee,
             meesho_price, flipkart_price, amazon_price, account_id
           )
           VALUES (
             ${item.sku}, ${item.product_name}, ${item.category}, ${item.cost_price}, ${item.margin}, ${item.low_stock_threshold}, 
-            ${item.promo_ads}, ${item.tax_other}, ${item.packing}, ${item.amazon_ship}, ${item.flipkart_ship},
+            ${item.promo_ads}, ${item.tax_other}, ${item.packing}, ${item.amazon_ship}, ${item.flipkart_ship}, ${item.platform_fee},
             ${item.meesho_price}, ${item.flipkart_price}, ${item.amazon_price}, ${accountId}
           )
         `;
@@ -113,6 +115,7 @@ export async function POST(request: Request) {
             amazon_price = ${item.amazon_price},
             amazon_ship = ${item.amazon_ship},
             flipkart_ship = ${item.flipkart_ship},
+            platform_fee = ${item.platform_fee},
             promo_ads = ${item.promo_ads},
             tax_other = ${item.tax_other},
             packing = ${item.packing}

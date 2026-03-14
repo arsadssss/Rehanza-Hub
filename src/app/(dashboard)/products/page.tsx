@@ -46,6 +46,12 @@ export type Product = {
   category: string | null;
   cost_price: number;
   margin: number;
+  promo_ads?: number;
+  tax_other?: number;
+  packing?: number;
+  amazon_ship?: number;
+  flipkart_ship?: number;
+  platform_fee?: number;
   meesho_price: number;
   flipkart_price: number;
   amazon_price: number;

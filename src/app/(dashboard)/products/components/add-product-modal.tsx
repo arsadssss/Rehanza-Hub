@@ -39,6 +39,7 @@ const formSchema = z.object({
   packing: z.coerce.number().min(0),
   amazon_ship: z.coerce.number().min(0),
   flipkart_ship: z.coerce.number().min(0),
+  platform_fee: z.coerce.number().min(0),
   meesho_price: z.coerce.number().min(0),
   flipkart_price: z.coerce.number().min(0),
   amazon_price: z.coerce.number().min(0),
@@ -73,6 +74,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess, productToEdit }: P
       packing: 15,
       amazon_ship: 80,
       flipkart_ship: 80,
+      platform_fee: 8,
       meesho_price: 0,
       flipkart_price: 0,
       amazon_price: 0,
@@ -96,6 +98,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess, productToEdit }: P
           packing: (productToEdit as any).packing || 15,
           amazon_ship: (productToEdit as any).amazon_ship || 80,
           flipkart_ship: (productToEdit as any).flipkart_ship || 80,
+          platform_fee: (productToEdit as any).platform_fee || 8,
           meesho_price: productToEdit.meesho_price,
           flipkart_price: productToEdit.flipkart_price,
           amazon_price: productToEdit.amazon_price,
@@ -114,6 +117,7 @@ export function AddProductModal({ isOpen, onClose, onSuccess, productToEdit }: P
           packing: 15,
           amazon_ship: 80,
           flipkart_ship: 80,
+          platform_fee: 8,
           meesho_price: 0,
           flipkart_price: 0,
           amazon_price: 0,
@@ -131,12 +135,13 @@ export function AddProductModal({ isOpen, onClose, onSuccess, productToEdit }: P
     "tax_other",
     "packing",
     "amazon_ship",
-    "flipkart_ship"
+    "flipkart_ship",
+    "platform_fee"
   ]);
 
   // Automated Price Recalculation
   React.useEffect(() => {
-    const [cost, margin, ads, tax, pack, amz, flip] = watchedValues;
+    const [cost, margin, ads, tax, pack, amz, flip, fee] = watchedValues;
     const prices = calculatePlatformPrices({
       cost_price: cost,
       margin: margin,
@@ -144,7 +149,8 @@ export function AddProductModal({ isOpen, onClose, onSuccess, productToEdit }: P
       tax_other: tax,
       packing: pack,
       amazon_ship: amz,
-      flipkart_ship: flip
+      flipkart_ship: flip,
+      platform_fee: fee
     });
 
     form.setValue("meesho_price", prices.meesho_price);
@@ -304,6 +310,17 @@ export function AddProductModal({ isOpen, onClose, onSuccess, productToEdit }: P
                     )}
                   />
                 </div>
+                <FormField
+                  control={form.control}
+                  name="platform_fee"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Platform Fee (₹)</FormLabel>
+                      <FormControl><Input type="number" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 <h3 className="font-bold text-sm uppercase tracking-wider text-primary border-b pb-2 mt-6">Final Platform Pricing</h3>
                 <div className="space-y-4">

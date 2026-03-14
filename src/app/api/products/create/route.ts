@@ -16,7 +16,7 @@ export async function POST(request: Request) {
     const {
       sku, category, product_name, 
       cost_price, margin, promo_ads, tax_other, packing,
-      flipkart_ship, amazon_ship,
+      flipkart_ship, amazon_ship, platform_fee,
       meesho_price, flipkart_price, amazon_price,
       stock, low_stock_threshold
     } = body;
@@ -29,14 +29,14 @@ export async function POST(request: Request) {
       INSERT INTO allproducts (
         sku, category, product_name, 
         cost_price, margin, promo_ads, tax_other, packing,
-        flipkart_ship, amazon_ship,
+        flipkart_ship, amazon_ship, platform_fee,
         meesho_price, flipkart_price, amazon_price,
         stock, low_stock_threshold, account_id
       )
       VALUES (
         ${sku}, ${category}, ${product_name}, 
         ${cost_price}, ${margin}, ${promo_ads}, ${tax_other}, ${packing},
-        ${flipkart_ship}, ${amazon_ship},
+        ${flipkart_ship}, ${amazon_ship}, ${platform_fee || 8},
         ${meesho_price}, ${flipkart_price}, ${amazon_price},
         ${stock || 0}, ${low_stock_threshold || 5}, ${accountId}
       )
