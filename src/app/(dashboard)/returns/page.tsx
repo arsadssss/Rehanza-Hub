@@ -8,6 +8,7 @@ import { ReturnsTable } from '@/components/returns/returns-table';
 import { AddReturnModal } from './components/add-return-modal';
 import { ImportReturnsModal } from '@/components/returns/import-returns-modal';
 import { ReturnsStatsCards } from '@/components/returns/returns-stats-cards';
+import { ReturnsAnalysisTab } from '@/components/returns/returns-analysis-tab';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -17,8 +18,13 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
-import { Undo2, Upload, ChevronDown, Activity } from 'lucide-react';
-import Link from 'next/link';
+import { 
+  Tabs, 
+  TabsContent, 
+  TabsList, 
+  TabsTrigger 
+} from '@/components/ui/tabs';
+import { Undo2, Upload, ChevronDown, Activity, ListTodo } from 'lucide-react';
 
 export default function ReturnsPage() {
   const { toast } = useToast();
@@ -152,16 +158,10 @@ export default function ReturnsPage() {
             </div>
             Returns
           </h1>
-          <p className="text-muted-foreground font-medium mt-1">Manage reverse logistics and customer refund requests.</p>
+          <p className="text-muted-foreground font-medium mt-1">Manage reverse logistics and marketplace return analysis.</p>
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <Button variant="outline" asChild className="rounded-xl h-12 px-6 font-bold bg-white/50 backdrop-blur-sm border-border/50">
-            <Link href="/returns/intelligence">
-              <Activity className="mr-2 h-4 w-4 text-primary" /> Return Analysis
-            </Link>
-          </Button>
-
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button 
@@ -193,30 +193,47 @@ export default function ReturnsPage() {
         </div>
       </div>
 
-      <ReturnsStatsCards stats={stats} loading={loading} />
+      <Tabs defaultValue="logs" className="w-full">
+        <TabsList className="bg-muted/50 p-1 rounded-2xl mb-8">
+          <TabsTrigger value="logs" className="rounded-xl px-8 font-black uppercase tracking-widest text-[10px] data-[state=active]:shadow-lg">
+            <ListTodo className="mr-2 h-3.5 w-3.5" /> Return Logs
+          </TabsTrigger>
+          <TabsTrigger value="analysis" className="rounded-xl px-8 font-black uppercase tracking-widest text-[10px] data-[state=active]:shadow-lg">
+            <Activity className="mr-2 h-3.5 w-3.5" /> Intelligence
+          </TabsTrigger>
+        </TabsList>
 
-      <div className="space-y-6">
-        <ReturnsFilters 
-          search={search}
-          onSearchChange={setSearch}
-          platform={platform}
-          onPlatformChange={setPlatform}
-          status={status}
-          onStatusChange={setStatus}
-          onDateRangeChange={setDateRange}
-        />
+        <TabsContent value="logs" className="space-y-8">
+          <ReturnsStatsCards stats={stats} loading={loading} />
 
-        <ReturnsTable 
-          returns={returns}
-          loading={loading}
-          onEdit={(item) => { setItemToEdit(item); setIsAddModalOpen(true); }}
-          onDelete={setItemToDelete}
-          currentPage={page}
-          totalPages={pagination.totalPages}
-          totalRecords={pagination.total}
-          onPageChange={setPage}
-        />
-      </div>
+          <div className="space-y-6">
+            <ReturnsFilters 
+              search={search}
+              onSearchChange={setSearch}
+              platform={platform}
+              onPlatformChange={setPlatform}
+              status={status}
+              onStatusChange={setStatus}
+              onDateRangeChange={setDateRange}
+            />
+
+            <ReturnsTable 
+              returns={returns}
+              loading={loading}
+              onEdit={(item) => { setItemToEdit(item); setIsAddModalOpen(true); }}
+              onDelete={setItemToDelete}
+              currentPage={page}
+              totalPages={pagination.totalPages}
+              totalRecords={pagination.total}
+              onPageChange={setPage}
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="analysis">
+          <ReturnsAnalysisTab />
+        </TabsContent>
+      </Tabs>
 
       {/* Modals */}
       <AddReturnModal

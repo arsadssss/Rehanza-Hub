@@ -48,7 +48,6 @@ export const navItems = [
   { href: '/products', icon: Package, label: 'Products' },
   { href: '/inventory', icon: Warehouse, label: 'Inventory' },
   { href: '/returns', icon: Undo2, label: 'Returns' },
-  { href: '/returns/intelligence', icon: Activity, label: 'Return Analysis' },
   { href: '/tasks', icon: ListTodo, label: 'Tasks' },
   { href: '/vendors', icon: Building, label: 'Vendors' },
   { href: '/analytics', icon: BarChart2, label: 'Report' },
