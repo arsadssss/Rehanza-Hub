@@ -6,11 +6,17 @@ import { apiFetch } from '@/lib/apiFetch';
 import { ReturnsFilters } from '@/components/returns/returns-filters';
 import { ReturnsTable } from '@/components/returns/returns-table';
 import { AddReturnModal } from './components/add-return-modal';
-import { ImportMeeshoReturns } from '@/components/returns/import-meesho-returns';
+import { ImportReturnsModal } from '@/components/returns/import-returns-modal';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Undo2, Upload } from 'lucide-react';
+import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger 
+} from '@/components/ui/dropdown-menu';
+import { Undo2, Upload, ChevronDown } from 'lucide-react';
 
 export default function ReturnsPage() {
   const { toast } = useToast();
@@ -30,6 +36,7 @@ export default function ReturnsPage() {
   // Modals State
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importPlatform, setImportPlatform] = useState<'meesho' | 'flipkart' | 'amazon' | null>(null);
   const [itemToEdit, setItemToEdit] = useState<any | null>(null);
   const [itemToDelete, setItemToDelete] = useState<any | null>(null);
 
@@ -109,6 +116,11 @@ export default function ReturnsPage() {
     fetchReturns();
   };
 
+  const handleOpenImport = (p: 'meesho' | 'flipkart' | 'amazon') => {
+    setImportPlatform(p);
+    setIsImportModalOpen(true);
+  };
+
   return (
     <div className="p-6 md:p-8 space-y-8 bg-gray-50/50 dark:bg-black/50 min-h-full font-body">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -123,13 +135,28 @@ export default function ReturnsPage() {
         </div>
 
         <div className="flex flex-wrap gap-3">
-          <Button 
-            variant="outline"
-            onClick={() => setIsImportModalOpen(true)}
-            className="rounded-xl h-12 px-6 font-bold"
-          >
-            <Upload className="mr-2 h-4 w-4" /> Import Returns
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button 
+                variant="outline"
+                className="rounded-xl h-12 px-6 font-bold"
+              >
+                <Upload className="mr-2 h-4 w-4" /> Import Returns <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="rounded-xl w-56">
+              <DropdownMenuItem onClick={() => handleOpenImport('meesho')} className="cursor-pointer font-medium">
+                Import Meesho Returns
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleOpenImport('flipkart')} className="cursor-pointer font-medium">
+                Import Flipkart Returns
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => handleOpenImport('amazon')} className="cursor-pointer font-medium">
+                Import Amazon Returns
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+
           <Button 
             onClick={() => setIsAddModalOpen(true)}
             className="rounded-xl h-12 px-6 font-bold shadow-lg shadow-primary/20"
@@ -170,15 +197,23 @@ export default function ReturnsPage() {
         returnItem={itemToEdit}
       />
 
-      <Dialog open={isImportModalOpen} onOpenChange={setIsImportModalOpen}>
+      <Dialog open={isImportModalOpen} onOpenChange={(open) => {
+        setIsImportModalOpen(open);
+        if (!open) setImportPlatform(null);
+      }}>
         <DialogContent className="sm:max-w-xl rounded-[2rem]">
           <DialogHeader>
-            <DialogTitle className="font-headline text-2xl font-bold">Import Marketplace Returns</DialogTitle>
+            <DialogTitle className="font-headline text-2xl font-bold">
+              Import {importPlatform ? importPlatform.charAt(0).toUpperCase() + importPlatform.slice(1) : ''} Returns
+            </DialogTitle>
           </DialogHeader>
-          <ImportMeeshoReturns 
-            onSuccess={handleImportSuccess} 
-            onClose={() => setIsImportModalOpen(false)} 
-          />
+          {importPlatform && (
+            <ImportReturnsModal 
+              platform={importPlatform}
+              onSuccess={handleImportSuccess} 
+              onClose={() => setIsImportModalOpen(false)} 
+            />
+          )}
         </DialogContent>
       </Dialog>
 
