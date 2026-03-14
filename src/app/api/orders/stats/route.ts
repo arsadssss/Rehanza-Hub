@@ -6,22 +6,57 @@ export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
+    const { searchParams } = new URL(request.url);
     const accountId = request.headers.get("x-account-id");
     
     if (!accountId) {
       return NextResponse.json({ success: false, message: "Account context missing" }, { status: 400 });
     }
 
-    // Dynamic stats based on account context
-    const statsRes = await sql`
+    const search = searchParams.get('search');
+    const platform = searchParams.get('platform');
+    const from = searchParams.get('from');
+    const to = searchParams.get('to');
+
+    // Build dynamic where clauses consistent with orders list API
+    let whereClauses = ['o.is_deleted = false', 'o.account_id = $1'];
+    let params: any[] = [accountId];
+    let paramIndex = 2;
+
+    if (platform && platform !== 'all') {
+      whereClauses.push(`o.platform = $${paramIndex++}`);
+      params.push(platform);
+    }
+
+    if (search) {
+      whereClauses.push(`(o.external_order_id ILIKE $${paramIndex} OR pv.variant_sku ILIKE $${paramIndex})`);
+      params.push(`%${search}%`);
+      paramIndex++;
+    }
+
+    if (from) {
+      whereClauses.push(`o.order_date >= $${paramIndex++}`);
+      params.push(from);
+    }
+
+    if (to) {
+      whereClauses.push(`o.order_date <= $${paramIndex++}`);
+      params.push(to);
+    }
+
+    const whereString = `WHERE ${whereClauses.join(' AND ')}`;
+
+    // Calculate stats based on filtered results
+    const statsRes = await sql(`
       SELECT 
-        COUNT(id)::int as total_orders,
-        COALESCE(SUM(total_amount), 0)::numeric as total_revenue,
-        COUNT(id) FILTER (WHERE order_date = CURRENT_DATE)::int as today_orders,
-        COALESCE(SUM(total_amount) FILTER (WHERE order_date = CURRENT_DATE), 0)::numeric as today_revenue
-      FROM orders
-      WHERE is_deleted = false AND account_id = ${accountId}
-    `;
+        COUNT(o.id)::int as total_orders,
+        COALESCE(SUM(o.total_amount), 0)::numeric as total_revenue,
+        COUNT(o.id) FILTER (WHERE o.order_date = CURRENT_DATE)::int as today_orders,
+        COALESCE(SUM(o.total_amount) FILTER (WHERE o.order_date = CURRENT_DATE), 0)::numeric as today_revenue
+      FROM orders o
+      LEFT JOIN product_variants pv ON pv.id = o.variant_id
+      ${whereString}
+    `, params);
 
     const stats = statsRes[0];
 

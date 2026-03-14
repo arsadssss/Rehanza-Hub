@@ -1,7 +1,7 @@
 
 "use client";
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { useDropzone } from 'react-dropzone';
 import { Upload, FileUp, AlertCircle, CheckCircle2, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -29,11 +29,6 @@ export function ImportOrders({ onSuccess, initialPlatform = 'meesho' }: ImportOr
   const [platform, setPlatform] = useState(initialPlatform);
   const [uploading, setUploading] = useState(false);
   const [result, setResult] = useState<any>(null);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const onDrop = useCallback((acceptedFiles: File[]) => {
     if (acceptedFiles.length > 0) {
@@ -75,6 +70,7 @@ export function ImportOrders({ onSuccess, initialPlatform = 'meesho' }: ImportOr
 
       if (res.ok) {
         setResult(data);
+        console.log(`Import result for ${platform}:`, data);
         toast({ 
           title: 'Import Complete', 
           description: `Successfully imported ${data.imported || data.orders_imported || 0} orders from ${platform.charAt(0).toUpperCase() + platform.slice(1)}.` 
@@ -93,8 +89,6 @@ export function ImportOrders({ onSuccess, initialPlatform = 'meesho' }: ImportOr
       setUploading(false);
     }
   };
-
-  if (!mounted) return <div className="h-[400px] w-full bg-muted/10 animate-pulse rounded-2xl" />;
 
   if (result) {
     const imported = result.imported ?? result.orders_imported ?? 0;

@@ -45,7 +45,13 @@ export default function OrdersPage() {
   const fetchStats = useCallback(async () => {
     if (!activeAccountId) return;
     try {
-      const res = await apiFetch('/api/orders/stats');
+      const params = new URLSearchParams();
+      if (search) params.append('search', search);
+      if (platform !== 'all') params.append('platform', platform);
+      if (dateRange.from) params.append('from', dateRange.from);
+      if (dateRange.to) params.append('to', dateRange.to);
+
+      const res = await apiFetch(`/api/orders/stats?${params.toString()}`);
       if (res.ok) {
         const data = await res.json();
         setStats(data.data);
@@ -53,7 +59,7 @@ export default function OrdersPage() {
     } catch (error) {
       console.error('Failed to load stats', error);
     }
-  }, [activeAccountId]);
+  }, [activeAccountId, search, platform, dateRange]);
 
   const fetchOrders = useCallback(async () => {
     if (!activeAccountId) return;
