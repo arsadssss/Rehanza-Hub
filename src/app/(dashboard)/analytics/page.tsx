@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { useEffect, useState } from 'react';
@@ -21,7 +22,7 @@ export default function AnalyticsPage() {
   const [salesTrendRaw, setSalesTrendRaw] = useState<any[]>([]);
   const [platformBreakdownRaw, setPlatformBreakdownRaw] = useState<any[]>([]);
   const [totalPlatformOrders, setTotalPlatformOrders] = useState(0);
-  const [timeRange, setTimeRange] = useState('7d');
+  const [timeRange, setTimeRange] = useState('30d');
 
   useEffect(() => {
     const id = sessionStorage.getItem("active_account");
