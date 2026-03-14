@@ -20,7 +20,9 @@ export default function OrdersPage() {
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [importPlatform, setImportPlatform] = useState<string>('meesho');
   
-  // Filters
+  // Pagination & Filters
+  const [page, setPage] = useState(1);
+  const [pagination, setPagination] = useState({ total: 0, totalPages: 1 });
   const [search, setSearch] = useState('');
   const [platform, setPlatform] = useState('all');
   const [dateRange, setDateRange] = useState<{ from?: string; to?: string }>({});
@@ -41,6 +43,8 @@ export default function OrdersPage() {
     setLoading(true);
     try {
       const params = new URLSearchParams();
+      params.append('page', page.toString());
+      params.append('limit', '100');
       if (search) params.append('search', search);
       if (platform !== 'all') params.append('platform', platform);
       if (dateRange.from) params.append('from', dateRange.from);
@@ -50,6 +54,10 @@ export default function OrdersPage() {
       if (res.ok) {
         const data = await res.json();
         setOrders(data.data || []);
+        setPagination({
+          total: data.pagination?.total || 0,
+          totalPages: data.pagination?.totalPages || 1
+        });
       } else {
         toast({ variant: 'destructive', title: 'Error', description: 'Failed to load orders list' });
       }
@@ -58,12 +66,20 @@ export default function OrdersPage() {
     } finally {
       setLoading(false);
     }
-  }, [search, platform, dateRange, toast]);
+  }, [page, search, platform, dateRange, toast]);
 
   useEffect(() => {
     fetchStats();
+  }, [fetchStats]);
+
+  useEffect(() => {
     fetchOrders();
-  }, [fetchStats, fetchOrders]);
+  }, [fetchOrders]);
+
+  // Reset to page 1 when filters change
+  useEffect(() => {
+    setPage(1);
+  }, [search, platform, dateRange]);
 
   const handleImportSuccess = () => {
     setIsImportOpen(false);
@@ -137,6 +153,10 @@ export default function OrdersPage() {
           orders={orders} 
           loading={loading} 
           onUploadClick={() => setIsImportOpen(true)}
+          currentPage={page}
+          totalPages={pagination.totalPages}
+          totalOrders={pagination.total}
+          onPageChange={setPage}
         />
       </div>
     </div>

@@ -60,6 +60,8 @@ export function OrderFilters({ search, onSearchChange, platform, onPlatformChang
           <SelectContent className="rounded-xl">
             <SelectItem value="all">All Platforms</SelectItem>
             <SelectItem value="Meesho">Meesho</SelectItem>
+            <SelectItem value="Flipkart">Flipkart</SelectItem>
+            <SelectItem value="Amazon">Amazon</SelectItem>
           </SelectContent>
         </Select>
 
