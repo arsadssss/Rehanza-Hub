@@ -58,6 +58,9 @@ export function OrdersTable({
     );
   }
 
+  const startRange = totalOrders > 0 ? (currentPage - 1) * itemsPerPage + 1 : 0;
+  const endRange = Math.min(currentPage * itemsPerPage, totalOrders);
+
   return (
     <Card className="border-0 shadow-xl rounded-[2rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
       <div className="relative overflow-x-auto">
@@ -123,7 +126,7 @@ export function OrdersTable({
 
       <div className="p-6 border-t border-border/50 flex flex-col sm:flex-row items-center justify-between gap-4">
         <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground">
-          Showing <span className="text-foreground">{(currentPage - 1) * itemsPerPage + 1}</span> to <span className="text-foreground">{Math.min(currentPage * itemsPerPage, totalOrders)}</span> of <span className="text-foreground">{totalOrders}</span> records
+          Showing <span className="text-foreground">{startRange}</span> to <span className="text-foreground">{endRange}</span> of <span className="text-foreground">{totalOrders}</span> records
         </p>
         <div className="flex items-center gap-2">
           <Button 

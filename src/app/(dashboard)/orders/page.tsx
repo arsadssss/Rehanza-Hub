@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 export default function OrdersPage() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(true);
+  const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
   const [stats, setStats] = useState<any>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [isImportOpen, setIsImportOpen] = useState(false);
@@ -27,7 +28,22 @@ export default function OrdersPage() {
   const [platform, setPlatform] = useState('all');
   const [dateRange, setDateRange] = useState<{ from?: string; to?: string }>({});
 
+  // Sync account ID from session storage
+  useEffect(() => {
+    const id = sessionStorage.getItem("active_account");
+    if (id) setActiveAccountId(id);
+
+    const handleAccountChange = () => {
+      const freshId = sessionStorage.getItem("active_account");
+      if (freshId) setActiveAccountId(freshId);
+    };
+
+    window.addEventListener('active-account-changed', handleAccountChange);
+    return () => window.removeEventListener('active-account-changed', handleAccountChange);
+  }, []);
+
   const fetchStats = useCallback(async () => {
+    if (!activeAccountId) return;
     try {
       const res = await apiFetch('/api/orders/stats');
       if (res.ok) {
@@ -37,9 +53,10 @@ export default function OrdersPage() {
     } catch (error) {
       console.error('Failed to load stats', error);
     }
-  }, []);
+  }, [activeAccountId]);
 
   const fetchOrders = useCallback(async () => {
+    if (!activeAccountId) return;
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -66,15 +83,14 @@ export default function OrdersPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, platform, dateRange, toast]);
+  }, [page, search, platform, dateRange, toast, activeAccountId]);
 
   useEffect(() => {
-    fetchStats();
-  }, [fetchStats]);
-
-  useEffect(() => {
-    fetchOrders();
-  }, [fetchOrders]);
+    if (activeAccountId) {
+      fetchStats();
+      fetchOrders();
+    }
+  }, [fetchStats, fetchOrders, activeAccountId]);
 
   // Reset to page 1 when filters change
   useEffect(() => {

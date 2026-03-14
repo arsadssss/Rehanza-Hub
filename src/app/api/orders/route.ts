@@ -1,6 +1,6 @@
 
+import { sql } from '@/lib/db';
 import { NextResponse } from 'next/server';
-import pool from '@/lib/pg-pool';
 
 export const dynamic = 'force-dynamic';
 
@@ -24,40 +24,42 @@ export async function GET(request: Request) {
 
     let whereClauses = ['o.is_deleted = false', 'o.account_id = $1'];
     let params: any[] = [accountId];
+    let paramIndex = 2;
 
     if (platform && platform !== 'all') {
+      whereClauses.push(`o.platform = $${paramIndex++}`);
       params.push(platform);
-      whereClauses.push(`o.platform = $${params.length}`);
     }
 
     if (search) {
+      whereClauses.push(`(o.external_order_id ILIKE $${paramIndex} OR pv.variant_sku ILIKE $${paramIndex})`);
       params.push(`%${search}%`);
-      whereClauses.push(`(o.external_order_id ILIKE $${params.length} OR pv.variant_sku ILIKE $${params.length})`);
+      paramIndex++;
     }
 
     if (from) {
+      whereClauses.push(`o.order_date >= $${paramIndex++}`);
       params.push(from);
-      whereClauses.push(`o.order_date >= $${params.length}`);
     }
 
     if (to) {
+      whereClauses.push(`o.order_date <= $${paramIndex++}`);
       params.push(to);
-      whereClauses.push(`o.order_date <= $${params.length}`);
     }
 
-    const whereString = whereClauses.join(' AND ');
+    const whereString = `WHERE ${whereClauses.join(' AND ')}`;
 
-    // Get total count for pagination
+    // 1. Get total count for pagination (Filtered)
     const countQuery = `
-      SELECT COUNT(*) 
+      SELECT COUNT(*)::int as count 
       FROM orders o
       LEFT JOIN product_variants pv ON pv.id = o.variant_id
-      WHERE ${whereString}
+      ${whereString}
     `;
-    const countResult = await pool.query(countQuery, params);
-    const total = parseInt(countResult.rows[0].count, 10);
+    const countResult = await sql(countQuery, params);
+    const total = Number(countResult[0]?.count || 0);
 
-    // Get paginated data
+    // 2. Get paginated data
     const dataQuery = `
       SELECT 
         o.id,
@@ -71,17 +73,16 @@ export async function GET(request: Request) {
         pv.variant_sku
       FROM orders o
       LEFT JOIN product_variants pv ON pv.id = o.variant_id
-      WHERE ${whereString}
+      ${whereString}
       ORDER BY o.order_date DESC, o.created_at DESC
-      LIMIT $${params.length + 1} OFFSET $${params.length + 2}
+      LIMIT $${paramIndex++} OFFSET $${paramIndex++}
     `;
     
-    const finalParams = [...params, limit, offset];
-    const result = await pool.query(dataQuery, finalParams);
+    const result = await sql(dataQuery, [...params, limit, offset]);
 
     return NextResponse.json({
       success: true,
-      data: result.rows,
+      data: result,
       pagination: {
         total,
         page,
