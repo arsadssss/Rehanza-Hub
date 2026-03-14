@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { Sparkles, ShoppingCart, Undo2, TrendingUp, TrendingDown } from 'lucide-react';
+import { Sparkles, ShoppingCart, Percent, TrendingUp, TrendingDown } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { formatINR } from '@/lib/format';
 import { cn } from '@/lib/utils';
@@ -79,6 +79,7 @@ interface SalesSummaryCardsProps {
   totalOrders: number;
   totalReturns: number;
   netProfit: number;
+  returnRate?: number;
   loading: boolean;
 }
 
@@ -87,6 +88,7 @@ export function SalesSummaryCards({
   totalOrders,
   totalReturns,
   netProfit,
+  returnRate = 0,
   loading
 }: SalesSummaryCardsProps) {
   const [isMounted, setIsMounted] = useState(false);
@@ -120,17 +122,17 @@ export function SalesSummaryCards({
           icon={ShoppingCart} 
           loading={loading} 
           gradient="from-blue-400 to-cyan-500" 
-          description="Orders processed"
+          description="Count dispatched"
           isTrendUp={true}
       />
       <KpiCard 
-          title="Total Returns" 
-          value={totalReturns.toLocaleString('en-IN')} 
-          icon={Undo2} 
+          title="Return Rate" 
+          value={`${returnRate.toFixed(1)}%`} 
+          icon={Percent} 
           loading={loading} 
           gradient="from-orange-400 to-rose-500" 
-          description="Inbound units"
-          isTrendUp={false}
+          description={`${totalReturns} units returned`}
+          isTrendUp={returnRate < 15}
       />
       <KpiCard 
           title="Net Profit" 
@@ -138,7 +140,7 @@ export function SalesSummaryCards({
           icon={netProfit >= 0 ? TrendingUp : TrendingDown} 
           loading={loading} 
           gradient={netProfit >= 0 ? "from-emerald-400 to-teal-600" : "from-rose-400 to-red-600"} 
-          description={netProfit >= 0 ? "Profit margin reached" : "Loss margin detected"}
+          description={netProfit >= 0 ? "Margin healthy" : "Loss detected"}
           isTrendUp={netProfit >= 0}
       />
     </div>

@@ -107,9 +107,16 @@ export function AnalyticsSection({
     }));
   }, [platformBreakdownRaw]);
 
+  // Unified formatter for chart axis to ensure symbol consistency
+  const currencyTickFormatter = (value: number) => {
+    if (value >= 1000000) return `₹${(value / 1000000).toFixed(1)}M`;
+    if (value >= 1000) return `₹${(value / 1000).toFixed(0)}k`;
+    return `₹${value}`;
+  };
+
   return (
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-        <div className="lg:col-span-3 bg-white/40 dark:bg-black/20 backdrop-blur-xl rounded-none p-8 shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-white/30 dark:border-white/10 text-black dark:text-white transition-all duration-500 hover:shadow-indigo-500/5">
+        <div className="lg:col-span-3 bg-white/40 dark:bg-black/20 backdrop-blur-xl rounded-[2rem] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-white/30 dark:border-white/10 text-black dark:text-white transition-all duration-500 hover:shadow-indigo-500/5">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
                 <div>
                     <h3 className="font-black text-2xl tracking-tight font-headline">Revenue Trends</h3>
@@ -158,7 +165,7 @@ export function AnalyticsSection({
                                 tick={{ fontSize: 11, fill: "hsl(var(--muted-foreground))", fontWeight: 700 }}
                                 axisLine={false}
                                 tickLine={false}
-                                tickFormatter={(value) => `₹${value >= 1000 ? (value/1000).toFixed(0) + 'k' : value}`}
+                                tickFormatter={currencyTickFormatter}
                             />
                             <Tooltip
                                 content={<SalesTooltip />}
@@ -180,7 +187,7 @@ export function AnalyticsSection({
             </div>
         </div>
 
-        <div className="lg:col-span-2 bg-white/40 dark:bg-black/20 backdrop-blur-xl rounded-none p-8 shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-white/30 dark:border-white/10 text-black dark:text-white">
+        <div className="lg:col-span-2 bg-white/40 dark:bg-black/20 backdrop-blur-xl rounded-[2rem] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-white/30 dark:border-white/10 text-black dark:text-white">
             <div className="flex justify-between items-center mb-6">
                 <h3 className="font-black text-xl font-headline">Platform Distribution</h3>
                 <Link href="/orders" className="text-xs font-black uppercase tracking-wider opacity-70 flex items-center gap-1 hover:opacity-100 transition-opacity">Full View <ArrowUpRight className="h-3 w-3" /></Link>

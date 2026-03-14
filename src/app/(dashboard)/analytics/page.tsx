@@ -16,6 +16,7 @@ export default function AnalyticsPage() {
   const [totalOrders, setTotalOrders] = useState(0);
   const [totalReturns, setTotalReturns] = useState(0);
   const [netProfit, setNetProfit] = useState(0);
+  const [returnRate, setReturnRate] = useState(0);
   
   const [salesTrendRaw, setSalesTrendRaw] = useState<any[]>([]);
   const [platformBreakdownRaw, setPlatformBreakdownRaw] = useState<any[]>([]);
@@ -52,6 +53,7 @@ export default function AnalyticsPage() {
         setTotalOrders(data.totalOrders);
         setTotalReturns(data.totalReturns);
         setNetProfit(data.netProfit);
+        setReturnRate(data.returnRate);
         
         setSalesTrendRaw(data.salesTrend || []);
         setPlatformBreakdownRaw(data.platformOrders?.breakdown || []);
@@ -82,6 +84,7 @@ export default function AnalyticsPage() {
           totalOrders={totalOrders}
           totalReturns={totalReturns}
           netProfit={netProfit}
+          returnRate={returnRate}
           loading={loading}
         />
 

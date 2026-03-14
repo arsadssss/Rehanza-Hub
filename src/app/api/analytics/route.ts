@@ -15,7 +15,6 @@ export async function GET(request: Request) {
 
     const isAllTime = range === 'all';
     
-    // Determine interval and grouping for trend based on the range
     let interval = '7 days';
     let trendGroup = 'day';
     
@@ -26,51 +25,53 @@ export async function GET(request: Request) {
       interval = '90 days';
       trendGroup = 'week';
     } else if (range === 'all') {
-      interval = '100 years'; // Effectively all time
-      trendGroup = 'month';
-    } else if (range === 'monthly') {
-      interval = '30 days';
-      trendGroup = 'day';
-    } else if (range === 'yearly') {
-      interval = '1 year';
+      interval = '100 years';
       trendGroup = 'month';
     }
 
-    // Parallel dynamic calculations for summary metrics (Scoped by Account AND Date Range)
     const [
       salesRes,
       ordersCountRes,
       returnsRes,
-      cogsRes,
+      totalCostsRes,
       returnLossRes,
       platformRes,
-      returnTypeRes,
-      platformReturnsRes,
       orderUnitsRes,
       salesTrendRes
     ] = await Promise.all([
-      // Total Sales (Revenue) - Scoped
+      // Total Sales
       sql`SELECT COALESCE(SUM(total_amount), 0) as total FROM orders WHERE account_id = ${accountId} AND is_deleted = false AND (${isAllTime} = true OR order_date >= CURRENT_DATE - ${interval}::interval)`,
       
-      // Total Orders (Count) - Scoped
+      // Total Orders Count
       sql`SELECT COUNT(*)::int as count FROM orders WHERE account_id = ${accountId} AND is_deleted = false AND (${isAllTime} = true OR order_date >= CURRENT_DATE - ${interval}::interval)`,
       
-      // Total Return Units (Quantity) - Scoped
+      // Total Return Units
       sql`SELECT COALESCE(SUM(quantity), 0)::int as total FROM returns WHERE account_id = ${accountId} AND is_deleted = false AND (${isAllTime} = true OR return_date >= CURRENT_DATE - ${interval}::interval)`,
       
-      // COGS (Sum of Qty * Cost per Product) - Scoped
+      // Advanced Cost calculation (COGS + Shipping + Fees + Packing + Ads + Tax Misc)
       sql`
-        SELECT COALESCE(SUM(o.quantity * ap.cost_price), 0) as total
+        SELECT 
+          COALESCE(SUM(
+            o.quantity * (
+              ap.cost_price + 
+              COALESCE(ap.promo_ads, 0) + 
+              COALESCE(ap.tax_other, 0) + 
+              COALESCE(ap.packing, 0) + 
+              (CASE WHEN o.platform = 'Amazon' THEN COALESCE(ap.amazon_ship, 0) ELSE 0 END) +
+              (CASE WHEN o.platform = 'Flipkart' THEN COALESCE(ap.flipkart_ship, 0) ELSE 0 END) +
+              (CASE WHEN o.platform != 'Meesho' THEN COALESCE(ap.platform_fee, 0) ELSE 0 END)
+            )
+          ), 0) as total
         FROM orders o
         JOIN product_variants pv ON o.variant_id = pv.id
         JOIN allproducts ap ON pv.product_id = ap.id
         WHERE o.account_id = ${accountId} AND o.is_deleted = false AND (${isAllTime} = true OR o.order_date >= CURRENT_DATE - ${interval}::interval)
       `,
       
-      // Total Return Loss - Scoped
+      // Total Return Loss
       sql`SELECT COALESCE(SUM(total_loss), 0) as total FROM returns WHERE account_id = ${accountId} AND is_deleted = false AND (${isAllTime} = true OR return_date >= CURRENT_DATE - ${interval}::interval)`,
       
-      // Platform Breakdown for Orders - Scoped
+      // Platform Breakdown
       sql`
         SELECT platform, COUNT(*)::int as orders
         FROM orders
@@ -78,26 +79,10 @@ export async function GET(request: Request) {
         GROUP BY platform
       `,
 
-      // Return count grouped by return_type - Scoped
-      sql`
-        SELECT return_type, COUNT(*)::int as count, COALESCE(SUM(quantity), 0)::int as units
-        FROM returns
-        WHERE account_id = ${accountId} AND is_deleted = false AND (${isAllTime} = true OR return_date >= CURRENT_DATE - ${interval}::interval)
-        GROUP BY return_type
-      `,
-
-      // Platform-wise return breakdown - Scoped
-      sql`
-        SELECT platform, COUNT(*)::int as count, COALESCE(SUM(quantity), 0)::int as units
-        FROM returns
-        WHERE account_id = ${accountId} AND is_deleted = false AND (${isAllTime} = true OR return_date >= CURRENT_DATE - ${interval}::interval)
-        GROUP BY platform
-      `,
-
-      // Total Order Units - Scoped
+      // Total Order Units
       sql`SELECT COALESCE(SUM(quantity), 0)::int as total FROM orders WHERE account_id = ${accountId} AND is_deleted = false AND (${isAllTime} = true OR order_date >= CURRENT_DATE - ${interval}::interval)`,
 
-      // Sales Trend - Scoped
+      // Sales Trend
       sql`
         SELECT 
           DATE_TRUNC(${trendGroup}, order_date) as date, 
@@ -115,9 +100,9 @@ export async function GET(request: Request) {
     const totalOrders = Number(ordersCountRes[0]?.count || 0);
     const totalReturnsUnits = Number(returnsRes[0]?.total || 0);
     const totalOrderUnits = Number(orderUnitsRes[0]?.total || 0);
-    const cogs = Number(cogsRes[0]?.total || 0);
+    const totalExpenses = Number(totalCostsRes[0]?.total || 0);
     const returnLoss = Number(returnLossRes[0]?.total || 0);
-    const netProfit = totalSales - cogs - returnLoss;
+    const netProfit = totalSales - totalExpenses - returnLoss;
 
     const returnRate = totalOrderUnits > 0 ? (totalReturnsUnits / totalOrderUnits) * 100 : 0;
 
@@ -139,17 +124,7 @@ export async function GET(request: Request) {
           platform: row.platform,
           orders: Number(row.orders)
         }))
-      },
-      returnTypeBreakdown: (returnTypeRes || []).map((row: any) => ({
-        type: row.return_type,
-        count: row.count,
-        units: row.units
-      })),
-      platformReturns: (platformReturnsRes || []).map((row: any) => ({
-        platform: row.platform,
-        count: row.count,
-        units: row.units
-      }))
+      }
     });
 
   } catch (error: any) {
