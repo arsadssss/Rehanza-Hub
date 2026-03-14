@@ -45,12 +45,12 @@ export async function GET(request: Request) {
       LIMIT 50;
     `;
 
-    // 2. RTO vs Customer Return %
+    // 2. RTO vs Customer Return % - Normalized grouping logic
     const rtoVsCustomer = await sql`
       SELECT 
         CASE 
-          WHEN return_type IN ('RTO', 'DTO') THEN 'RTO'
-          WHEN return_type IN ('CUSTOMER_RETURN', 'EXCHANGE') THEN 'Customer'
+          WHEN LOWER(status) IN ('rto','courier_return','undelivered') OR LOWER(return_type) IN ('rto','dto') THEN 'RTO'
+          WHEN LOWER(status) IN ('customer_return','customer return','rejected') OR LOWER(return_type) IN ('customer_return','exchange') THEN 'Customer'
           ELSE 'Other'
         END as label,
         SUM(quantity)::int as value

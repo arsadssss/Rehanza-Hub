@@ -10,13 +10,20 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, message: "Account context missing" }, { status: 400 });
     }
 
+    // Normalizing logic for RTO vs Customer Returns based on inconsistent status values
     const statsRes = await sql`
       SELECT 
         COUNT(*)::int as total_returns,
         COALESCE(SUM(quantity), 0)::int as total_units,
         COUNT(*) FILTER (WHERE return_date = CURRENT_DATE)::int as today_returns,
-        COUNT(*) FILTER (WHERE return_type = 'RTO')::int as rto_count,
-        COUNT(*) FILTER (WHERE return_type = 'CUSTOMER_RETURN')::int as customer_count
+        COUNT(*) FILTER (
+          WHERE LOWER(status) IN ('rto', 'courier_return', 'undelivered') 
+          OR LOWER(return_type) IN ('rto', 'dto')
+        )::int as rto_count,
+        COUNT(*) FILTER (
+          WHERE LOWER(status) IN ('customer_return', 'customer return', 'rejected') 
+          OR LOWER(return_type) IN ('customer_return', 'customer_return', 'exchange')
+        )::int as customer_count
       FROM returns
       WHERE account_id = ${accountId} AND is_deleted = false
     `;
