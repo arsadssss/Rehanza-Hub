@@ -1,0 +1,120 @@
+"use client";
+
+import React, { useState, useEffect } from 'react';
+import { Input } from '@/components/ui/input';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Search, FilterX, Calendar as CalendarIcon } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar } from '@/components/ui/calendar';
+import { format } from 'date-fns';
+
+interface IntelligenceFiltersProps {
+  platform: string;
+  onPlatformChange: (val: string) => void;
+  search: string;
+  onSearchChange: (val: string) => void;
+  dateRange: { from?: string; to?: string };
+  onDateRangeChange: (range: { from?: string; to?: string }) => void;
+}
+
+export function IntelligenceFilters({ 
+  platform, 
+  onPlatformChange, 
+  search, 
+  onSearchChange,
+  dateRange,
+  onDateRangeChange 
+}: IntelligenceFiltersProps) {
+  const [mounted, setMounted] = useState(false);
+  const [calendarDate, setCalendarDate] = useState<any>({
+    from: dateRange.from ? new Date(dateRange.from) : undefined,
+    to: dateRange.to ? new Date(dateRange.to) : undefined,
+  });
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  const handleDateChange = (newDate: any) => {
+    setCalendarDate(newDate);
+    if (newDate?.from) {
+      onDateRangeChange({
+        from: format(newDate.from, 'yyyy-MM-dd'),
+        to: newDate.to ? format(newDate.to, 'yyyy-MM-dd') : undefined
+      });
+    } else {
+      onDateRangeChange({});
+    }
+  };
+
+  const reset = () => {
+    onPlatformChange('all');
+    onSearchChange('');
+    const defaultFrom = format(new Date(Date.now() - 30 * 24 * 60 * 60 * 1000), 'yyyy-MM-dd');
+    const defaultTo = format(new Date(), 'yyyy-MM-dd');
+    setCalendarDate({ from: new Date(defaultFrom), to: new Date(defaultTo) });
+    onDateRangeChange({ from: defaultFrom, to: defaultTo });
+  };
+
+  if (!mounted) return null;
+
+  return (
+    <div className="flex flex-col md:flex-row gap-4 items-center bg-white/40 dark:bg-slate-900/40 backdrop-blur-xl p-4 rounded-2xl shadow-sm border border-border/50">
+      <div className="relative flex-1 w-full">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+        <Input 
+          placeholder="Filter by SKU Name..." 
+          value={search}
+          onChange={(e) => onSearchChange(e.target.value)}
+          className="pl-10 h-11 bg-background rounded-xl border-border/50"
+        />
+      </div>
+
+      <div className="flex flex-wrap md:flex-nowrap gap-3 w-full md:w-auto">
+        <Select value={platform} onValueChange={onPlatformChange}>
+          <SelectTrigger className="h-11 w-full md:w-[140px] bg-background rounded-xl border-border/50 text-xs font-bold uppercase">
+            <SelectValue placeholder="Platform" />
+          </SelectTrigger>
+          <SelectContent className="rounded-xl">
+            <SelectItem value="all">All Channels</SelectItem>
+            <SelectItem value="Meesho">Meesho</SelectItem>
+            <SelectItem value="Flipkart">Flipkart</SelectItem>
+            <SelectItem value="Amazon">Amazon</SelectItem>
+          </SelectContent>
+        </Select>
+
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button variant="outline" className="h-11 w-full md:w-[220px] rounded-xl bg-background border-border/50 justify-start text-left font-bold text-[10px] uppercase tracking-tighter">
+              <CalendarIcon className="mr-2 h-4 w-4" />
+              {calendarDate?.from ? (
+                calendarDate.to ? (
+                  <>{format(calendarDate.from, "MMM dd") + " - " + format(calendarDate.to, "MMM dd")}</>
+                ) : (
+                  format(calendarDate.from, "MMM dd")
+                )
+              ) : (
+                <span>Analysis Period</span>
+              )}
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-auto p-0 rounded-2xl" align="end">
+            <Calendar
+              initialFocus
+              mode="range"
+              defaultMonth={calendarDate?.from}
+              selected={calendarDate}
+              onSelect={handleDateChange}
+              numberOfMonths={2}
+            />
+          </PopoverContent>
+        </Popover>
+
+        <Button variant="ghost" size="icon" onClick={reset} className="h-11 w-11 shrink-0 rounded-xl hover:bg-rose-500/10 hover:text-rose-500">
+          <FilterX className="h-4 w-4" />
+        </Button>
+      </div>
+    </div>
+  );
+}
