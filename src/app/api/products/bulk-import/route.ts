@@ -6,9 +6,9 @@ import { authOptions } from '@/lib/auth';
 export const dynamic = "force-dynamic";
 
 // Standard Operational Defaults
-const DEFAULT_PROMO_ADS = 20;
+const DEFAULT_PROMO_ADS = 30;
 const DEFAULT_TAX_OTHER = 10;
-const DEFAULT_PACKING = 15;
+const DEFAULT_PACKING = 10;
 const DEFAULT_AMAZON_SHIP = 80;
 const DEFAULT_FLIPKART_SHIP = 80;
 const DEFAULT_PLATFORM_FEE = 8;
@@ -47,15 +47,23 @@ export async function POST(request: Request) {
       const cost = Number(p.cost_price) || 0;
       const margin = Number(p.margin) || 0;
       
-      // Calculate dynamic prices based on new formula
-      const baseCost = cost + margin + DEFAULT_PROMO_ADS + DEFAULT_TAX_OTHER + DEFAULT_PACKING;
+      // Support incoming values or use defaults
+      const ads = p.promo_ads !== undefined ? Number(p.promo_ads) : DEFAULT_PROMO_ADS;
+      const tax = p.tax_other !== undefined ? Number(p.tax_other) : DEFAULT_TAX_OTHER;
+      const pack = p.packing !== undefined ? Number(p.packing) : DEFAULT_PACKING;
+      const amzShip = p.amazon_ship !== undefined ? Number(p.amazon_ship) : DEFAULT_AMAZON_SHIP;
+      const flipShip = p.flipkart_ship !== undefined ? Number(p.flipkart_ship) : DEFAULT_FLIPKART_SHIP;
+      const fee = p.platform_fee !== undefined ? Number(p.platform_fee) : DEFAULT_PLATFORM_FEE;
+
+      // Calculate dynamic prices based on provided or default overheads
+      const baseCost = cost + margin + ads + tax + pack;
       const meeshoPrice = Math.round(baseCost * 1.18);
-      const flipkartPrice = Math.round((baseCost + DEFAULT_FLIPKART_SHIP + DEFAULT_PLATFORM_FEE) * 1.18);
-      const amazonPrice = Math.round((baseCost + DEFAULT_AMAZON_SHIP + DEFAULT_PLATFORM_FEE) * 1.18);
+      const flipkartPrice = Math.round((baseCost + flipShip + fee) * 1.18);
+      const amazonPrice = Math.round((baseCost + amzShip + fee) * 1.18);
 
       const preparedItem = {
         sku,
-        product_name: p.name.trim(),
+        product_name: (p.product_name || p.name || "").trim(),
         category: p.category || 'General',
         cost_price: cost,
         margin: margin,
@@ -63,12 +71,12 @@ export async function POST(request: Request) {
         meesho_price: meeshoPrice,
         flipkart_price: flipkartPrice,
         amazon_price: amazonPrice,
-        promo_ads: DEFAULT_PROMO_ADS,
-        tax_other: DEFAULT_TAX_OTHER,
-        packing: DEFAULT_PACKING,
-        amazon_ship: DEFAULT_AMAZON_SHIP,
-        flipkart_ship: DEFAULT_FLIPKART_SHIP,
-        platform_fee: DEFAULT_PLATFORM_FEE,
+        promo_ads: ads,
+        tax_other: tax,
+        packing: pack,
+        amazon_ship: amzShip,
+        flipkart_ship: flipShip,
+        platform_fee: fee,
         account_id: accountId
       };
 

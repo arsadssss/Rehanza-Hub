@@ -19,13 +19,16 @@ import {
   Archive,
   AlertCircle,
   Pencil,
-  Trash2
+  Trash2,
+  Download,
+  FileUp
 } from 'lucide-react';
 import { apiFetch } from '@/lib/apiFetch';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { AddProductModal } from './components/add-product-modal';
+import { BulkImportModal } from './components/bulk-import-modal';
 import { ProductViewToggle } from '@/components/ProductViewToggle';
 import { SummaryStatCard } from '@/components/SummaryStatCard';
 import {
@@ -38,6 +41,7 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import * as XLSX from 'xlsx';
 
 export type Product = {
   id: string;
@@ -84,6 +88,7 @@ function ProductsContent() {
 
   // Modals State
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
+  const [isBulkImportOpen, setIsBulkImportOpen] = useState(false);
   const [productToEdit, setProductToEdit] = useState<Product | null>(null);
   const [itemToDelete, setItemToDelete] = useState<Product | null>(null);
 
@@ -179,6 +184,36 @@ function ProductsContent() {
     setPage(1);
   };
 
+  const handleDownloadRegistry = () => {
+    if (products.length === 0) {
+      toast({ title: "No Data", description: "There are no products to export." });
+      return;
+    }
+
+    const exportData = products.map(p => ({
+      "SKU": p.sku,
+      "Product Name": p.product_name,
+      "Category": p.category || "General",
+      "Cost Price": p.cost_price,
+      "Margin": p.margin,
+      "Promo Ads": p.promo_ads || 30,
+      "Tax Other": p.tax_other || 10,
+      "Packing": p.packing || 10,
+      "Amazon Ship": p.amazon_ship || 80,
+      "Flipkart Ship": p.flipkart_ship || 80,
+      "Platform Fee": p.platform_fee || 8,
+      "Low Stock Threshold": p.low_stock_threshold,
+      "Current Stock": p.stock
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(exportData);
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Products");
+    XLSX.writeFile(wb, `rehanza_products_${new Date().toISOString().split('T')[0]}.xlsx`);
+    
+    toast({ title: "Export Complete", description: "Product registry downloaded successfully." });
+  };
+
   if (!isMounted) return null;
 
   return (
@@ -188,6 +223,12 @@ function ProductsContent() {
         onClose={() => { setIsAddProductOpen(false); setProductToEdit(null); }} 
         onSuccess={fetchData}
         productToEdit={productToEdit}
+      />
+
+      <BulkImportModal 
+        isOpen={isBulkImportOpen}
+        onClose={() => setIsBulkImportOpen(false)}
+        onSuccess={fetchData}
       />
 
       <AlertDialog open={!!itemToDelete} onOpenChange={() => setItemToDelete(null)}>
@@ -221,9 +262,17 @@ function ProductsContent() {
           <CardTitle className="font-headline text-xl flex items-center gap-2">
             <Package className="h-5 w-5 text-primary" /> Product Registry
           </CardTitle>
-          <Button onClick={() => setIsAddProductOpen(true)}>
-            <PlusCircle className="mr-2 h-4 w-4" /> Add Product
-          </Button>
+          <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={handleDownloadRegistry} className="font-bold">
+              <Download className="mr-2 h-4 w-4" /> Download Registry
+            </Button>
+            <Button variant="outline" onClick={() => setIsBulkImportOpen(true)} className="font-bold">
+              <FileUp className="mr-2 h-4 w-4" /> Bulk Upload
+            </Button>
+            <Button onClick={() => setIsAddProductOpen(true)}>
+              <PlusCircle className="mr-2 h-4 w-4" /> Add Product
+            </Button>
+          </div>
         </CardHeader>
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
