@@ -1,7 +1,7 @@
 
 "use client";
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Search, FilterX, Calendar as CalendarIcon } from 'lucide-react';
@@ -19,7 +19,12 @@ interface OrderFiltersProps {
 }
 
 export function OrderFilters({ search, onSearchChange, platform, onPlatformChange, onDateRangeChange }: OrderFiltersProps) {
-  const [date, setDate] = React.useState<any>(null);
+  const [date, setDate] = useState<any>(null);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => {
+    setMounted(true);
+  }, []);
 
   const handleDateChange = (newDate: any) => {
     setDate(newDate);
@@ -39,6 +44,28 @@ export function OrderFilters({ search, onSearchChange, platform, onPlatformChang
     setDate(null);
     onDateRangeChange({});
   };
+
+  // Prevent hydration mismatch for dynamic IDs in Select and Popover
+  if (!mounted) {
+    return (
+      <div className="flex flex-col md:flex-row gap-4 items-center bg-white/40 dark:bg-slate-900/40 backdrop-blur-xl p-4 rounded-2xl shadow-sm border border-border/50">
+        <div className="relative flex-1 w-full">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input 
+            placeholder="Search Order ID or SKU..." 
+            value={search}
+            readOnly
+            className="pl-10 h-11 bg-background rounded-xl border-border/50"
+          />
+        </div>
+        <div className="flex gap-3 w-full md:w-auto h-11 items-center">
+          <div className="w-full md:w-[160px] h-full bg-background/50 rounded-xl border border-dashed border-border/50" />
+          <div className="w-full md:w-[240px] h-full bg-background/50 rounded-xl border border-dashed border-border/50" />
+          <div className="w-11 h-11 bg-background/50 rounded-xl border border-dashed border-border/50" />
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col md:flex-row gap-4 items-center bg-white/40 dark:bg-slate-900/40 backdrop-blur-xl p-4 rounded-2xl shadow-sm border border-border/50">
