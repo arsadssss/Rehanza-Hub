@@ -19,7 +19,6 @@ export default function OrdersPage() {
   const [stats, setStats] = useState<any>(null);
   const [orders, setOrders] = useState<any[]>([]);
   const [isImportOpen, setIsImportOpen] = useState(false);
-  const [importPlatform, setImportPlatform] = useState<string>('meesho');
   
   // Pagination & Filters
   const [page, setPage] = useState(1);
@@ -109,11 +108,6 @@ export default function OrdersPage() {
     fetchOrders();
   };
 
-  const openImportDialog = (platform: string) => {
-    setImportPlatform(platform);
-    setIsImportOpen(true);
-  };
-
   return (
     <div className="p-6 md:p-8 space-y-8 bg-gray-50/50 dark:bg-black/50 min-h-full font-body">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
@@ -127,22 +121,10 @@ export default function OrdersPage() {
 
         <div className="flex flex-wrap gap-3">
           <Button 
-            onClick={() => openImportDialog('meesho')}
+            onClick={() => setIsImportOpen(true)}
             className="rounded-xl h-12 px-6 font-bold shadow-lg shadow-primary/20"
           >
-            <Upload className="mr-2 h-4 w-4" /> Upload Meesho Orders
-          </Button>
-          <Button 
-            onClick={() => openImportDialog('flipkart')}
-            className="rounded-xl h-12 px-6 font-bold shadow-lg shadow-primary/20"
-          >
-            <Upload className="mr-2 h-4 w-4" /> Upload Flipkart Orders
-          </Button>
-          <Button 
-            onClick={() => openImportDialog('amazon')}
-            className="rounded-xl h-12 px-6 font-bold shadow-lg shadow-primary/20"
-          >
-            <Upload className="mr-2 h-4 w-4" /> Upload Amazon Orders
+            <Upload className="mr-2 h-4 w-4" /> Upload Orders
           </Button>
         </div>
 
@@ -152,9 +134,8 @@ export default function OrdersPage() {
               <DialogTitle className="font-headline text-2xl font-bold">Import Marketplace Orders</DialogTitle>
             </DialogHeader>
             <ImportOrders 
-              key={importPlatform}
               onSuccess={handleImportSuccess} 
-              initialPlatform={importPlatform}
+              initialPlatform="meesho"
             />
           </DialogContent>
         </Dialog>
