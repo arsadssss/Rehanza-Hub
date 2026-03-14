@@ -38,6 +38,7 @@ export function ImportReturnsModal({ platform, onSuccess, onClose }: ImportRetur
     accept: {
       'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet': ['.xlsx', '.xls'],
       'text/csv': ['.csv'],
+      'text/tab-separated-values': ['.tsv'],
     },
     multiple: false
   });
@@ -156,7 +157,7 @@ export function ImportReturnsModal({ platform, onSuccess, onClose }: ImportRetur
         <p className="font-bold uppercase tracking-widest mb-1 flex items-center gap-2">
           <Upload className="h-3 w-3" /> Supporting
         </p>
-        Ensure you are uploading the official <strong>{platformName}</strong> Returns panel export. Barcodes and SKUs will be automatically synced with your registry. Supported formats: .xlsx, .xls, .csv.
+        Ensure you are uploading the official <strong>{platformName}</strong> Returns panel export. Barcodes and SKUs will be automatically synced with your registry. Supported formats: .xlsx, .xls, .csv, .tsv.
       </div>
 
       {uploading && (
