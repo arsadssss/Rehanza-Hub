@@ -6,14 +6,9 @@ export const dynamic = 'force-dynamic'
 export const maxDuration = 60
 
 function parseDate(v:any){
-
   if(!v) return null
-
   const d = new Date(v)
-
-  if(!isNaN(d.getTime())) return d
-
-  return null
+  return isNaN(d.getTime()) ? null : d
 }
 
 export async function POST(request:Request){
@@ -26,6 +21,7 @@ export async function POST(request:Request){
     imported:0,
     duplicates:0,
     failed:0,
+    new_skus:0,
     errors:[] as any[]
   }
 
@@ -34,24 +30,20 @@ export async function POST(request:Request){
     const accountId = request.headers.get("x-account-id")
 
     if(!accountId){
-
       return NextResponse.json(
         {success:false,message:"Account context missing"},
         {status:400}
       )
-
     }
 
     const formData = await request.formData()
     const file = formData.get('file') as File
 
     if(!file){
-
       return NextResponse.json(
         {success:false,message:"No file uploaded"},
         {status:400}
       )
-
     }
 
     const buffer = Buffer.from(await file.arrayBuffer())
@@ -67,18 +59,22 @@ export async function POST(request:Request){
       return NextResponse.json({success:false,message:"Empty file"})
     }
 
-    // -------------------------
+    // ----------------------------------
     // Collect SKUs
-    // -------------------------
+    // ----------------------------------
 
     const skuSet = new Set<string>()
 
     rows.forEach(r=>{
-      const sku = String(r['SKU']||'').trim().toUpperCase()
+      const sku = String(r['SKU'] || '').trim()
       if(sku) skuSet.add(sku)
     })
 
     const skus = Array.from(skuSet)
+
+    // ----------------------------------
+    // Fetch Variants
+    // ----------------------------------
 
     const variantMap = new Map<string,string>()
 
@@ -93,12 +89,45 @@ export async function POST(request:Request){
     )
 
     variantRes.rows.forEach(v=>{
-      variantMap.set(v.variant_sku.toUpperCase(),v.id)
+      variantMap.set(v.variant_sku,v.id)
     })
 
-    // -------------------------
-    // Prepare Inserts
-    // -------------------------
+    // ----------------------------------
+    // Create Missing SKUs
+    // ----------------------------------
+
+    const missingSkus = skus.filter(s => !variantMap.has(s))
+
+    if(missingSkus.length>0){
+
+      const insertValues:string[]=[]
+      const params:any[]=[]
+
+      missingSkus.forEach((sku,i)=>{
+        insertValues.push(`($${i*2+1},0,$${i*2+2},NOW())`)
+        params.push(sku,accountId)
+      })
+
+      const newVariants = await pool.query(
+        `
+        INSERT INTO product_variants
+        (variant_sku,stock,account_id,created_at)
+        VALUES ${insertValues.join(',')}
+        RETURNING id,variant_sku
+        `,
+        params
+      )
+
+      newVariants.rows.forEach(v=>{
+        variantMap.set(v.variant_sku,v.id)
+      })
+
+      summary.new_skus = newVariants.rows.length
+    }
+
+    // ----------------------------------
+    // Prepare Insert
+    // ----------------------------------
 
     const insertValues:string[]=[]
     const params:any[]=[]
@@ -108,30 +137,32 @@ export async function POST(request:Request){
 
       try{
 
-        const orderId = String(row['Order Number']||'').trim()
-        const subOrderId = String(row['Suborder Number']||'').trim()
+        const orderId = String(row['Order Number'] || '').trim()
+        const subOrderId = String(row['Suborder Number'] || '').trim()
 
-        const sku = String(row['SKU']||'').trim().toUpperCase()
+        const sku = String(row['SKU'] || '').trim()
 
         const quantity = parseInt(row['Qty']) || 1
 
         const variant_id = variantMap.get(sku)
 
-        if(!variant_id){
+        if(!orderId || !subOrderId || !variant_id){
 
           summary.failed++
 
           summary.errors.push({
             row:index+2,
-            message:'Variant not found'
+            message:'Missing Order ID / SubOrder / SKU'
           })
 
           return
         }
 
         insertValues.push(
-
           `(
+          $${paramIndex++},
+          $${paramIndex++},
+          $${paramIndex++},
           $${paramIndex++},
           $${paramIndex++},
           $${paramIndex++},
@@ -147,7 +178,6 @@ export async function POST(request:Request){
           $${paramIndex++},
           NOW()
           )`
-
         )
 
         params.push(
@@ -157,13 +187,15 @@ export async function POST(request:Request){
           variant_id,
           'Meesho',
           quantity,
-          row['Type of Return'],
-          row['Sub Type'],
-          row['Return Reason'],
-          row['Detailed Return Reason'],
-          row['Status'],
-          row['Courier Partner'],
-          row['AWB Number'],
+          String(row['Type of Return'] || ''),
+          String(row['Sub Type'] || ''),
+          String(row['Return Reason'] || ''),
+          String(row['Detailed Return Reason'] || ''),
+          String(row['Status'] || ''),
+          String(row['Courier Partner'] || ''),
+          String(row['AWB Number'] || ''),
+          parseDate(row['Dispatch Date']),
+          parseDate(row['Expected Delivery Date']),
           parseDate(row['Return Created Date']),
           accountId
 
@@ -171,8 +203,7 @@ export async function POST(request:Request){
 
         summary.processed++
 
-      }
-      catch(err:any){
+      }catch(err:any){
 
         summary.failed++
 
@@ -185,10 +216,13 @@ export async function POST(request:Request){
 
     })
 
+    // ----------------------------------
+    // Insert Returns
+    // ----------------------------------
+
     if(insertValues.length>0){
 
       const result = await pool.query(
-
         `
         INSERT INTO returns
         (
@@ -201,9 +235,11 @@ export async function POST(request:Request){
           return_sub_type,
           return_reason,
           detailed_return_reason,
-          return_status,
+          status,
           courier_partner,
           awb_number,
+          dispatch_date,
+          expected_delivery_date,
           return_date,
           account_id,
           created_at
@@ -212,11 +248,9 @@ export async function POST(request:Request){
         RETURNING id
         `,
         params
-
       )
 
       summary.imported = result.rowCount
-
     }
 
     const duration = ((Date.now()-startTime)/1000).toFixed(2)
@@ -227,17 +261,15 @@ export async function POST(request:Request){
       duration:`${duration}s`
     })
 
-  }
-  catch(error:any){
+  }catch(error:any){
 
-    return NextResponse.json(
-      {
-        success:false,
-        message:"Import failed",
-        error:error.message
-      },
-      {status:500}
-    )
+    console.error("Return Import Error:",error)
+
+    return NextResponse.json({
+      success:false,
+      message:"Import failed",
+      error:error.message
+    },{status:500})
 
   }
 

@@ -1,7 +1,7 @@
 import { sql } from '@/lib/db';
 import { NextResponse } from 'next/server';
 
-export const revalidate = 0;
+export const dynamic = 'force-dynamic';
 
 export async function GET(request: Request) {
   try {
@@ -12,16 +12,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, message: "Account context missing" }, { status: 400 });
     }
 
-    // Pagination
     const page = parseInt(searchParams.get('page') || '1', 10);
-    const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
-    const offset = (page - 1) * pageSize;
-
-    // Filters
-    const platform = searchParams.get('platform');
-    const fromDate = searchParams.get('fromDate');
-    const toDate = searchParams.get('toDate');
+    const limit = parseInt(searchParams.get('limit') || '25', 10);
+    const offset = (page - 1) * limit;
+    
     const search = searchParams.get('search');
+    const platform = searchParams.get('platform');
+    const from = searchParams.get('from');
+    const to = searchParams.get('to');
 
     let whereClauses = ['r.is_deleted = false', 'r.account_id = $1'];
     let params: any[] = [accountId];
@@ -31,76 +29,58 @@ export async function GET(request: Request) {
       whereClauses.push(`r.platform = $${paramIndex++}`);
       params.push(platform);
     }
-    if (fromDate) {
-      whereClauses.push(`r.return_date >= $${paramIndex++}`);
-      params.push(fromDate);
-    }
-    if (toDate) {
-      whereClauses.push(`r.return_date <= $${paramIndex++}`);
-      params.push(toDate);
-    }
+
     if (search) {
-      whereClauses.push(`(pv.variant_sku ILIKE $${paramIndex} OR ap.product_name ILIKE $${paramIndex} OR r.external_return_id ILIKE $${paramIndex})`);
+      whereClauses.push(`(r.external_order_id ILIKE $${paramIndex} OR r.external_suborder_id ILIKE $${paramIndex} OR r.awb_number ILIKE $${paramIndex} OR pv.variant_sku ILIKE $${paramIndex})`);
       params.push(`%${search}%`);
       paramIndex++;
     }
 
+    if (from) {
+      whereClauses.push(`r.return_date >= $${paramIndex++}`);
+      params.push(from);
+    }
+
+    if (to) {
+      whereClauses.push(`r.return_date <= $${paramIndex++}`);
+      params.push(to);
+    }
+
     const whereString = `WHERE ${whereClauses.join(' AND ')}`;
 
-    // 1. Fetch Dynamic Summary
-    const summaryQuery = `
-      SELECT 
-        COUNT(*)::int as total_returns,
-        COALESCE(SUM(total_loss), 0)::numeric as total_loss
-      FROM returns r
-      JOIN product_variants pv ON r.variant_id = pv.id
-      JOIN allproducts ap ON pv.product_id = ap.id
-      ${whereString}
-    `;
-    const summaryRes = await sql(summaryQuery, params);
-    const summary = {
-      totalReturns: Number(summaryRes[0]?.total_returns || 0),
-      totalLoss: Number(summaryRes[0]?.total_loss || 0)
-    };
-
-    // 2. Count for pagination
+    // 1. Get total count
     const countQuery = `
-      SELECT COUNT(*) 
+      SELECT COUNT(*)::int as count 
       FROM returns r
-      JOIN product_variants pv ON r.variant_id = pv.id
-      JOIN allproducts ap ON pv.product_id = ap.id
+      LEFT JOIN product_variants pv ON pv.id = r.variant_id
       ${whereString}
     `;
     const countResult = await sql(countQuery, params);
-    const totalRows = Number(countResult[0]?.count || 0);
+    const total = Number(countResult[0]?.count || 0);
 
-    // 3. Data rows
+    // 2. Get paginated data
     const dataQuery = `
       SELECT 
-        r.*, 
-        pv.variant_sku,
-        ap.product_name
+        r.*,
+        pv.variant_sku
       FROM returns r
-      JOIN product_variants pv ON r.variant_id = pv.id
-      JOIN allproducts ap ON pv.product_id = ap.id
+      LEFT JOIN product_variants pv ON pv.id = r.variant_id
       ${whereString}
       ORDER BY r.return_date DESC, r.created_at DESC
-      LIMIT ${pageSize} OFFSET ${offset};
+      LIMIT $${paramIndex++} OFFSET $${paramIndex++}
     `;
-    const returns = await sql(dataQuery, params);
+    
+    const result = await sql(dataQuery, [...params, limit, offset]);
 
     return NextResponse.json({
       success: true,
-      summary,
-      data: returns.map((r: any) => ({
-        ...r,
-        quantity: Number(r.quantity),
-        total_loss: Number(r.total_loss || 0),
-        product_variants: { variant_sku: r.variant_sku }
-      })),
-      totalRows,
-      page,
-      pageSize
+      data: result,
+      pagination: {
+        total,
+        page,
+        limit,
+        totalPages: Math.ceil(total / limit)
+      }
     });
 
   } catch (error: any) {
