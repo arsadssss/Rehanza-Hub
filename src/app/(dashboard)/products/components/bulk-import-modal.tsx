@@ -57,7 +57,8 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
           // Basic validation of required columns
           const firstRow = data[0] as any;
           const requiredKeys = ['sku', 'product_name'];
-          const keys = Object.keys(firstRow).map(k => k.toLowerCase());
+          // Normalize keys (lowercase and replace spaces with underscores) to match requiredKeys
+          const keys = Object.keys(firstRow).map(k => k.toLowerCase().replace(/\s+/g, '_'));
           
           const hasRequired = requiredKeys.every(rk => keys.includes(rk));
           if (!hasRequired) {
@@ -67,6 +68,7 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
               description: "Sheet must contain at least 'SKU' and 'Product Name' columns." 
             });
             setFile(null);
+            setPreviewData([]);
             return;
           }
 
