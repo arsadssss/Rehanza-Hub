@@ -33,6 +33,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Crop,
+  Undo2,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -41,11 +42,12 @@ import { apiFetch } from '@/lib/apiFetch';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 
-const navItems = [
+export const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
   { href: '/orders', icon: ShoppingCart, label: 'Orders' },
   { href: '/products', icon: Package, label: 'Products' },
   { href: '/inventory', icon: Warehouse, label: 'Inventory' },
+  { href: '/returns', icon: Undo2, label: 'Returns' },
   { href: '/tasks', icon: ListTodo, label: 'Tasks' },
   { href: '/vendors', icon: Building, label: 'Vendors' },
   { href: '/analytics', icon: BarChart2, label: 'Report' },
@@ -71,39 +73,59 @@ export function SidebarNav() {
   
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
+  const [sidebarConfig, setSidebarConfig] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    async function fetchAccounts() {
+    async function fetchInitialData() {
       try {
-        const res = await apiFetch("/api/accounts");
-        const json = await res.json();
+        const [accRes, settingsRes] = await Promise.all([
+          apiFetch("/api/accounts"),
+          apiFetch("/api/settings")
+        ]);
 
-        if (json.success) {
-          setAccounts(json.data);
-
+        const accJson = await accRes.json();
+        if (accJson.success) {
+          setAccounts(accJson.data);
           const saved = sessionStorage.getItem("active_account");
           if (saved) {
             setSelectedAccount(saved);
-          } else if (json.data.length > 0) {
-            const firstAccountId = json.data[0].id;
+          } else if (accJson.data.length > 0) {
+            const firstAccountId = accJson.data[0].id;
             setSelectedAccount(firstAccountId);
             sessionStorage.setItem("active_account", firstAccountId);
-            // Notify components that the initial account is now ready
             window.dispatchEvent(new Event('active-account-changed'));
           }
         }
+
+        const settingsJson = await settingsRes.json();
+        if (settingsJson.sidebar_config) {
+          setSidebarConfig(settingsJson.sidebar_config);
+        }
       } catch (error) {
-        console.error("Failed to fetch accounts:", error);
+        console.error("Sidebar initialization failed:", error);
       }
     }
 
-    fetchAccounts();
+    fetchInitialData();
+
+    const handleSettingsUpdate = () => {
+      fetchInitialData();
+    };
+    window.addEventListener('sidebar-config-updated', handleSettingsUpdate);
+    return () => window.removeEventListener('sidebar-config-updated', handleSettingsUpdate);
   }, []);
 
   const userName = session?.user?.name ?? 'User';
   const firstLetter = userName.charAt(0).toUpperCase();
 
   const activeIndex = accounts.findIndex(acc => acc.id === selectedAccount);
+
+  // Filter items based on config (default to visible if not in config)
+  const visibleNavItems = navItems.filter(item => {
+    // Dashboard and Settings should probably always be visible to avoid being locked out
+    if (item.href === '/dashboard' || item.href === '/settings' || item.href === '/profile') return true;
+    return sidebarConfig[item.href] !== false;
+  });
 
   return (
     <Sidebar 
@@ -141,7 +163,6 @@ export function SidebarNav() {
           )}
         </div>
 
-        {/* Account Switcher Toggle */}
         <div className={cn(
           "mt-8 px-2 transition-all duration-500",
           isCollapsed ? "flex flex-col items-center gap-2" : "block"
@@ -151,7 +172,6 @@ export function SidebarNav() {
               "bg-white/10 p-1 rounded-2xl relative flex",
               isCollapsed ? "flex-col w-10" : "flex-row w-full h-11 items-center"
             )}>
-              {/* Sliding Indicator (Only visible when expanded) */}
               {!isCollapsed && activeIndex !== -1 && (
                 <div 
                   className="absolute h-9 bg-white rounded-xl shadow-lg transition-all duration-300 ease-out z-0"
@@ -197,7 +217,7 @@ export function SidebarNav() {
 
       <SidebarContent className="px-3 py-4 mt-2">
         <SidebarMenu className="gap-1">
-          {navItems.map((item) => {
+          {visibleNavItems.map((item) => {
             const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
             
             return (

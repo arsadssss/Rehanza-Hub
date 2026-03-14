@@ -1,3 +1,4 @@
+
 "use client";
 
 import React, { useEffect, useState } from 'react';
@@ -40,6 +41,7 @@ import {
   FormMessage,
 } from '@/components/ui/form';
 import { apiFetch } from '@/lib/apiFetch';
+import { navItems } from '@/app/(dashboard)/_components/sidebar-nav';
 
 const businessConfigSchema = z.object({
   businessName: z.string().min(1, 'Business name is required.'),
@@ -79,6 +81,9 @@ const preferencesSchema = z.object({
   notifications: z.boolean(),
 });
 
+// Sidebar schema: simple key-value of href -> boolean
+const sidebarConfigSchema = z.record(z.string(), z.boolean());
+
 type Settings = {
   business_config?: z.infer<typeof businessConfigSchema>;
   platform_charges?: z.infer<typeof platformsSchema>;
@@ -86,6 +91,7 @@ type Settings = {
   return_rules?: z.infer<typeof returnRulesSchema>;
   inventory_settings?: z.infer<typeof inventorySchema>;
   preferences?: z.infer<typeof preferencesSchema>;
+  sidebar_config?: z.infer<typeof sidebarConfigSchema>;
 };
 
 const DEFAULT_SETTINGS: Settings = {
@@ -99,6 +105,7 @@ const DEFAULT_SETTINGS: Settings = {
     return_rules: { restockableFixedLoss: 45 },
     inventory_settings: { defaultLowStockThreshold: 10 },
     preferences: { theme: 'system', notifications: true },
+    sidebar_config: navItems.reduce((acc, item) => ({ ...acc, [item.href]: true }), {}),
 };
 
 export default function SettingsPage() {
@@ -147,6 +154,12 @@ export default function SettingsPage() {
             description: `Your changes to ${setting_key.replace(/_/g, ' ')} have been saved.`,
         });
         setSettings(prev => prev ? ({ ...prev, [setting_key]: setting_value }) : null);
+        
+        // Notify sidebar if menu visibility changed
+        if (setting_key === 'sidebar_config') {
+          window.dispatchEvent(new Event('sidebar-config-updated'));
+        }
+        
         return true;
     } catch (error: any) {
         toast({
@@ -183,12 +196,13 @@ export default function SettingsPage() {
         <p className="text-muted-foreground">Manage your entire e-commerce operation from one place.</p>
       </div>
       <Tabs defaultValue="business_config" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-6 mb-6">
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-7 mb-6">
           <TabsTrigger value="business_config">Business</TabsTrigger>
           <TabsTrigger value="platform_charges">Platforms</TabsTrigger>
           <TabsTrigger value="profit_rules">Profit Rules</TabsTrigger>
           <TabsTrigger value="return_rules">Returns</TabsTrigger>
           <TabsTrigger value="inventory_settings">Inventory</TabsTrigger>
+          <TabsTrigger value="sidebar_config">Menus</TabsTrigger>
           <TabsTrigger value="preferences">Preferences</TabsTrigger>
         </TabsList>
         
@@ -419,6 +433,52 @@ export default function SettingsPage() {
                 </>
                 )}
             />
+        </TabsContent>
+
+        <TabsContent value="sidebar_config">
+          <SettingsForm
+            title="Menu Management"
+            description="Hide or show specific modules from the sidebar navigation."
+            settingKey="sidebar_config"
+            initialData={settings.sidebar_config!}
+            schema={sidebarConfigSchema}
+            onSave={handleSave}
+            render={({ form }) => (
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {navItems.map((item) => {
+                  // Skip core items that shouldn't be hidden
+                  if (item.href === '/dashboard' || item.href === '/settings' || item.href === '/profile') return null;
+                  
+                  return (
+                    <FormField
+                      key={item.href}
+                      control={form.control}
+                      name={item.href}
+                      render={({ field }) => (
+                        <FormItem className="flex flex-row items-center justify-between rounded-xl border p-4 hover:bg-muted/50 transition-colors">
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 bg-primary/10 rounded-lg text-primary">
+                              <item.icon className="h-4 w-4" />
+                            </div>
+                            <div className="space-y-0.5">
+                              <FormLabel className="text-sm font-bold">{item.label}</FormLabel>
+                              <p className="text-[10px] text-muted-foreground uppercase tracking-tight">{item.href}</p>
+                            </div>
+                          </div>
+                          <FormControl>
+                            <Switch
+                              checked={field.value !== false}
+                              onCheckedChange={field.onChange}
+                            />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+                  );
+                })}
+              </div>
+            )}
+          />
         </TabsContent>
 
         <TabsContent value="preferences">
