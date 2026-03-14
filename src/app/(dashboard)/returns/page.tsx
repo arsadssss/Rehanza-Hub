@@ -30,10 +30,17 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { AddReturnModal } from './components/add-return-modal';
-import { PlusCircle, Pencil, Trash2 } from 'lucide-react';
+import { ImportMeeshoReturns } from '@/components/returns/import-meesho-returns';
+import { PlusCircle, Pencil, Trash2, Upload } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { apiFetch } from '@/lib/apiFetch';
 
@@ -68,6 +75,7 @@ export default function ReturnsPage() {
   
   const [returnToEdit, setReturnToEdit] = useState<Return | null>(null);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
 
   const [itemToDelete, setItemToDelete] = useState<ItemToDelete | null>(null);
 
@@ -154,6 +162,19 @@ export default function ReturnsPage() {
         onSuccess={handleSuccess}
         returnItem={returnToEdit}
       />
+
+      <Dialog open={isImportModalOpen} onOpenChange={setIsImportModalOpen}>
+        <DialogContent className="sm:max-w-xl rounded-[2rem]">
+          <DialogHeader>
+            <DialogTitle className="font-headline text-2xl font-bold">Import Meesho Returns</DialogTitle>
+          </DialogHeader>
+          <ImportMeeshoReturns 
+            onSuccess={handleSuccess} 
+            onClose={() => setIsImportModalOpen(false)} 
+          />
+        </DialogContent>
+      </Dialog>
+
       <AlertDialog open={!!itemToDelete} onOpenChange={() => setItemToDelete(null)}>
         <AlertDialogContent>
             <AlertDialogHeader>
@@ -178,6 +199,9 @@ export default function ReturnsPage() {
               <CardDescription>View and manage customer returns.</CardDescription>
             </div>
             <div className="flex items-center gap-2 w-full md:w-auto">
+              <Button variant="outline" onClick={() => setIsImportModalOpen(true)}>
+                <Upload className="mr-2 h-4 w-4" /> Import Meesho Returns
+              </Button>
               <Button onClick={() => handleOpenModal()}>
                 <PlusCircle className="mr-2 h-4 w-4" /> Add Return
               </Button>
