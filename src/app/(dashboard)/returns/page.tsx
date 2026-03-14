@@ -7,6 +7,7 @@ import { ReturnsFilters } from '@/components/returns/returns-filters';
 import { ReturnsTable } from '@/components/returns/returns-table';
 import { AddReturnModal } from './components/add-return-modal';
 import { ImportReturnsModal } from '@/components/returns/import-returns-modal';
+import { ReturnsStatsCards } from '@/components/returns/returns-stats-cards';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -16,7 +17,8 @@ import {
   DropdownMenuItem, 
   DropdownMenuTrigger 
 } from '@/components/ui/dropdown-menu';
-import { Undo2, Upload, ChevronDown } from 'lucide-react';
+import { Undo2, Upload, ChevronDown, Activity } from 'lucide-react';
+import Link from 'next/link';
 
 export default function ReturnsPage() {
   const { toast } = useToast();
@@ -24,6 +26,7 @@ export default function ReturnsPage() {
   const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
   
   const [returns, setReturns] = useState<any[]>([]);
+  const [stats, setStats] = useState<any>(null);
   const [pagination, setPagination] = useState({ total: 0, totalPages: 1 });
   
   // Filters State
@@ -52,6 +55,19 @@ export default function ReturnsPage() {
     window.addEventListener('active-account-changed', handleAccountInit);
     return () => window.removeEventListener('active-account-changed', handleAccountInit);
   }, []);
+
+  const fetchStats = useCallback(async () => {
+    if (!activeAccountId) return;
+    try {
+      const res = await apiFetch('/api/returns/stats');
+      if (res.ok) {
+        const json = await res.json();
+        setStats(json.data);
+      }
+    } catch (e) {
+      console.error("Failed to load return stats", e);
+    }
+  }, [activeAccountId]);
 
   const fetchReturns = useCallback(async () => {
     if (!activeAccountId) return;
@@ -85,8 +101,11 @@ export default function ReturnsPage() {
   }, [page, search, platform, status, dateRange, activeAccountId, toast]);
 
   useEffect(() => {
-    if (activeAccountId) fetchReturns();
-  }, [fetchReturns, activeAccountId]);
+    if (activeAccountId) {
+      fetchStats();
+      fetchReturns();
+    }
+  }, [fetchReturns, fetchStats, activeAccountId]);
 
   // Reset to page 1 when filters change
   useEffect(() => {
@@ -100,6 +119,7 @@ export default function ReturnsPage() {
       if (res.ok) {
         toast({ title: 'Success', description: 'Return record archived successfully.' });
         fetchReturns();
+        fetchStats();
       } else {
         const err = await res.json();
         throw new Error(err.message || 'Failed to delete');
@@ -114,6 +134,7 @@ export default function ReturnsPage() {
   const handleImportSuccess = () => {
     setIsImportModalOpen(false);
     fetchReturns();
+    fetchStats();
   };
 
   const handleOpenImport = (p: 'meesho' | 'flipkart' | 'amazon') => {
@@ -129,17 +150,23 @@ export default function ReturnsPage() {
             <div className="p-2.5 bg-primary rounded-2xl shadow-lg shadow-primary/20">
               <Undo2 className="h-7 w-7 text-white" />
             </div>
-            Returns Intelligence
+            Returns
           </h1>
           <p className="text-muted-foreground font-medium mt-1">Manage reverse logistics and customer refund requests.</p>
         </div>
 
         <div className="flex flex-wrap gap-3">
+          <Button variant="outline" asChild className="rounded-xl h-12 px-6 font-bold bg-white/50 backdrop-blur-sm border-border/50">
+            <Link href="/returns/intelligence">
+              <Activity className="mr-2 h-4 w-4 text-primary" /> Return Analysis
+            </Link>
+          </Button>
+
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <Button 
                 variant="outline"
-                className="rounded-xl h-12 px-6 font-bold"
+                className="rounded-xl h-12 px-6 font-bold bg-white/50 backdrop-blur-sm border-border/50"
               >
                 <Upload className="mr-2 h-4 w-4" /> Import Returns <ChevronDown className="ml-2 h-4 w-4" />
               </Button>
@@ -165,6 +192,8 @@ export default function ReturnsPage() {
           </Button>
         </div>
       </div>
+
+      <ReturnsStatsCards stats={stats} loading={loading} />
 
       <div className="space-y-6">
         <ReturnsFilters 
@@ -193,7 +222,7 @@ export default function ReturnsPage() {
       <AddReturnModal
         isOpen={isAddModalOpen || !!itemToEdit}
         onClose={() => { setIsAddModalOpen(false); setItemToEdit(null); }}
-        onSuccess={fetchReturns}
+        onSuccess={() => { fetchReturns(); fetchStats(); }}
         returnItem={itemToEdit}
       />
 
