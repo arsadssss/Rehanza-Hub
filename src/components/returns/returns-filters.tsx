@@ -3,25 +3,48 @@
 import React, { useEffect, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Search, FilterX, Calendar as CalendarIcon } from 'lucide-react';
+import { Search, FilterX, Calendar as CalendarIcon, CheckSquare } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar } from '@/components/ui/calendar';
 import { format } from 'date-fns';
+import {
+  DropdownMenu,
+  DropdownMenuCheckboxItem,
+  DropdownMenuContent,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 interface ReturnsFiltersProps {
   search: string;
   onSearchChange: (val: string) => void;
   platform: string;
   onPlatformChange: (val: string) => void;
+  status: string[];
+  onStatusChange: (val: string[]) => void;
   onDateRangeChange: (range: { from?: string; to?: string }) => void;
 }
+
+const STATUS_OPTIONS = [
+  "RTO",
+  "Customer Return",
+  "Courier Return",
+  "Delivered Return",
+  "Rejected Return",
+  "DTO",
+  "EXCHANGE",
+  "OTHER"
+];
 
 export function ReturnsFilters({ 
   search, 
   onSearchChange, 
   platform, 
   onPlatformChange, 
+  status,
+  onStatusChange,
   onDateRangeChange 
 }: ReturnsFiltersProps) {
   const [date, setDate] = useState<any>(null);
@@ -43,9 +66,18 @@ export function ReturnsFilters({
     }
   };
 
+  const handleStatusToggle = (option: string) => {
+    if (status.includes(option)) {
+      onStatusChange(status.filter(s => s !== option));
+    } else {
+      onStatusChange([...status, option]);
+    }
+  };
+
   const reset = () => {
     onSearchChange('');
     onPlatformChange('all');
+    onStatusChange([]);
     setDate(null);
     onDateRangeChange({});
   };
@@ -66,7 +98,7 @@ export function ReturnsFilters({
 
       <div className="flex flex-wrap md:flex-nowrap gap-3 w-full md:w-auto">
         <Select value={platform} onValueChange={onPlatformChange}>
-          <SelectTrigger className="h-11 w-full md:w-[160px] bg-background rounded-xl border-border/50">
+          <SelectTrigger className="h-11 w-full md:w-[140px] bg-background rounded-xl border-border/50">
             <SelectValue placeholder="Platform" />
           </SelectTrigger>
           <SelectContent className="rounded-xl">
@@ -77,9 +109,35 @@ export function ReturnsFilters({
           </SelectContent>
         </Select>
 
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="outline" className="h-11 w-full md:w-[160px] rounded-xl bg-background border-border/50 justify-between font-normal text-muted-foreground">
+              <span className="flex items-center truncate">
+                <CheckSquare className="mr-2 h-4 w-4 shrink-0" />
+                {status.length === 0 ? "Status Filter" : `${status.length} Selected`}
+              </span>
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent className="w-56 rounded-xl">
+            <DropdownMenuLabel className="text-[10px] uppercase font-bold text-muted-foreground">Select Statuses</DropdownMenuLabel>
+            <DropdownMenuSeparator />
+            {STATUS_OPTIONS.map((option) => (
+              <DropdownMenuCheckboxItem
+                key={option}
+                checked={status.includes(option)}
+                onCheckedChange={() => handleStatusToggle(option)}
+                onSelect={(e) => e.preventDefault()}
+                className="rounded-lg text-xs font-medium"
+              >
+                {option}
+              </DropdownMenuCheckboxItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+
         <Popover>
           <PopoverTrigger asChild>
-            <Button variant="outline" className="h-11 w-full md:w-[220px] rounded-xl bg-background border-border/50 justify-start text-left font-normal text-muted-foreground">
+            <Button variant="outline" className="h-11 w-full md:w-[200px] rounded-xl bg-background border-border/50 justify-start text-left font-normal text-muted-foreground">
               <CalendarIcon className="mr-2 h-4 w-4" />
               {date?.from ? (
                 date.to ? (
@@ -88,7 +146,7 @@ export function ReturnsFilters({
                   format(date.from, "MMM dd")
                 )
               ) : (
-                <span className="truncate">Return Date Range</span>
+                <span className="truncate">Return Date</span>
               )}
             </Button>
           </PopoverTrigger>

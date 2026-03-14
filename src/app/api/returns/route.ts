@@ -18,6 +18,7 @@ export async function GET(request: Request) {
     
     const search = searchParams.get('search');
     const platform = searchParams.get('platform');
+    const status = searchParams.get('status'); // Comma-separated list
     const from = searchParams.get('from');
     const to = searchParams.get('to');
 
@@ -28,6 +29,12 @@ export async function GET(request: Request) {
     if (platform && platform !== 'all') {
       whereClauses.push(`r.platform = $${paramIndex++}`);
       params.push(platform);
+    }
+
+    if (status && status !== 'all') {
+      const statusList = status.split(',');
+      whereClauses.push(`r.return_type = ANY($${paramIndex++})`);
+      params.push(statusList);
     }
 
     if (search) {

@@ -24,6 +24,7 @@ export default function ReturnsPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
   const [platform, setPlatform] = useState('all');
+  const [status, setStatus] = useState<string[]>([]);
   const [dateRange, setDateRange] = useState<{ from?: string; to?: string }>({});
 
   // Modals State
@@ -54,6 +55,7 @@ export default function ReturnsPage() {
       params.append('limit', '25');
       if (search) params.append('search', search);
       if (platform !== 'all') params.append('platform', platform);
+      if (status.length > 0) params.append('status', status.join(','));
       if (dateRange.from) params.append('from', dateRange.from);
       if (dateRange.to) params.append('to', dateRange.to);
 
@@ -73,7 +75,7 @@ export default function ReturnsPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, search, platform, dateRange, activeAccountId, toast]);
+  }, [page, search, platform, status, dateRange, activeAccountId, toast]);
 
   useEffect(() => {
     if (activeAccountId) fetchReturns();
@@ -82,7 +84,7 @@ export default function ReturnsPage() {
   // Reset to page 1 when filters change
   useEffect(() => {
     setPage(1);
-  }, [search, platform, dateRange]);
+  }, [search, platform, status, dateRange]);
 
   const handleDelete = async () => {
     if (!itemToDelete) return;
@@ -143,6 +145,8 @@ export default function ReturnsPage() {
           onSearchChange={setSearch}
           platform={platform}
           onPlatformChange={setPlatform}
+          status={status}
+          onStatusChange={setStatus}
           onDateRangeChange={setDateRange}
         />
 

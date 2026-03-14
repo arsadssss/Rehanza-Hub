@@ -33,14 +33,6 @@ export function ReturnsTable({
 }: ReturnsTableProps) {
   const itemsPerPage = 25;
 
-  const getStatusColor = (status: string) => {
-    const s = status?.toLowerCase() || '';
-    if (s.includes('picked') || s.includes('delivered')) return 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400';
-    if (s.includes('transit')) return 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400';
-    if (s.includes('rejected')) return 'bg-rose-100 text-rose-700 dark:bg-rose-900/30 dark:text-rose-400';
-    return 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-400';
-  };
-
   if (!loading && returns.length === 0) {
     return (
       <Card className="border-0 shadow-xl rounded-[2rem] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
@@ -68,9 +60,9 @@ export function ReturnsTable({
               <TableHead className="px-6 font-bold text-[10px] uppercase tracking-[0.2em] h-14">Platform</TableHead>
               <TableHead className="px-6 font-bold text-[10px] uppercase tracking-[0.2em] h-14">Order ID</TableHead>
               <TableHead className="px-6 font-bold text-[10px] uppercase tracking-[0.2em] h-14">SKU</TableHead>
-              <TableHead className="px-6 text-center font-bold text-[10px] uppercase tracking-[0.2em] h-14">Qty</TableHead>
+              <TableHead className="px-6 text-center font-bold text-[10px] uppercase tracking-[0.2em] h-14">QTY</TableHead>
               <TableHead className="px-6 font-bold text-[10px] uppercase tracking-[0.2em] h-14">Type / Reason</TableHead>
-              <TableHead className="px-6 text-center font-bold text-[10px] uppercase tracking-[0.2em] h-14">Status</TableHead>
+              <TableHead className="px-6 font-bold text-[10px] uppercase tracking-[0.2em] h-14">Detailed Reason</TableHead>
               <TableHead className="px-6 text-right font-bold text-[10px] uppercase tracking-[0.2em] h-14">Actions</TableHead>
             </TableRow>
           </TableHeader>
@@ -96,33 +88,36 @@ export function ReturnsTable({
                     <div className="flex flex-col gap-0.5">
                       <span>{item.external_order_id || 'N/A'}</span>
                       {item.external_suborder_id && (
-                        <span className="text-[9px] text-muted-foreground">{item.external_suborder_id}</span>
+                        <span className="text-[9px] text-muted-foreground font-medium">{item.external_suborder_id}</span>
                       )}
                     </div>
                   </TableCell>
-                  <TableCell className="px-6 py-4 font-black text-xs text-primary truncate max-w-[150px]">
-                    {item.variant_sku}
+                  <TableCell className="px-6 py-4">
+                    <span className="font-bold text-xs text-primary hover:underline cursor-pointer">
+                      {item.variant_sku}
+                    </span>
                   </TableCell>
-                  <TableCell className="px-6 py-4 text-center font-bold text-xs">
+                  <TableCell className="px-6 py-4 text-center font-bold text-xs text-foreground/70">
                     {item.quantity}
                   </TableCell>
                   <TableCell className="px-6 py-4">
                     <div className="flex flex-col gap-0.5">
-                      <span className="text-[10px] font-black uppercase text-foreground/70">{item.return_type || 'OTHER'}</span>
-                      <span className="text-[10px] text-muted-foreground truncate max-w-[200px]">{item.return_reason || '-'}</span>
+                      <span className="text-[11px] font-bold uppercase text-foreground">{item.return_type || 'OTHER'}</span>
+                      <span className="text-[10px] font-medium text-muted-foreground line-clamp-1">{item.return_reason || 'NA'}</span>
+                      <span className="text-[9px] font-medium text-muted-foreground/60 line-clamp-1">{item.detailed_return_reason || 'NA'}</span>
                     </div>
                   </TableCell>
-                  <TableCell className="px-6 py-4 text-center">
-                    <span className={cn("inline-flex items-center px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-tighter", getStatusColor(item.status))}>
-                      {item.status || 'UNKNOWN'}
+                  <TableCell className="px-6 py-4">
+                    <span className="text-[10px] font-medium text-muted-foreground line-clamp-2 max-w-[180px]">
+                      {item.detailed_return_reason || '-'}
                     </span>
                   </TableCell>
                   <TableCell className="px-6 py-4 text-right">
                     <div className="flex justify-end gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-primary" onClick={() => onEdit(item)}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-primary hover:bg-primary/10 rounded-lg" onClick={() => onEdit(item)}>
                         <Pencil className="h-4 w-4" />
                       </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" onClick={() => onDelete(item)}>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive hover:bg-destructive/10 rounded-lg" onClick={() => onDelete(item)}>
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>
