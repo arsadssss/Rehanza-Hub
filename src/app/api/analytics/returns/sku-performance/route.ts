@@ -5,7 +5,7 @@ export const revalidate = 0;
 
 /**
  * GET /api/analytics/returns/sku-performance
- * Returns SKU-level performance metrics using SKU-based joins.
+ * Returns SKU-level performance metrics using variant_id based joins.
  */
 export async function GET(request: Request) {
   try {
@@ -23,10 +23,10 @@ export async function GET(request: Request) {
     const minRate = searchParams.get('minRate');
     const maxRate = searchParams.get('maxRate');
 
-    // Build the query using SKU based joins as requested
+    // Build the query using variant_id based joins
     const query = `
       SELECT
-        p.sku,
+        pv.variant_sku as sku,
         p.product_name,
         o.platform,
         SUM(o.quantity)::int AS total_orders,
@@ -38,10 +38,11 @@ export async function GET(request: Request) {
         COALESCE(r.customer_returns, 0)::int AS customer_returns,
         COALESCE(r.rto_returns, 0)::int AS rto_returns
       FROM orders o
-      JOIN allproducts p ON LOWER(p.sku) = LOWER(o.sku)
+      JOIN product_variants pv ON o.variant_id = pv.id
+      JOIN allproducts p ON pv.product_id = p.id
       LEFT JOIN (
           SELECT
-            LOWER(sku) AS sku,
+            variant_id,
             platform,
             account_id,
             SUM(quantity) AS total_returns,
@@ -51,16 +52,16 @@ export async function GET(request: Request) {
           WHERE is_deleted = false
           ${from ? `AND return_date >= '${from}'` : ''}
           ${to ? `AND return_date <= '${to}'` : ''}
-          GROUP BY LOWER(sku), platform, account_id
-      ) r ON LOWER(o.sku) = r.sku AND o.platform = r.platform AND r.account_id = o.account_id
+          GROUP BY variant_id, platform, account_id
+      ) r ON o.variant_id = r.variant_id AND o.platform = r.platform AND r.account_id = o.account_id
       WHERE o.account_id = $1
         AND o.is_deleted = false
         ${platform && platform !== 'all' ? `AND o.platform = '${platform}'` : ''}
-        ${search ? `AND (p.sku ILIKE '%${search}%' OR p.product_name ILIKE '%${search}%')` : ''}
+        ${search ? `AND (pv.variant_sku ILIKE '%${search}%' OR p.product_name ILIKE '%${search}%')` : ''}
         ${from ? `AND o.order_date >= '${from}'` : ''}
         ${to ? `AND o.order_date <= '${to}'` : ''}
       GROUP BY
-        p.sku,
+        pv.variant_sku,
         p.product_name,
         o.platform,
         r.total_returns,
