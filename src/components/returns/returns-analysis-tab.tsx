@@ -72,7 +72,7 @@ export function ReturnsAnalysisTab() {
               </div>
               <div>
                 <CardTitle className="font-headline text-xl">Return Rate by SKU</CardTitle>
-                <CardDescription>Returns vs. Total Sales dispatched per product.</CardDescription>
+                <CardDescription>Top 5 SKUs by return rate (Returns vs. Sales).</CardDescription>
               </div>
             </div>
           </CardHeader>
@@ -90,7 +90,7 @@ export function ReturnsAnalysisTab() {
                 <TableBody>
                   {loading ? Array.from({ length: 5 }).map((_, i) => (
                     <TableRow key={i}><TableCell colSpan={4} className="px-6 py-4"><Skeleton className="h-6 w-full" /></TableCell></TableRow>
-                  )) : (data?.returnRateBySKU || []).length > 0 ? (data?.returnRateBySKU || []).map((item: any) => (
+                  )) : (data?.returnRateBySKU || []).length > 0 ? (data?.returnRateBySKU || []).slice(0, 5).map((item: any) => (
                     <TableRow key={item.sku} className="hover:bg-primary/5 transition-colors border-border/50">
                       <TableCell className="font-bold text-xs py-4 px-6 truncate max-w-[120px]">{item.sku}</TableCell>
                       <TableCell className="text-right font-medium text-xs text-muted-foreground">{item.sold_qty}</TableCell>
