@@ -27,6 +27,7 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableHeader, TableRow, TableHead, TableBody, TableCell } from '@/components/ui/table';
 import { formatINR } from '@/lib/format';
 import { Badge } from '@/components/ui/badge';
+import { SkuPerformanceTable } from './sku-performance-table';
 
 const COLORS = ['#6366f1', '#f43f5e', '#fbbf24', '#10b981', '#a855f7'];
 
@@ -57,7 +58,7 @@ export function ReturnsAnalysisTab() {
   }, [fetchAnalytics]);
 
   return (
-    <div className="space-y-8 animate-in fade-in duration-500">
+    <div className="space-y-10 animate-in fade-in duration-500 pb-12">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         {/* SECTION 1: Return Rate by SKU (Table) */}
         <Card className="border-0 shadow-xl rounded-[2rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
@@ -231,6 +232,11 @@ export function ReturnsAnalysisTab() {
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      {/* NEW: SKU Performance Analytics Table */}
+      <div className="pt-4">
+        <SkuPerformanceTable />
       </div>
     </div>
   );
