@@ -5,7 +5,7 @@ export const revalidate = 0;
 
 /**
  * GET /api/analytics/returns
- * Comprehensive Returns Analytics Engine using SKU based joins.
+ * Comprehensive Returns Analytics Engine using variant based joins for orders.
  */
 export async function GET(request: Request) {
   try {
@@ -14,7 +14,7 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, message: "Account context missing" }, { status: 400 });
     }
 
-    // 1. Return Rate by SKU (using SKU joins for system compatibility)
+    // 1. Return Rate by SKU (resolving SKU from orders via product_variants)
     const returnRateBySKU = await sql`
       SELECT 
         p.sku,
@@ -24,10 +24,11 @@ export async function GET(request: Request) {
         ROUND(COALESCE(ret.qty, 0)::numeric / NULLIF(COALESCE(ord.qty, 0), 0) * 100, 2) as return_rate
       FROM allproducts p
       LEFT JOIN (
-        SELECT LOWER(sku) as sku, SUM(quantity) as qty 
-        FROM orders 
-        WHERE is_deleted = false AND account_id = ${accountId}
-        GROUP BY LOWER(sku)
+        SELECT LOWER(pv.variant_sku) as sku, SUM(o.quantity) as qty 
+        FROM orders o
+        JOIN product_variants pv ON o.variant_id = pv.id
+        WHERE o.is_deleted = false AND o.account_id = ${accountId}
+        GROUP BY LOWER(pv.variant_sku)
       ) ord ON LOWER(p.sku) = ord.sku
       LEFT JOIN (
         SELECT LOWER(sku) as sku, SUM(quantity) as qty 
