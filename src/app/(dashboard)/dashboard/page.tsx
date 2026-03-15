@@ -24,7 +24,7 @@ export default function DashboardPage() {
 
   // Analytics Section Data
   const [salesData, setSalesData] = useState<any>(null);
-  const [timeRange, setTimeRange] = useState('7d');
+  const [timeRange, setTimeRange] = useState('30d');
   
   // Loading states
   const [loading, setLoading] = useState(true);
