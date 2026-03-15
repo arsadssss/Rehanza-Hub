@@ -24,18 +24,19 @@ export async function GET(request: Request) {
         ROUND(COALESCE(ret.qty, 0)::numeric / NULLIF(COALESCE(ord.qty, 0), 0) * 100, 2) as return_rate
       FROM allproducts p
       LEFT JOIN (
-        SELECT LOWER(pv.variant_sku) as sku, SUM(o.quantity) as qty 
+        SELECT pv.product_id, SUM(o.quantity) as qty 
         FROM orders o
         JOIN product_variants pv ON o.variant_id = pv.id
         WHERE o.is_deleted = false AND o.account_id = ${accountId}
-        GROUP BY LOWER(pv.variant_sku)
-      ) ord ON LOWER(p.sku) = ord.sku
+        GROUP BY pv.product_id
+      ) ord ON p.id = ord.product_id
       LEFT JOIN (
-        SELECT LOWER(sku) as sku, SUM(quantity) as qty 
-        FROM returns 
-        WHERE is_deleted = false AND account_id = ${accountId}
-        GROUP BY LOWER(sku)
-      ) ret ON LOWER(p.sku) = ret.sku
+        SELECT pv.product_id, SUM(r.quantity) as qty 
+        FROM returns r
+        JOIN product_variants pv ON r.variant_id = pv.id
+        WHERE r.is_deleted = false AND r.account_id = ${accountId}
+        GROUP BY pv.product_id
+      ) ret ON p.id = ret.product_id
       WHERE p.account_id = ${accountId}
         AND p.is_deleted = false
       ORDER BY return_rate DESC NULLS LAST
@@ -76,7 +77,8 @@ export async function GET(request: Request) {
         SUM(r.quantity)::int as total_returns,
         SUM(COALESCE(r.refund_amount, 0) + COALESCE(r.shipping_loss, 0) + COALESCE(r.ads_loss, 0) + COALESCE(r.damage_loss, 0))::numeric as total_loss
       FROM returns r
-      JOIN allproducts p ON LOWER(r.sku) = LOWER(p.sku)
+      JOIN product_variants pv ON r.variant_id = pv.id
+      JOIN allproducts p ON pv.product_id = p.id
       WHERE r.account_id = ${accountId} AND r.is_deleted = false AND p.is_deleted = false
       GROUP BY p.sku, p.product_name
       ORDER BY total_returns DESC

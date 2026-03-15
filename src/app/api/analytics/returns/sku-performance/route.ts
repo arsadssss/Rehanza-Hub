@@ -5,8 +5,8 @@ export const revalidate = 0;
 
 /**
  * GET /api/analytics/returns/sku-performance
- * Returns SKU-level performance metrics using case-insensitive SKU based joins.
- * Resolves SKU from orders via product_variants table.
+ * Returns SKU-level performance metrics using variant_id based joins.
+ * Resolves SKU from product_variants table.
  */
 export async function GET(request: Request) {
   try {
@@ -24,7 +24,7 @@ export async function GET(request: Request) {
     const minRate = searchParams.get('minRate');
     const maxRate = searchParams.get('maxRate');
 
-    // Query adapted to join on product_variants to resolve SKU from orders correctly
+    // Query adapted to join on product_variants to resolve SKU and join with returns on variant_id
     const query = `
       SELECT
         pv.variant_sku AS sku,
@@ -43,7 +43,7 @@ export async function GET(request: Request) {
       JOIN allproducts ap ON ap.id = pv.product_id
       LEFT JOIN (
           SELECT
-            LOWER(sku) AS sku,
+            variant_id,
             account_id,
             SUM(quantity) AS total_returns,
             SUM(CASE WHEN LOWER(status) LIKE '%customer%' THEN quantity ELSE 0 END) AS customer_returns,
@@ -52,8 +52,8 @@ export async function GET(request: Request) {
           WHERE is_deleted = false
           ${from ? `AND return_date >= '${from}'` : ''}
           ${to ? `AND return_date <= '${to}'` : ''}
-          GROUP BY LOWER(sku), account_id
-      ) r ON LOWER(pv.variant_sku) = r.sku AND r.account_id = o.account_id
+          GROUP BY variant_id, account_id
+      ) r ON o.variant_id = r.variant_id AND r.account_id = o.account_id
       WHERE o.account_id = $1
         AND o.is_deleted = false
         AND ap.is_deleted = false

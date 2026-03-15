@@ -6,7 +6,7 @@ export const revalidate = 0;
 /**
  * GET /api/returns/analytics
  * Advanced returns intelligence service.
- * Aggregates loss metrics, SKU performance, and behavioral trends.
+ * Aggregates loss metrics, SKU performance, and behavioral trends using variant_id joins.
  */
 export async function GET(request: Request) {
   try {
@@ -26,8 +26,8 @@ export async function GET(request: Request) {
     const summaryRes = await sql`
       SELECT 
         COUNT(*)::int as total_returns,
-        COUNT(*) FILTER (WHERE return_type = 'RTO')::int as rto_count,
-        COUNT(*) FILTER (WHERE return_type = 'CUSTOMER_RETURN')::int as customer_count
+        COUNT(*) FILTER (WHERE LOWER(status) LIKE '%rto%' OR LOWER(status) LIKE '%courier%' OR LOWER(status) LIKE '%undelivered%')::int as rto_count,
+        COUNT(*) FILTER (WHERE LOWER(status) LIKE '%customer%' OR LOWER(status) LIKE '%rejected%')::int as customer_count
       FROM returns
       WHERE account_id = ${accountId} 
         AND is_deleted = false
@@ -58,35 +58,46 @@ export async function GET(request: Request) {
       customer_return_rate: totalReturns > 0 ? Number(((summaryData.customer_count / totalReturns) * 100).toFixed(1)) : 0,
     };
 
-    // 3. SKU Performance: Joins orders and returns to find highest return rates
-    // Filters by SKU search if provided
+    // 3. SKU Performance: Joins orders and returns via variant_id
     const skuReturnRate = await sql`
-      SELECT 
-        pv.variant_sku as sku,
-        ap.product_name,
-        COALESCE(ord.qty, 0)::int as orders,
-        COALESCE(ret.qty, 0)::int as returns,
-        CASE 
-          WHEN COALESCE(ord.qty, 0) = 0 THEN 0 
-          ELSE ROUND((COALESCE(ret.qty, 0)::decimal / ord.qty) * 100, 1) 
-        END as return_rate
-      FROM product_variants pv
-      JOIN allproducts ap ON pv.product_id = ap.id
+      SELECT
+        pv.variant_sku AS sku,
+        o.platform,
+        SUM(o.quantity) AS total_orders,
+        COALESCE(r.total_returns,0) AS total_returns,
+        ROUND(
+          COALESCE(r.total_returns,0)::numeric / NULLIF(SUM(o.quantity),0) * 100,
+          2
+        ) AS return_percent,
+        COALESCE(r.customer_returns,0) AS customer_returns,
+        COALESCE(r.rto_returns,0) AS rto_returns
+      FROM orders o
+      JOIN product_variants pv ON pv.id = o.variant_id
       LEFT JOIN (
-        SELECT variant_id, SUM(quantity) as qty 
-        FROM orders 
-        WHERE is_deleted = false AND account_id = ${accountId} AND order_date >= ${from} AND order_date <= ${to}
-        GROUP BY variant_id
-      ) ord ON pv.id = ord.variant_id
-      LEFT JOIN (
-        SELECT variant_id, SUM(quantity) as qty 
-        FROM returns 
-        WHERE is_deleted = false AND account_id = ${accountId} AND return_date >= ${from} AND return_date <= ${to}
-        GROUP BY variant_id
-      ) ret ON pv.id = ret.variant_id
-      WHERE pv.account_id = ${accountId}
+          SELECT
+            variant_id,
+            account_id,
+            SUM(quantity) AS total_returns,
+            SUM(CASE WHEN LOWER(status) LIKE '%customer%' OR LOWER(status) LIKE '%rejected%' THEN quantity ELSE 0 END) AS customer_returns,
+            SUM(CASE WHEN LOWER(status) LIKE '%rto%' OR LOWER(status) LIKE '%courier%' OR LOWER(status) LIKE '%undelivered%' THEN quantity ELSE 0 END) AS rto_returns
+          FROM returns
+          WHERE is_deleted = false
+          AND return_date >= ${from} 
+          AND return_date <= ${to}
+          GROUP BY variant_id, account_id
+      ) r ON o.variant_id = r.variant_id AND r.account_id = o.account_id
+      WHERE o.account_id = ${accountId}
+        AND o.is_deleted = false
+        AND o.order_date >= ${from} 
+        AND o.order_date <= ${to}
         ${skuSearch ? sql`AND pv.variant_sku ILIKE ${'%' + skuSearch + '%'}` : sql``}
-      ORDER BY return_rate DESC
+      GROUP BY
+        pv.variant_sku,
+        o.platform,
+        r.total_returns,
+        r.customer_returns,
+        r.rto_returns
+      ORDER BY return_percent DESC
       LIMIT 10
     `;
 
