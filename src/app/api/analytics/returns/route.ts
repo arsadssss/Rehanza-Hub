@@ -5,7 +5,7 @@ export const revalidate = 0;
 
 /**
  * GET /api/analytics/returns
- * Comprehensive Returns Analytics Engine using variant_id based joins.
+ * Comprehensive Returns Analytics Engine using SKU based joins.
  */
 export async function GET(request: Request) {
   try {
@@ -14,30 +14,28 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, message: "Account context missing" }, { status: 400 });
     }
 
-    // 1. Return Rate by SKU (using product_variants)
+    // 1. Return Rate by SKU (using SKU joins for system compatibility)
     const returnRateBySKU = await sql`
       SELECT 
-        pv.variant_sku as sku,
+        p.sku,
         p.product_name,
         COALESCE(ord.qty, 0)::int as sold_qty,
         COALESCE(ret.qty, 0)::int as return_qty,
         ROUND(COALESCE(ret.qty, 0)::numeric / NULLIF(COALESCE(ord.qty, 0), 0) * 100, 2) as return_rate
-      FROM product_variants pv
-      JOIN allproducts p ON pv.product_id = p.id
+      FROM allproducts p
       LEFT JOIN (
-        SELECT variant_id, SUM(quantity) as qty 
+        SELECT LOWER(sku) as sku, SUM(quantity) as qty 
         FROM orders 
         WHERE is_deleted = false AND account_id = ${accountId}
-        GROUP BY variant_id
-      ) ord ON pv.id = ord.variant_id
+        GROUP BY LOWER(sku)
+      ) ord ON LOWER(p.sku) = ord.sku
       LEFT JOIN (
-        SELECT variant_id, SUM(quantity) as qty 
+        SELECT LOWER(sku) as sku, SUM(quantity) as qty 
         FROM returns 
         WHERE is_deleted = false AND account_id = ${accountId}
-        GROUP BY variant_id
-      ) ret ON pv.id = ret.variant_id
-      WHERE pv.account_id = ${accountId}
-        AND pv.is_deleted = false
+        GROUP BY LOWER(sku)
+      ) ret ON LOWER(p.sku) = ret.sku
+      WHERE p.account_id = ${accountId}
         AND p.is_deleted = false
       ORDER BY return_rate DESC NULLS LAST
       LIMIT 50;
@@ -72,15 +70,14 @@ export async function GET(request: Request) {
     // 4. Worst Products by Returns (Quantity + Loss)
     const worstProducts = await sql`
       SELECT 
-        pv.variant_sku as name,
+        p.sku as name,
         p.product_name,
         SUM(r.quantity)::int as total_returns,
         SUM(COALESCE(r.refund_amount, 0) + COALESCE(r.shipping_loss, 0) + COALESCE(r.ads_loss, 0) + COALESCE(r.damage_loss, 0))::numeric as total_loss
       FROM returns r
-      JOIN product_variants pv ON r.variant_id = pv.id
-      JOIN allproducts p ON pv.product_id = p.id
-      WHERE r.account_id = ${accountId} AND r.is_deleted = false AND pv.is_deleted = false
-      GROUP BY pv.variant_sku, p.product_name
+      JOIN allproducts p ON LOWER(r.sku) = LOWER(p.sku)
+      WHERE r.account_id = ${accountId} AND r.is_deleted = false AND p.is_deleted = false
+      GROUP BY p.sku, p.product_name
       ORDER BY total_returns DESC
       LIMIT 10;
     `;
