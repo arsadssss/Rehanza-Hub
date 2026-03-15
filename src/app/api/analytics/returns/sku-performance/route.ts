@@ -5,7 +5,8 @@ export const revalidate = 0;
 
 /**
  * GET /api/analytics/returns/sku-performance
- * Returns SKU-level performance metrics using variant_id based joins.
+ * Returns SKU-level performance metrics by calculating total orders and returns per platform.
+ * Synchronizes return quantities directly with the returns table (Return Logs).
  */
 export async function GET(request: Request) {
   try {
@@ -23,49 +24,58 @@ export async function GET(request: Request) {
     const minRate = searchParams.get('minRate');
     const maxRate = searchParams.get('maxRate');
 
-    // Precision Query using CTEs for independent aggregation
+    // Robust Query using CTEs to ensure Return Quantity matches Return Logs exactly
     const query = `
-      WITH sales_data AS (
+      WITH sales_summary AS (
           SELECT 
               variant_id, 
               platform,
-              SUM(quantity) as qty
+              SUM(quantity)::int as qty
           FROM orders
           WHERE account_id = $1 AND is_deleted = false
           ${from ? `AND order_date >= '${from}'` : ''}
           ${to ? `AND order_date <= '${to}'` : ''}
           GROUP BY variant_id, platform
       ),
-      returns_data AS (
+      returns_summary AS (
           SELECT 
               variant_id, 
               platform,
-              SUM(quantity) as qty,
-              SUM(CASE WHEN LOWER(status) LIKE '%customer%' OR LOWER(status) LIKE '%rejected%' OR LOWER(return_type) = 'customer_return' THEN quantity ELSE 0 END) AS customer_qty,
-              SUM(CASE WHEN LOWER(status) LIKE '%rto%' OR LOWER(status) LIKE '%courier%' OR LOWER(status) LIKE '%undelivered%' OR LOWER(return_type) IN ('rto', 'dto') THEN quantity ELSE 0 END) AS rto_qty
+              SUM(quantity)::int as qty,
+              SUM(CASE WHEN LOWER(status) LIKE '%customer%' OR LOWER(status) LIKE '%rejected%' OR LOWER(return_type) = 'customer_return' THEN quantity ELSE 0 END)::int AS customer_qty,
+              SUM(CASE WHEN LOWER(status) LIKE '%rto%' OR LOWER(status) LIKE '%courier%' OR LOWER(status) LIKE '%undelivered%' OR LOWER(return_type) IN ('rto', 'dto') THEN quantity ELSE 0 END)::int AS rto_qty
           FROM returns
           WHERE account_id = $1 AND is_deleted = false
           ${from ? `AND return_date >= '${from}'` : ''}
           ${to ? `AND return_date <= '${to}'` : ''}
           GROUP BY variant_id, platform
+      ),
+      combined_stats AS (
+          SELECT 
+              COALESCE(s.variant_id, r.variant_id) as variant_id,
+              COALESCE(s.platform, r.platform) as platform,
+              COALESCE(s.qty, 0) as total_orders,
+              COALESCE(r.qty, 0) as total_returns,
+              COALESCE(r.customer_qty, 0) as customer_returns,
+              COALESCE(r.rto_qty, 0) as rto_returns
+          FROM sales_summary s
+          FULL OUTER JOIN returns_summary r ON s.variant_id = r.variant_id AND s.platform = r.platform
       )
       SELECT 
           pv.variant_sku as sku,
           ap.product_name,
-          COALESCE(s.platform, r.platform) as platform,
-          COALESCE(s.qty, 0)::int as total_orders,
-          COALESCE(r.qty, 0)::int as total_returns,
-          ROUND(COALESCE(r.qty, 0)::numeric / NULLIF(COALESCE(s.qty, 0), 0) * 100, 2) as return_percent,
-          COALESCE(r.customer_qty, 0)::int as customer_returns,
-          COALESCE(r.rto_qty, 0)::int as rto_returns
-      FROM product_variants pv
+          c.platform,
+          c.total_orders,
+          c.total_returns,
+          ROUND(c.total_returns::numeric / NULLIF(c.total_orders, 0) * 100, 2) as return_percent,
+          c.customer_returns,
+          c.rto_returns
+      FROM combined_stats c
+      JOIN product_variants pv ON pv.id = c.variant_id
       JOIN allproducts ap ON ap.id = pv.product_id
-      LEFT JOIN sales_data s ON pv.id = s.variant_id
-      LEFT JOIN returns_data r ON pv.id = r.variant_id AND (s.platform = r.platform OR s.platform IS NULL OR r.platform IS NULL)
       WHERE pv.account_id = $1 AND pv.is_deleted = false
-      ${platform && platform !== 'all' ? `AND (s.platform = '${platform}' OR r.platform = '${platform}')` : ''}
+      ${platform && platform !== 'all' ? `AND c.platform = '${platform}'` : ''}
       ${search ? `AND (pv.variant_sku ILIKE '%${search}%' OR ap.product_name ILIKE '%${search}%')` : ''}
-      AND (s.qty > 0 OR r.qty > 0)
       ORDER BY return_percent DESC NULLS LAST;
     `;
 
