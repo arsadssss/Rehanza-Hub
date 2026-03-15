@@ -24,51 +24,49 @@ export async function GET(request: Request) {
     const minRate = searchParams.get('minRate');
     const maxRate = searchParams.get('maxRate');
 
-    // Query adapted to join on product_variants to resolve SKU and join with returns on variant_id
+    // Re-engineered query to be platform-aware and robust
     const query = `
-      SELECT
-        pv.variant_sku AS sku,
-        ap.product_name,
-        o.platform,
-        SUM(o.quantity)::int AS total_orders,
-        COALESCE(r.total_returns, 0)::int AS total_returns,
-        ROUND(
-          COALESCE(r.total_returns, 0)::numeric / NULLIF(SUM(o.quantity), 0) * 100,
-          2
-        ) AS return_percent,
-        COALESCE(r.customer_returns, 0)::int AS customer_returns,
-        COALESCE(r.rto_returns, 0)::int AS rto_returns
-      FROM orders o
-      JOIN product_variants pv ON pv.id = o.variant_id
-      JOIN allproducts ap ON ap.id = pv.product_id
-      LEFT JOIN (
-          SELECT
-            variant_id,
-            account_id,
-            SUM(quantity) AS total_returns,
-            SUM(CASE WHEN LOWER(status) LIKE '%customer%' THEN quantity ELSE 0 END) AS customer_returns,
-            SUM(CASE WHEN LOWER(status) LIKE '%rto%' OR LOWER(status) LIKE '%courier%' OR LOWER(status) LIKE '%undelivered%' THEN quantity ELSE 0 END) AS rto_returns
+      WITH sales_data AS (
+          SELECT 
+              variant_id, 
+              platform,
+              SUM(quantity) as qty
+          FROM orders
+          WHERE account_id = $1 AND is_deleted = false
+          ${from ? `AND order_date >= '${from}'` : ''}
+          ${to ? `AND order_date <= '${to}'` : ''}
+          GROUP BY variant_id, platform
+      ),
+      returns_data AS (
+          SELECT 
+              variant_id, 
+              platform,
+              SUM(quantity) as qty,
+              SUM(CASE WHEN LOWER(status) LIKE '%customer%' THEN quantity ELSE 0 END) AS customer_qty,
+              SUM(CASE WHEN LOWER(status) LIKE '%rto%' OR LOWER(status) LIKE '%courier%' OR LOWER(status) LIKE '%undelivered%' THEN quantity ELSE 0 END) AS rto_qty
           FROM returns
-          WHERE is_deleted = false
+          WHERE account_id = $1 AND is_deleted = false
           ${from ? `AND return_date >= '${from}'` : ''}
           ${to ? `AND return_date <= '${to}'` : ''}
-          GROUP BY variant_id, account_id
-      ) r ON o.variant_id = r.variant_id AND r.account_id = o.account_id
-      WHERE o.account_id = $1
-        AND o.is_deleted = false
-        AND ap.is_deleted = false
-        ${platform && platform !== 'all' ? `AND o.platform = '${platform}'` : ''}
-        ${search ? `AND (pv.variant_sku ILIKE '%${search}%' OR ap.product_name ILIKE '%${search}%')` : ''}
-        ${from ? `AND o.order_date >= '${from}'` : ''}
-        ${to ? `AND o.order_date <= '${to}'` : ''}
-      GROUP BY
-        pv.variant_sku,
-        ap.product_name,
-        o.platform,
-        r.total_returns,
-        r.customer_returns,
-        r.rto_returns
-      ORDER BY return_percent DESC;
+          GROUP BY variant_id, platform
+      )
+      SELECT 
+          pv.variant_sku as sku,
+          ap.product_name,
+          COALESCE(s.platform, r.platform) as platform,
+          COALESCE(s.qty, 0)::int as total_orders,
+          COALESCE(r.qty, 0)::int as total_returns,
+          ROUND(COALESCE(r.qty, 0)::numeric / NULLIF(COALESCE(s.qty, 0), 0) * 100, 2) as return_percent,
+          COALESCE(r.customer_qty, 0)::int as customer_returns,
+          COALESCE(r.rto_qty, 0)::int as rto_returns
+      FROM sales_data s
+      FULL OUTER JOIN returns_data r ON s.variant_id = r.variant_id AND s.platform = r.platform
+      JOIN product_variants pv ON pv.id = COALESCE(s.variant_id, r.variant_id)
+      JOIN allproducts ap ON ap.id = pv.product_id
+      WHERE ap.is_deleted = false
+      ${platform && platform !== 'all' ? `AND (s.platform = '${platform}' OR r.platform = '${platform}')` : ''}
+      ${search ? `AND (pv.variant_sku ILIKE '%${search}%' OR ap.product_name ILIKE '%${search}%')` : ''}
+      ORDER BY return_percent DESC NULLS LAST;
     `;
 
     const rows = await sql(query, [accountId]);

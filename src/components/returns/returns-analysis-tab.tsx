@@ -176,7 +176,7 @@ export function ReturnsAnalysisTab() {
                     <YAxis 
                       tick={{ fontSize: 10, fill: 'gray', fontWeight: 700 }} 
                       axisLine={false} 
-                      tickLine={false}
+                      tickLine={false} 
                       tickFormatter={(val) => `₹${val/1000}k`}
                     />
                     <Tooltip 
@@ -219,8 +219,8 @@ export function ReturnsAnalysisTab() {
                   {loading ? Array.from({ length: 5 }).map((_, i) => (
                     <TableRow key={i}><TableCell colSpan={3} className="px-6 py-4"><Skeleton className="h-6 w-full" /></TableCell></TableRow>
                   )) : (data?.worstProducts || []).map((item: any) => (
-                    <TableRow key={item.sku} className="hover:bg-rose-500/5 transition-colors border-border/50">
-                      <TableCell className="font-bold text-xs py-4 px-6 truncate max-w-[150px]">{item.sku}</TableCell>
+                    <TableRow key={item.name} className="hover:bg-rose-500/5 transition-colors border-border/50">
+                      <TableCell className="font-bold text-xs py-4 px-6 truncate max-w-[150px]">{item.name}</TableCell>
                       <TableCell className="text-right font-black text-rose-600">{item.total_returns}</TableCell>
                       <TableCell className="text-right px-6 font-black text-rose-600/80">
                         {formatINR(item.total_loss)}
@@ -234,7 +234,7 @@ export function ReturnsAnalysisTab() {
         </Card>
       </div>
 
-      {/* NEW: SKU Performance Analytics Table */}
+      {/* SKU Performance Analytics Table */}
       <div className="pt-4">
         <SkuPerformanceTable />
       </div>
