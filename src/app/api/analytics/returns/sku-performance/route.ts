@@ -5,7 +5,7 @@ export const revalidate = 0;
 
 /**
  * GET /api/analytics/returns/sku-performance
- * Returns SKU-level performance metrics including platform distribution and return rates.
+ * Returns SKU-level performance metrics using SKU-based joins.
  */
 export async function GET(request: Request) {
   try {
@@ -23,71 +23,58 @@ export async function GET(request: Request) {
     const minRate = searchParams.get('minRate');
     const maxRate = searchParams.get('maxRate');
 
-    // 1. Base Query using CTEs to avoid cartesian product inflation
+    // Build the query using SKU based joins as requested
     const query = `
-      WITH variant_platforms AS (
-          SELECT variant_id, platform 
-          FROM orders 
-          WHERE account_id = $1 AND is_deleted = false
-          ${from ? `AND order_date >= '${from}'` : ''}
-          ${to ? `AND order_date <= '${to}'` : ''}
-          UNION
-          SELECT variant_id, platform 
-          FROM returns 
-          WHERE account_id = $1 AND is_deleted = false
-          ${from ? `AND return_date >= '${from}'` : ''}
-          ${to ? `AND return_date <= '${to}'` : ''}
-      ),
-      order_stats AS (
-          SELECT 
-              variant_id, 
-              platform, 
-              SUM(quantity)::int as total_orders
-          FROM orders 
-          WHERE account_id = $1 AND is_deleted = false
-          ${from ? `AND order_date >= '${from}'` : ''}
-          ${to ? `AND order_date <= '${to}'` : ''}
-          GROUP BY variant_id, platform
-      ),
-      return_stats AS (
-          SELECT 
-              variant_id, 
-              platform, 
-              SUM(quantity)::int as total_returns,
-              SUM(CASE WHEN LOWER(status) IN ('customer return','customer_return','rejected') OR LOWER(return_type) IN ('customer_return','exchange') THEN quantity ELSE 0 END)::int as customer_returns,
-              SUM(CASE WHEN LOWER(status) IN ('rto','courier_return','undelivered') OR LOWER(return_type) IN ('rto','dto') THEN quantity ELSE 0 END)::int as rto_returns
+      SELECT
+        p.sku,
+        p.product_name,
+        o.platform,
+        SUM(o.quantity)::int AS total_orders,
+        COALESCE(r.total_returns, 0)::int AS total_returns,
+        ROUND(
+          COALESCE(r.total_returns, 0)::numeric / NULLIF(SUM(o.quantity), 0) * 100,
+          2
+        ) AS return_percent,
+        COALESCE(r.customer_returns, 0)::int AS customer_returns,
+        COALESCE(r.rto_returns, 0)::int AS rto_returns
+      FROM orders o
+      JOIN allproducts p ON LOWER(p.sku) = LOWER(o.sku)
+      LEFT JOIN (
+          SELECT
+            LOWER(sku) AS sku,
+            platform,
+            account_id,
+            SUM(quantity) AS total_returns,
+            SUM(CASE WHEN LOWER(status) LIKE '%customer%' THEN quantity ELSE 0 END) AS customer_returns,
+            SUM(CASE WHEN LOWER(status) LIKE '%rto%' OR LOWER(status) LIKE '%courier%' OR LOWER(status) LIKE '%undelivered%' THEN quantity ELSE 0 END) AS rto_returns
           FROM returns
-          WHERE account_id = $1 AND is_deleted = false
+          WHERE is_deleted = false
           ${from ? `AND return_date >= '${from}'` : ''}
           ${to ? `AND return_date <= '${to}'` : ''}
-          GROUP BY variant_id, platform
-      )
-      SELECT 
-          pv.variant_sku as sku,
-          ap.product_name,
-          vp.platform,
-          COALESCE(o.total_orders, 0) as total_orders,
-          COALESCE(r.total_returns, 0) as total_returns,
-          ROUND(COALESCE(r.total_returns, 0)::numeric / NULLIF(COALESCE(o.total_orders, 0), 0) * 100, 2) as return_percent,
-          COALESCE(r.customer_returns, 0) as customer_returns,
-          COALESCE(r.rto_returns, 0) as rto_returns
-      FROM variant_platforms vp
-      JOIN product_variants pv ON vp.variant_id = pv.id
-      JOIN allproducts ap ON pv.product_id = ap.id
-      LEFT JOIN order_stats o ON o.variant_id = vp.variant_id AND o.platform = vp.platform
-      LEFT JOIN return_stats r ON r.variant_id = vp.variant_id AND r.platform = vp.platform
-      WHERE pv.account_id = $1
-        ${platform && platform !== 'all' ? `AND vp.platform = '${platform}'` : ''}
-        ${search ? `AND (pv.variant_sku ILIKE '%${search}%' OR ap.product_name ILIKE '%${search}%')` : ''}
-      ORDER BY return_percent DESC, total_returns DESC;
+          GROUP BY LOWER(sku), platform, account_id
+      ) r ON LOWER(o.sku) = r.sku AND o.platform = r.platform AND r.account_id = o.account_id
+      WHERE o.account_id = $1
+        AND o.is_deleted = false
+        ${platform && platform !== 'all' ? `AND o.platform = '${platform}'` : ''}
+        ${search ? `AND (p.sku ILIKE '%${search}%' OR p.product_name ILIKE '%${search}%')` : ''}
+        ${from ? `AND o.order_date >= '${from}'` : ''}
+        ${to ? `AND o.order_date <= '${to}'` : ''}
+      GROUP BY
+        p.sku,
+        p.product_name,
+        o.platform,
+        r.total_returns,
+        r.customer_returns,
+        r.rto_returns
+      ORDER BY return_percent DESC;
     `;
 
-    const result = await sql(query, [accountId]);
+    const rows = await sql(query, [accountId]);
 
-    // Apply Rate Filters if specified (Numeric filters in SQL are complex with aliased columns, doing here for safety)
-    let filteredData = result;
+    // Apply Rate Filters if specified
+    let filteredData = rows;
     if (minRate !== null || maxRate !== null) {
-      filteredData = result.filter((row: any) => {
+      filteredData = rows.filter((row: any) => {
         const rate = Number(row.return_percent || 0);
         const min = minRate ? Number(minRate) : -1;
         const max = maxRate ? Number(maxRate) : 9999;

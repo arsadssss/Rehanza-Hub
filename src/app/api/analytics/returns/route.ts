@@ -5,8 +5,7 @@ export const revalidate = 0;
 
 /**
  * GET /api/analytics/returns
- * Comprehensive Returns Analytics Engine
- * Provides: Return Rate by SKU, RTO vs Customer split, Platform Loss, and Worst Products.
+ * Comprehensive Returns Analytics Engine using SKU-based joins.
  */
 export async function GET(request: Request) {
   try {
@@ -15,42 +14,42 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, message: "Account context missing" }, { status: 400 });
     }
 
-    // 1. Return Rate by SKU (CTE for precision quantities)
+    // 1. Return Rate by SKU
     const returnRateBySKU = await sql`
       WITH return_agg AS (
-        SELECT variant_id, SUM(quantity)::int as return_qty
+        SELECT LOWER(sku) as sku, SUM(quantity)::int as return_qty
         FROM returns
         WHERE account_id = ${accountId} AND is_deleted = false
-        GROUP BY variant_id
+        GROUP BY LOWER(sku)
       ),
       order_agg AS (
-        SELECT variant_id, SUM(quantity)::int as sold_qty
+        SELECT LOWER(sku) as sku, SUM(quantity)::int as sold_qty
         FROM orders
         WHERE account_id = ${accountId} AND is_deleted = false
-        GROUP BY variant_id
+        GROUP BY LOWER(sku)
       )
       SELECT 
-        pv.variant_sku as sku,
-        ap.product_name,
+        p.sku,
+        p.product_name,
         COALESCE(ra.return_qty, 0) as return_qty,
         COALESCE(oa.sold_qty, 0) as sold_qty,
         ROUND(COALESCE(ra.return_qty, 0)::numeric / NULLIF(COALESCE(oa.sold_qty, 0), 0) * 100, 2) as return_rate
-      FROM product_variants pv
-      JOIN allproducts ap ON pv.product_id = ap.id
-      LEFT JOIN return_agg ra ON ra.variant_id = pv.id
-      LEFT JOIN order_agg oa ON oa.variant_id = pv.id
-      WHERE pv.account_id = ${accountId} 
+      FROM allproducts p
+      LEFT JOIN return_agg ra ON ra.sku = LOWER(p.sku)
+      LEFT JOIN order_agg oa ON oa.sku = LOWER(p.sku)
+      WHERE p.account_id = ${accountId} 
+        AND p.is_deleted = false
         AND (ra.return_qty > 0 OR oa.sold_qty > 0)
       ORDER BY return_rate DESC NULLS LAST
       LIMIT 50;
     `;
 
-    // 2. RTO vs Customer Return % - Normalized grouping logic
+    // 2. RTO vs Customer Return % - LIKE based logic
     const rtoVsCustomer = await sql`
       SELECT 
         CASE 
-          WHEN LOWER(status) IN ('rto','courier_return','undelivered') OR LOWER(return_type) IN ('rto','dto') THEN 'RTO'
-          WHEN LOWER(status) IN ('customer_return','customer return','rejected') OR LOWER(return_type) IN ('customer_return','exchange') THEN 'Customer'
+          WHEN LOWER(status) LIKE '%customer%' THEN 'Customer'
+          WHEN LOWER(status) LIKE '%rto%' OR LOWER(status) LIKE '%courier%' OR LOWER(status) LIKE '%undelivered%' THEN 'RTO'
           ELSE 'Other'
         END as label,
         SUM(quantity)::int as value
@@ -74,15 +73,14 @@ export async function GET(request: Request) {
     // 4. Worst Products by Returns (Quantity + Loss)
     const worstProducts = await sql`
       SELECT 
-        pv.variant_sku as sku,
-        ap.product_name,
+        p.sku as name,
+        p.product_name,
         SUM(r.quantity)::int as total_returns,
         SUM(COALESCE(r.refund_amount, 0) + COALESCE(r.shipping_loss, 0) + COALESCE(r.ads_loss, 0) + COALESCE(r.damage_loss, 0))::numeric as total_loss
       FROM returns r
-      JOIN product_variants pv ON r.variant_id = pv.id
-      JOIN allproducts ap ON pv.product_id = ap.id
-      WHERE r.account_id = ${accountId} AND r.is_deleted = false
-      GROUP BY pv.variant_sku, ap.product_name
+      JOIN allproducts p ON LOWER(r.sku) = LOWER(p.sku)
+      WHERE r.account_id = ${accountId} AND r.is_deleted = false AND p.is_deleted = false
+      GROUP BY p.sku, p.product_name
       ORDER BY total_returns DESC
       LIMIT 10;
     `;

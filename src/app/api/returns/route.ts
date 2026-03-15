@@ -18,7 +18,7 @@ export async function GET(request: Request) {
     
     const search = searchParams.get('search');
     const platform = searchParams.get('platform');
-    const status = searchParams.get('status'); // Comma-separated list
+    const status = searchParams.get('status');
     const from = searchParams.get('from');
     const to = searchParams.get('to');
 
@@ -38,7 +38,7 @@ export async function GET(request: Request) {
     }
 
     if (search) {
-      whereClauses.push(`(r.external_order_id ILIKE $${paramIndex} OR r.external_suborder_id ILIKE $${paramIndex} OR r.awb_number ILIKE $${paramIndex} OR pv.variant_sku ILIKE $${paramIndex})`);
+      whereClauses.push(`(r.external_order_id ILIKE $${paramIndex} OR r.external_suborder_id ILIKE $${paramIndex} OR r.awb_number ILIKE $${paramIndex} OR r.sku ILIKE $${paramIndex})`);
       params.push(`%${search}%`);
       paramIndex++;
     }
@@ -59,19 +59,19 @@ export async function GET(request: Request) {
     const countQuery = `
       SELECT COUNT(*)::int as count 
       FROM returns r
-      LEFT JOIN product_variants pv ON pv.id = r.variant_id
       ${whereString}
     `;
     const countResult = await sql(countQuery, params);
     const total = Number(countResult[0]?.count || 0);
 
-    // 2. Get paginated data
+    // 2. Get paginated data with SKU join for product names
     const dataQuery = `
       SELECT 
         r.*,
-        pv.variant_sku
+        r.sku as variant_sku,
+        p.product_name
       FROM returns r
-      LEFT JOIN product_variants pv ON pv.id = r.variant_id
+      LEFT JOIN allproducts p ON LOWER(p.sku) = LOWER(r.sku) AND p.account_id = r.account_id
       ${whereString}
       ORDER BY r.return_date DESC, r.created_at DESC
       LIMIT $${paramIndex++} OFFSET $${paramIndex++}
@@ -100,15 +100,15 @@ export async function POST(request: Request) {
     try {
         const body = await request.json();
         const accountId = request.headers.get("x-account-id");
-        const { external_return_id, return_date, platform, variant_id, quantity, refund_amount, return_type, return_reason } = body;
+        const { external_return_id, return_date, platform, sku, quantity, refund_amount, return_type, return_reason } = body;
 
-        if (!return_date || !platform || !variant_id || !quantity || !accountId || !return_type || !external_return_id) {
+        if (!return_date || !platform || !sku || !quantity || !accountId || !return_type || !external_return_id) {
             return NextResponse.json({ message: 'Missing required fields or account' }, { status: 400 });
         }
 
         const result = await sql`
-            INSERT INTO returns (external_return_id, return_date, platform, variant_id, quantity, refund_amount, return_type, return_reason, account_id, restockable)
-            VALUES (${external_return_id}, ${return_date}, ${platform}, ${variant_id}, ${quantity}, ${refund_amount || 0}, ${return_type}, ${return_reason}, ${accountId}, true)
+            INSERT INTO returns (external_return_id, return_date, platform, sku, quantity, refund_amount, return_type, return_reason, account_id, restockable)
+            VALUES (${external_return_id}, ${return_date}, ${platform}, ${sku}, ${quantity}, ${refund_amount || 0}, ${return_type}, ${return_reason}, ${accountId}, true)
             RETURNING *;
         `;
         
@@ -123,7 +123,7 @@ export async function PUT(request: Request) {
     try {
         const body = await request.json();
         const accountId = request.headers.get("x-account-id");
-        const { id, external_return_id, return_date, platform, variant_id, quantity, refund_amount, return_type, return_reason } = body;
+        const { id, external_return_id, return_date, platform, sku, quantity, refund_amount, return_type, return_reason } = body;
 
         if (!id || !accountId) {
             return NextResponse.json({ message: "Return ID and Account are required" }, { status: 400 });
@@ -135,7 +135,7 @@ export async function PUT(request: Request) {
                 external_return_id = ${external_return_id},
                 return_date = ${return_date}, 
                 platform = ${platform}, 
-                variant_id = ${variant_id}, 
+                sku = ${sku}, 
                 quantity = ${quantity}, 
                 refund_amount = ${refund_amount},
                 return_type = ${return_type},
