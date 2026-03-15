@@ -6,7 +6,6 @@ export const revalidate = 0;
 /**
  * GET /api/analytics/returns/sku-performance
  * Returns SKU-level performance metrics using variant_id based joins.
- * Resolves SKU from product_variants table.
  */
 export async function GET(request: Request) {
   try {
@@ -24,7 +23,7 @@ export async function GET(request: Request) {
     const minRate = searchParams.get('minRate');
     const maxRate = searchParams.get('maxRate');
 
-    // Re-engineered query to be platform-aware and robust
+    // Precision Query using CTEs for independent aggregation
     const query = `
       WITH sales_data AS (
           SELECT 
@@ -42,8 +41,8 @@ export async function GET(request: Request) {
               variant_id, 
               platform,
               SUM(quantity) as qty,
-              SUM(CASE WHEN LOWER(status) LIKE '%customer%' THEN quantity ELSE 0 END) AS customer_qty,
-              SUM(CASE WHEN LOWER(status) LIKE '%rto%' OR LOWER(status) LIKE '%courier%' OR LOWER(status) LIKE '%undelivered%' THEN quantity ELSE 0 END) AS rto_qty
+              SUM(CASE WHEN LOWER(status) LIKE '%customer%' OR LOWER(status) LIKE '%rejected%' OR LOWER(return_type) = 'customer_return' THEN quantity ELSE 0 END) AS customer_qty,
+              SUM(CASE WHEN LOWER(status) LIKE '%rto%' OR LOWER(status) LIKE '%courier%' OR LOWER(status) LIKE '%undelivered%' OR LOWER(return_type) IN ('rto', 'dto') THEN quantity ELSE 0 END) AS rto_qty
           FROM returns
           WHERE account_id = $1 AND is_deleted = false
           ${from ? `AND return_date >= '${from}'` : ''}
@@ -59,13 +58,14 @@ export async function GET(request: Request) {
           ROUND(COALESCE(r.qty, 0)::numeric / NULLIF(COALESCE(s.qty, 0), 0) * 100, 2) as return_percent,
           COALESCE(r.customer_qty, 0)::int as customer_returns,
           COALESCE(r.rto_qty, 0)::int as rto_returns
-      FROM sales_data s
-      FULL OUTER JOIN returns_data r ON s.variant_id = r.variant_id AND s.platform = r.platform
-      JOIN product_variants pv ON pv.id = COALESCE(s.variant_id, r.variant_id)
+      FROM product_variants pv
       JOIN allproducts ap ON ap.id = pv.product_id
-      WHERE ap.is_deleted = false
+      LEFT JOIN sales_data s ON pv.id = s.variant_id
+      LEFT JOIN returns_data r ON pv.id = r.variant_id AND (s.platform = r.platform OR s.platform IS NULL OR r.platform IS NULL)
+      WHERE pv.account_id = $1 AND pv.is_deleted = false
       ${platform && platform !== 'all' ? `AND (s.platform = '${platform}' OR r.platform = '${platform}')` : ''}
       ${search ? `AND (pv.variant_sku ILIKE '%${search}%' OR ap.product_name ILIKE '%${search}%')` : ''}
+      AND (s.qty > 0 OR r.qty > 0)
       ORDER BY return_percent DESC NULLS LAST;
     `;
 

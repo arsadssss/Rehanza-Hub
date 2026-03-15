@@ -57,6 +57,9 @@ export function ReturnsAnalysisTab() {
     fetchAnalytics();
   }, [fetchAnalytics]);
 
+  // Calculate total for percentages
+  const totalBehavioralReturns = data?.rtoVsCustomer?.reduce((acc: number, curr: any) => acc + curr.value, 0) || 0;
+
   return (
     <div className="space-y-10 animate-in fade-in duration-500 pb-12">
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
@@ -87,7 +90,7 @@ export function ReturnsAnalysisTab() {
                 <TableBody>
                   {loading ? Array.from({ length: 5 }).map((_, i) => (
                     <TableRow key={i}><TableCell colSpan={4} className="px-6 py-4"><Skeleton className="h-6 w-full" /></TableCell></TableRow>
-                  )) : (data?.returnRateBySKU || []).slice(0, 8).map((item: any) => (
+                  )) : (data?.returnRateBySKU || []).length > 0 ? (data?.returnRateBySKU || []).map((item: any) => (
                     <TableRow key={item.sku} className="hover:bg-primary/5 transition-colors border-border/50">
                       <TableCell className="font-bold text-xs py-4 px-6 truncate max-w-[120px]">{item.sku}</TableCell>
                       <TableCell className="text-right font-medium text-xs text-muted-foreground">{item.sold_qty}</TableCell>
@@ -98,7 +101,11 @@ export function ReturnsAnalysisTab() {
                         </Badge>
                       </TableCell>
                     </TableRow>
-                  ))}
+                  )) : (
+                    <TableRow>
+                      <TableCell colSpan={4} className="h-24 text-center text-muted-foreground italic text-xs">No transaction data available.</TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </div>
@@ -140,11 +147,32 @@ export function ReturnsAnalysisTab() {
                     <Tooltip 
                       contentStyle={{ borderRadius: '16px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}
                     />
-                    <Legend verticalAlign="bottom" height={36}/>
+                    <Legend 
+                      verticalAlign="bottom" 
+                      height={36}
+                      formatter={(value, entry: any) => {
+                        const payload = entry.payload;
+                        const percentage = totalBehavioralReturns > 0 
+                          ? ((payload.value / totalBehavioralReturns) * 100).toFixed(1) 
+                          : '0';
+                        return <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{value} ({percentage}%)</span>
+                      }}
+                    />
                   </PieChart>
                 </ResponsiveContainer>
               )}
             </div>
+            
+            {!loading && totalBehavioralReturns > 0 && (
+              <div className="grid grid-cols-2 gap-4 w-full mt-6 px-8">
+                {data.rtoVsCustomer.map((item: any, idx: number) => (
+                  <div key={item.label} className="p-3 rounded-2xl bg-muted/30 border border-border/50 text-center">
+                    <p className="text-[9px] font-bold uppercase text-muted-foreground">{item.label}</p>
+                    <p className="text-xl font-black">{((item.value / totalBehavioralReturns) * 100).toFixed(1)}%</p>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -218,7 +246,7 @@ export function ReturnsAnalysisTab() {
                 <TableBody>
                   {loading ? Array.from({ length: 5 }).map((_, i) => (
                     <TableRow key={i}><TableCell colSpan={3} className="px-6 py-4"><Skeleton className="h-6 w-full" /></TableCell></TableRow>
-                  )) : (data?.worstProducts || []).map((item: any) => (
+                  )) : (data?.worstProducts || []).length > 0 ? (data?.worstProducts || []).map((item: any) => (
                     <TableRow key={item.name} className="hover:bg-rose-500/5 transition-colors border-border/50">
                       <TableCell className="font-bold text-xs py-4 px-6 truncate max-w-[150px]">{item.name}</TableCell>
                       <TableCell className="text-right font-black text-rose-600">{item.total_returns}</TableCell>
@@ -226,7 +254,11 @@ export function ReturnsAnalysisTab() {
                         {formatINR(item.total_loss)}
                       </TableCell>
                     </TableRow>
-                  ))}
+                  )) : (
+                    <TableRow>
+                      <TableCell colSpan={3} className="h-24 text-center text-muted-foreground italic text-xs">No return offenders detected.</TableCell>
+                    </TableRow>
+                  )}
                 </TableBody>
               </Table>
             </div>
