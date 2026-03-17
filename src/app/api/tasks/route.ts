@@ -24,9 +24,22 @@ const calculateProgress = (allTasks: any[]) => {
     };
 };
 
+/**
+ * Helper to calculate status based on listing steps
+ */
+function calculateListingStatus(steps: any) {
+    if (!steps) return 'Pending';
+    const values = Object.values(steps);
+    const completedCount = values.filter(Boolean).length;
+    const totalCount = values.length;
+
+    if (completedCount === 0) return 'Pending';
+    if (completedCount === totalCount) return 'Completed';
+    return 'In Progress';
+}
+
 export async function GET(request: Request) {
   const { searchParams } = new URL(request.url);
-  // GLOBAL - No x-account-id check
 
   const page = parseInt(searchParams.get('page') || '1', 10);
   const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
@@ -73,7 +86,16 @@ export async function GET(request: Request) {
     
     const progress = calculateProgress(progressResult);
 
-    return NextResponse.json({ data, count: Number(countResult[0]?.count || 0), progress });
+    return NextResponse.json({ 
+        data: (data || []).map((t: any) => ({
+            ...t,
+            is_today: !!t.is_today,
+            is_listing_task: !!t.is_listing_task,
+            listing_steps: t.listing_steps || null
+        })), 
+        count: Number(countResult[0]?.count || 0), 
+        progress 
+    });
 
   } catch (error: any) {
     console.error("API Tasks GET Error:", error);
@@ -87,14 +109,34 @@ export async function POST(request: Request) {
         if (!session) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
         const body = await request.json();
-        const { task_name, task_date, task_group, status, notes } = body;
-        if (!task_name || !task_date || !task_group || !status) {
+        const { task_name, task_date, task_group, notes, is_today, is_listing_task, listing_steps } = body;
+        
+        if (!task_name || !task_date || !task_group) {
             return NextResponse.json({ message: 'Missing required fields' }, { status: 400 });
+        }
+
+        let finalStatus = body.status || 'Pending';
+        let finalListingSteps = null;
+
+        if (is_listing_task) {
+            finalListingSteps = listing_steps || {
+                imageGeneration: false,
+                meesho: false,
+                flipkart: false,
+                amazon: false
+            };
+            finalStatus = calculateListingStatus(finalListingSteps);
         }
         
         const result = await sql`
-            INSERT INTO tasks (task_name, task_date, task_group, status, notes, created_by, created_at)
-            VALUES (${task_name}, ${task_date}, ${task_group}, ${status}, ${notes}, ${session.user.id}, NOW())
+            INSERT INTO tasks (
+                task_name, task_date, task_group, status, notes, 
+                created_by, created_at, is_today, is_listing_task, listing_steps
+            )
+            VALUES (
+                ${task_name}, ${task_date}, ${task_group}, ${finalStatus}, ${notes}, 
+                ${session.user.id}, NOW(), ${!!is_today}, ${!!is_listing_task}, ${JSON.stringify(finalListingSteps)}
+            )
             RETURNING *;
         `;
         return NextResponse.json(result[0], { status: 201 });
@@ -110,8 +152,25 @@ export async function PUT(request: Request) {
         if (!session) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
         const body = await request.json();
-        const { id, task_name, task_date, task_group, status, notes } = body;
+        const { id, task_name, task_date, task_group, status, notes, is_today, is_listing_task, listing_steps, quick_today_toggle } = body;
+        
         if (!id) return NextResponse.json({ message: 'ID is required' }, { status: 400 });
+
+        // Handle quick "Move to Today" toggle from list
+        if (quick_today_toggle !== undefined) {
+            const result = await sql`
+                UPDATE tasks
+                SET is_today = ${!!quick_today_toggle}, updated_at = NOW(), updated_by = ${session.user.id}
+                WHERE id = ${id}
+                RETURNING *;
+            `;
+            return NextResponse.json(result[0]);
+        }
+
+        let finalStatus = status;
+        if (is_listing_task) {
+            finalStatus = calculateListingStatus(listing_steps);
+        }
 
         const result = await sql`
             UPDATE tasks
@@ -119,8 +178,11 @@ export async function PUT(request: Request) {
                 task_name = ${task_name}, 
                 task_date = ${task_date}, 
                 task_group = ${task_group}, 
-                status = ${status}, 
+                status = ${finalStatus}, 
                 notes = ${notes},
+                is_today = ${!!is_today},
+                is_listing_task = ${!!is_listing_task},
+                listing_steps = ${JSON.stringify(listing_steps)},
                 updated_by = ${session.user.id},
                 updated_at = NOW()
             WHERE id = ${id}

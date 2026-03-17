@@ -1,6 +1,6 @@
 "use client"
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 
@@ -13,7 +13,21 @@ import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Progress } from "@/components/ui/progress"
-import { PlusCircle, Pencil, Trash2, FileText, User, BarChart3 } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { 
+  PlusCircle, 
+  Pencil, 
+  Trash2, 
+  FileText, 
+  User, 
+  BarChart3, 
+  CalendarPlus, 
+  CalendarMinus, 
+  CheckCircle2, 
+  LayoutList, 
+  Zap,
+  ShoppingBag
+} from 'lucide-react';
 import { AddTaskModal } from './components/add-task-modal';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/apiFetch';
@@ -25,6 +39,14 @@ export type Task = {
   status: 'Pending' | 'In Progress' | 'Completed';
   task_date: string;
   task_group: 'Fashion' | 'Cosmetics';
+  is_today: boolean;
+  is_listing_task: boolean;
+  listing_steps: {
+    imageGeneration: boolean;
+    meesho: boolean;
+    flipkart: boolean;
+    amazon: boolean;
+  } | null;
   is_deleted: boolean;
   created_at: string;
   notes: string | null;
@@ -152,6 +174,24 @@ export default function TasksPage() {
         setIsModalOpen(false);
     };
 
+    const handleToggleToday = async (task: Task, isToday: boolean) => {
+        try {
+            const res = await apiFetch('/api/tasks', {
+                method: 'PUT',
+                body: JSON.stringify({ id: task.id, quick_today_toggle: isToday })
+            });
+            if (!res.ok) throw new Error('Failed to update task');
+            
+            setTasks(prev => prev.map(t => t.id === task.id ? { ...t, is_today: isToday } : t));
+            toast({ 
+                title: isToday ? "Moved to Today" : "Removed from Today", 
+                description: isToday ? "Task added to your priority queue." : "Task removed from priority queue."
+            });
+        } catch (error: any) {
+            toast({ variant: 'destructive', title: 'Update Failed', description: error.message });
+        }
+    };
+
     const handleConfirmDelete = async () => {
         if (!itemToDelete) return;
         try {
@@ -186,35 +226,118 @@ export default function TasksPage() {
         }
     };
 
+    const todayTasks = useMemo(() => tasks.filter(t => t.is_today), [tasks]);
+
     if (!isMounted) {
         return <div className="p-6 space-y-6"><Skeleton className="h-32 w-full" /><Skeleton className="h-64 w-full" /></div>;
     }
 
+    const TaskRow = ({ task }: { task: Task }) => {
+        const completedSteps = task.listing_steps 
+            ? Object.values(task.listing_steps).filter(Boolean).length 
+            : 0;
+        const totalSteps = task.listing_steps 
+            ? Object.values(task.listing_steps).length 
+            : 0;
+
+        return (
+            <TableRow key={task.id} className={cn(
+                "hover:bg-muted/30 transition-colors",
+                task.status === 'Completed' && "opacity-60 grayscale-[0.5]"
+            )}>
+                <TableCell className="font-medium text-xs whitespace-nowrap">
+                    {format(new Date(task.task_date), 'dd MMM yyyy')}
+                </TableCell>
+                <TableCell>
+                    <div className="flex flex-col gap-1">
+                        <div className="flex items-center gap-2">
+                            <span className={cn("font-bold text-sm", task.is_today && "text-primary")}>
+                                {task.task_name}
+                            </span>
+                            {task.is_listing_task && (
+                                <Badge variant="secondary" className="text-[9px] font-black uppercase tracking-tighter bg-primary/10 text-primary">
+                                    <ShoppingBag className="h-2.5 w-2.5 mr-1" /> Listing
+                                </Badge>
+                            )}
+                            {task.notes && (
+                                <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full text-muted-foreground hover:text-primary" onClick={() => setViewingTaskNotes(task)}>
+                                    <FileText className="h-4 w-4" />
+                                </Button>
+                            )}
+                        </div>
+                        {task.is_listing_task && task.listing_steps && (
+                            <div className="flex items-center gap-2 mt-1">
+                                <Progress value={(completedSteps / totalSteps) * 100} className="h-1 w-20" />
+                                <span className="text-[9px] font-bold text-muted-foreground uppercase">{completedSteps}/{totalSteps} Steps</span>
+                            </div>
+                        )}
+                    </div>
+                </TableCell>
+                <TableCell><Badge className={cn("text-white text-[10px] px-2 py-0", getGroupBadge(task.task_group))}>{task.task_group}</Badge></TableCell>
+                <TableCell><Badge className={cn("text-white text-[10px] px-2 py-0", getStatusBadge(task.status))}>{task.status}</Badge></TableCell>
+                <TableCell>
+                    <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <User className="h-3 w-3" />
+                        <span className="truncate max-w-[100px]">{task.created_by_name ?? '-'}</span>
+                    </div>
+                </TableCell>
+                <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">
+                        {task.is_today ? (
+                            <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8 text-amber-600 hover:bg-amber-100"
+                                onClick={() => handleToggleToday(task, false)}
+                                title="Remove from Today"
+                            >
+                                <CalendarMinus className="h-4 w-4" />
+                            </Button>
+                        ) : (
+                            <Button 
+                                variant="ghost" 
+                                size="icon" 
+                                className="h-8 w-8 text-primary hover:bg-primary/10"
+                                onClick={() => handleToggleToday(task, true)}
+                                disabled={task.status === 'Completed'}
+                                title="Move to Today"
+                            >
+                                <CalendarPlus className="h-4 w-4" />
+                            </Button>
+                        )}
+                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/10 hover:text-primary" onClick={() => handleOpenModal(task)}><Pencil className="h-4 w-4" /></Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive" onClick={() => setItemToDelete({id: task.id, description: task.task_name})}><Trash2 className="h-4 w-4" /></Button>
+                    </div>
+                </TableCell>
+            </TableRow>
+        );
+    }
+
     return (
-        <div className="w-full px-6 py-6 space-y-8">
+        <div className="w-full px-6 py-6 space-y-8 bg-gray-50/50 dark:bg-black/50 min-h-full font-body">
             <AddTaskModal isOpen={isModalOpen} onClose={handleCloseModal} onSuccess={handleSuccess} task={taskToEdit} />
              <AlertDialog open={!!itemToDelete} onOpenChange={() => setItemToDelete(null)}>
-                <AlertDialogContent>
+                <AlertDialogContent className="rounded-[2rem]">
                     <AlertDialogHeader>
-                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogTitle className="font-headline text-xl">Are you absolutely sure?</AlertDialogTitle>
                     <AlertDialogDescription>This will mark the task "{itemToDelete?.description}" as deleted. This action cannot be undone.</AlertDialogDescription>
                     </AlertDialogHeader>
                     <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive hover:bg-destructive/90">Delete</AlertDialogAction>
+                    <AlertDialogCancel className="rounded-xl">Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleConfirmDelete} className="bg-destructive hover:bg-destructive/90 rounded-xl">Delete</AlertDialogAction>
                     </AlertDialogFooter>
                 </AlertDialogContent>
             </AlertDialog>
             <Dialog open={!!viewingTaskNotes} onOpenChange={() => setViewingTaskNotes(null)}>
-                <DialogContent>
+                <DialogContent className="rounded-[2rem]">
                     <DialogHeader>
-                        <DialogTitle>Notes for: {viewingTaskNotes?.task_name}</DialogTitle>
+                        <DialogTitle className="font-headline">Task Brief: {viewingTaskNotes?.task_name}</DialogTitle>
                     </DialogHeader>
-                    <div className="text-sm text-muted-foreground py-4 max-h-60 overflow-y-auto whitespace-pre-wrap">
-                        {viewingTaskNotes?.notes || "No notes have been added for this task."}
+                    <div className="text-sm text-muted-foreground py-4 max-h-60 overflow-y-auto whitespace-pre-wrap leading-relaxed">
+                        {viewingTaskNotes?.notes || "No additional notes for this task."}
                     </div>
                     <DialogFooter>
-                        <Button variant="outline" onClick={() => setViewingTaskNotes(null)}>Close</Button>
+                        <Button variant="outline" onClick={() => setViewingTaskNotes(null)} className="rounded-xl">Close</Button>
                     </DialogFooter>
                 </DialogContent>
             </Dialog>
@@ -225,29 +348,29 @@ export default function TasksPage() {
                 <ProgressCard title="Cosmetics Tasks Progress" stats={progressStats.cosmetics} gradient="from-pink-500 to-rose-600" loading={loadingProgress} />
             </div>
 
-            <Card className="border-0 shadow-md overflow-hidden">
-                <CardHeader className="bg-muted/30 pb-6">
+            <Card className="border-0 shadow-xl rounded-[2rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
+                <CardHeader className="bg-muted/30 pb-6 border-b border-border/50">
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
                         <div>
-                            <CardTitle className="font-headline text-xl">Task Inventory</CardTitle>
-                            <CardDescription>Comprehensive log of all operational activities.</CardDescription>
+                            <CardTitle className="font-headline text-2xl font-bold tracking-tight">Task Scheduling</CardTitle>
+                            <CardDescription className="text-xs font-medium uppercase tracking-widest text-muted-foreground">Manage operational execution queue and backlog.</CardDescription>
                         </div>
-                        <Button onClick={() => handleOpenModal()} className="font-bold"><PlusCircle className="mr-2 h-4 w-4" /> Add New Task</Button>
+                        <Button onClick={() => handleOpenModal()} className="font-bold h-11 px-6 rounded-xl shadow-lg shadow-primary/20"><PlusCircle className="mr-2 h-4 w-4" /> Create New Task</Button>
                     </div>
                 </CardHeader>
-                <CardContent className="pt-6">
-                    <div className="flex flex-col md:flex-row gap-3 mb-6">
+                <CardContent className="pt-8">
+                    <div className="flex flex-col md:flex-row gap-3 mb-8">
                         <Select value={groupFilter} onValueChange={setGroupFilter}>
-                            <SelectTrigger className="w-full md:w-[200px] bg-background"><SelectValue placeholder="All Groups" /></SelectTrigger>
-                            <SelectContent>
+                            <SelectTrigger className="w-full md:w-[200px] h-11 bg-background rounded-xl border-border/50"><SelectValue placeholder="All Groups" /></SelectTrigger>
+                            <SelectContent className="rounded-xl">
                                 <SelectItem value="all">All Groups</SelectItem>
                                 <SelectItem value="Fashion">Fashion</SelectItem>
                                 <SelectItem value="Cosmetics">Cosmetics</SelectItem>
                             </SelectContent>
                         </Select>
                         <Select value={statusFilter} onValueChange={setStatusFilter}>
-                            <SelectTrigger className="w-full md:w-[200px] bg-background"><SelectValue placeholder="All Statuses" /></SelectTrigger>
-                            <SelectContent>
+                            <SelectTrigger className="w-full md:w-[200px] h-11 bg-background rounded-xl border-border/50"><SelectValue placeholder="All Statuses" /></SelectTrigger>
+                            <SelectContent className="rounded-xl">
                                 <SelectItem value="all">All Statuses</SelectItem>
                                 <SelectItem value="Pending">Pending</SelectItem>
                                 <SelectItem value="In Progress">In Progress</SelectItem>
@@ -255,60 +378,86 @@ export default function TasksPage() {
                             </SelectContent>
                         </Select>
                     </div>
-                    <div className="rounded-xl border overflow-hidden">
-                        <Table>
-                            <TableHeader className="bg-muted/50"><TableRow>
-                                <TableHead className="w-[120px]">Date</TableHead>
-                                <TableHead>Task Name</TableHead>
-                                <TableHead className="w-[120px]">Group</TableHead>
-                                <TableHead className="w-[120px]">Status</TableHead>
-                                <TableHead>Created By</TableHead>
-                                <TableHead className="text-right w-[100px]">Actions</TableHead>
-                            </TableRow></TableHeader>
-                            <TableBody>
-                                {loadingTasks ? (
-                                    Array.from({ length: 5 }).map((_, i) => <TableRow key={i}><TableCell colSpan={6}><Skeleton className="h-8 w-full"/></TableCell></TableRow>)
-                                ) : tasks.length > 0 ? (
-                                    tasks.map(task => (
-                                        <TableRow key={task.id} className="hover:bg-muted/30 transition-colors">
-                                            <TableCell className="font-medium text-xs">{format(new Date(task.task_date), 'dd MMM yyyy')}</TableCell>
-                                            <TableCell>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-medium">{task.task_name}</span>
-                                                    {task.notes && (
-                                                        <Button variant="ghost" size="icon" className="h-7 w-7 rounded-full text-muted-foreground hover:text-primary" onClick={() => setViewingTaskNotes(task)}>
-                                                            <FileText className="h-4 w-4" />
-                                                        </Button>
-                                                    )}
-                                                </div>
-                                            </TableCell>
-                                            <TableCell><Badge className={cn("text-white text-[10px] px-2 py-0", getGroupBadge(task.task_group))}>{task.task_group}</Badge></TableCell>
-                                            <TableCell><Badge className={cn("text-white text-[10px] px-2 py-0", getStatusBadge(task.status))}>{task.status}</Badge></TableCell>
-                                            <TableCell>
-                                                <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                                                    <User className="h-3 w-3" />
-                                                    <span className="truncate max-w-[100px]">{task.created_by_name ?? '-'}</span>
-                                                </div>
-                                            </TableCell>
-                                            <TableCell className="text-right">
-                                                <div className="flex justify-end gap-1">
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-primary/10 hover:text-primary" onClick={() => handleOpenModal(task)}><Pencil className="h-4 w-4" /></Button>
-                                                    <Button variant="ghost" size="icon" className="h-8 w-8 hover:bg-destructive/10 hover:text-destructive" onClick={() => setItemToDelete({id: task.id, description: task.task_name})}><Trash2 className="h-4 w-4" /></Button>
-                                                </div>
-                                            </TableCell>
+
+                    <Tabs defaultValue="today" className="w-full">
+                        <TabsList className="bg-muted/50 p-1 rounded-2xl mb-6">
+                            <TabsTrigger value="today" className="rounded-xl px-8 font-black uppercase tracking-widest text-[10px] flex items-center gap-2">
+                                <Zap className="h-3.5 w-3.5" /> Execution Queue ({todayTasks.length})
+                            </TabsTrigger>
+                            <TabsTrigger value="all" className="rounded-xl px-8 font-black uppercase tracking-widest text-[10px] flex items-center gap-2">
+                                <LayoutList className="h-3.5 w-3.5" /> Full Backlog ({totalRows})
+                            </TabsTrigger>
+                        </TabsList>
+
+                        <TabsContent value="today" className="animate-in fade-in duration-500">
+                            <div className="rounded-2xl border border-border/50 overflow-hidden bg-background/40">
+                                <Table>
+                                    <TableHeader className="bg-muted/50">
+                                        <TableRow className="h-14 border-border/50">
+                                            <TableHead className="px-6 font-bold text-[10px] uppercase tracking-[0.2em]">Date</TableHead>
+                                            <TableHead className="font-bold text-[10px] uppercase tracking-[0.2em]">Priority Task Name</TableHead>
+                                            <TableHead className="w-[120px] font-bold text-[10px] uppercase tracking-[0.2em]">Group</TableHead>
+                                            <TableHead className="w-[120px] font-bold text-[10px] uppercase tracking-[0.2em]">Status</TableHead>
+                                            <TableHead className="font-bold text-[10px] uppercase tracking-[0.2em]">Assignee</TableHead>
+                                            <TableHead className="text-right w-[140px] px-6 font-bold text-[10px] uppercase tracking-[0.2em]">Actions</TableHead>
                                         </TableRow>
-                                    ))
-                                ) : (
-                                    <TableRow><TableCell colSpan={6} className="h-24 text-center text-muted-foreground italic">No tasks found matching your criteria.</TableCell></TableRow>
-                                )}
-                            </TableBody>
-                        </Table>
-                    </div>
-                    <div className="flex items-center justify-end space-x-2 py-4">
-                        <span className="text-xs text-muted-foreground">{totalRows > 0 ? `Page ${page} of ${Math.ceil(totalRows / pageSize)}` : 'Page 0 of 0'}</span>
-                        <Button variant="outline" size="sm" className="h-8" onClick={() => setPage(p => p - 1)} disabled={page === 1}>Previous</Button>
-                        <Button variant="outline" size="sm" className="h-8" onClick={() => setPage(p => p + 1)} disabled={(page * pageSize) >= totalRows}>Next</Button>
-                    </div>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {loadingTasks ? (
+                                            Array.from({ length: 3 }).map((_, i) => <TableRow key={i}><TableCell colSpan={6}><Skeleton className="h-10 w-full"/></TableCell></TableRow>)
+                                        ) : todayTasks.length > 0 ? (
+                                            todayTasks.map(task => <TaskRow key={task.id} task={task} />)
+                                        ) : (
+                                            <TableRow>
+                                                <TableCell colSpan={6} className="h-48 text-center text-muted-foreground">
+                                                    <div className="flex flex-col items-center gap-2 opacity-40">
+                                                        <Zap className="h-10 w-10 mb-2" />
+                                                        <p className="text-sm font-black uppercase tracking-widest">Priority queue is empty</p>
+                                                        <p className="text-xs">Move tasks here from the backlog to start working.</p>
+                                                    </div>
+                                                </TableCell>
+                                            </TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                        </TabsContent>
+
+                        <TabsContent value="all" className="animate-in fade-in duration-500">
+                            <div className="rounded-2xl border border-border/50 overflow-hidden bg-background/40">
+                                <Table>
+                                    <TableHeader className="bg-muted/50">
+                                        <TableRow className="h-14 border-border/50">
+                                            <TableHead className="px-6 font-bold text-[10px] uppercase tracking-[0.2em]">Date</TableHead>
+                                            <TableHead className="font-bold text-[10px] uppercase tracking-[0.2em]">Task Name</TableHead>
+                                            <TableHead className="w-[120px] font-bold text-[10px] uppercase tracking-[0.2em]">Group</TableHead>
+                                            <TableHead className="w-[120px] font-bold text-[10px] uppercase tracking-[0.2em]">Status</TableHead>
+                                            <TableHead className="font-bold text-[10px] uppercase tracking-[0.2em]">Created By</TableHead>
+                                            <TableHead className="text-right w-[140px] px-6 font-bold text-[10px] uppercase tracking-[0.2em]">Actions</TableHead>
+                                        </TableRow>
+                                    </TableHeader>
+                                    <TableBody>
+                                        {loadingTasks ? (
+                                            Array.from({ length: 5 }).map((_, i) => <TableRow key={i}><TableCell colSpan={6}><Skeleton className="h-10 w-full"/></TableCell></TableRow>)
+                                        ) : tasks.length > 0 ? (
+                                            tasks.map(task => <TaskRow key={task.id} task={task} />)
+                                        ) : (
+                                            <TableRow><TableCell colSpan={6} className="h-32 text-center text-muted-foreground italic">No tasks found in the backlog.</TableCell></TableRow>
+                                        )}
+                                    </TableBody>
+                                </Table>
+                            </div>
+                            <div className="flex items-center justify-between py-6">
+                                <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">
+                                    Total Records: <span className="text-foreground">{totalRows}</span>
+                                </p>
+                                <div className="flex items-center gap-2">
+                                    <Button variant="outline" size="sm" className="h-9 px-4 rounded-xl font-bold text-[10px] uppercase tracking-tighter" onClick={() => setPage(p => p - 1)} disabled={page === 1}>Previous</Button>
+                                    <Button variant="outline" size="sm" className="h-9 px-4 rounded-xl font-bold text-[10px] uppercase tracking-tighter" onClick={() => setPage(p => p + 1)} disabled={(page * pageSize) >= totalRows}>Next</Button>
+                                </div>
+                            </div>
+                        </TabsContent>
+                    </Tabs>
                 </CardContent>
             </Card>
 
