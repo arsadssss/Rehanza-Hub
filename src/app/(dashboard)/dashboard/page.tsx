@@ -21,7 +21,8 @@ import {
   ArrowUpRight,
   Sparkles,
   RefreshCw,
-  LayoutDashboard
+  LayoutDashboard,
+  Calendar
 } from 'lucide-react';
 import { apiFetch } from '@/lib/apiFetch';
 import { TaskPerformanceCard, type TrackRecordEntry } from '@/components/TaskPerformanceCard';
@@ -46,6 +47,13 @@ import { Badge } from '@/components/ui/badge';
 import { Progress } from '@/components/ui/progress';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import Link from 'next/link';
 
 // --- Sub-components for cleaner structure ---
@@ -110,13 +118,13 @@ const KpiCard = ({ title, value, icon: Icon, description, gradient, loading, isC
 );
 
 const InsightCard = ({ title, subtitle, icon: Icon, colorClass }: any) => (
-  <div className="flex items-center gap-4 p-4 rounded-2xl bg-white/40 dark:bg-white/5 border border-border/50 hover:bg-white transition-all duration-300">
+  <div className="flex items-center gap-4 p-4 rounded-2xl bg-white/10 dark:bg-white/5 border border-white/20 backdrop-blur-sm hover:bg-white/20 transition-all duration-300">
     <div className={cn("p-2.5 rounded-xl", colorClass)}>
       <Icon className="h-4 w-4" />
     </div>
     <div className="overflow-hidden">
-      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">{title}</p>
-      <p className="text-xs font-bold truncate">{subtitle}</p>
+      <p className="text-[10px] font-black uppercase tracking-widest text-white/70">{title}</p>
+      <p className="text-xs font-bold truncate text-white">{subtitle}</p>
     </div>
   </div>
 );
@@ -128,6 +136,7 @@ export default function DashboardPage() {
   const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
   const [isMounted, setIsMounted] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [range, setRange] = useState('30d');
 
   // Data States
   const [summary, setSummary] = useState<any>(null);
@@ -145,7 +154,7 @@ export default function DashboardPage() {
     try {
       const [dashRes, analyticsRes, vendorRes, trackRes, taskRes, returnRes] = await Promise.all([
         apiFetch('/api/dashboard'),
-        apiFetch('/api/analytics?range=30d'),
+        apiFetch(`/api/analytics?range=${range}`),
         apiFetch('/api/vendors/summary'),
         apiFetch('/api/tasks/track-record'),
         apiFetch('/api/tasks?pageSize=1'),
@@ -189,7 +198,7 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeAccountId, toast]);
+  }, [activeAccountId, toast, range]);
 
   useEffect(() => {
     setIsMounted(true);
@@ -307,19 +316,32 @@ export default function DashboardPage() {
         <div className="lg:col-span-8 space-y-8">
           
           <Card className="border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
-            <CardHeader className="flex flex-row items-center justify-between p-8 pb-0">
+            <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-8 pb-0 gap-4">
               <div>
                 <CardTitle className="font-headline text-2xl font-black tracking-tight">Growth Analytics</CardTitle>
                 <CardDescription className="text-xs font-bold uppercase tracking-widest text-muted-foreground/60">Revenue and order volume trends</CardDescription>
               </div>
-              <div className="flex items-center gap-4">
-                <div className="flex items-center gap-2">
-                  <div className="h-3 w-3 rounded-full bg-primary" />
-                  <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Orders</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <div className="h-3 w-3 rounded-full bg-emerald-500" />
-                  <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Revenue</span>
+              <div className="flex flex-wrap items-center gap-4">
+                <Select value={range} onValueChange={setRange}>
+                  <SelectTrigger className="w-[140px] h-9 rounded-xl bg-muted/30 border-0 font-bold text-[10px] uppercase tracking-widest focus:ring-primary/20">
+                    <Calendar className="h-3 w-3 mr-2 text-primary" />
+                    <SelectValue placeholder="Range" />
+                  </SelectTrigger>
+                  <SelectContent className="rounded-xl border-border/50">
+                    <SelectItem value="7d" className="text-[10px] font-bold uppercase">Last 7 Days</SelectItem>
+                    <SelectItem value="30d" className="text-[10px] font-bold uppercase">Last 30 Days</SelectItem>
+                    <SelectItem value="all" className="text-[10px] font-bold uppercase">All Time</SelectItem>
+                  </SelectContent>
+                </Select>
+                <div className="flex items-center gap-4 border-l border-border/50 pl-4">
+                  <div className="flex items-center gap-2">
+                    <div className="h-3 w-3 rounded-full bg-primary" />
+                    <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Orders</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="h-3 w-3 rounded-full bg-emerald-500" />
+                    <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Revenue</span>
+                  </div>
                 </div>
               </div>
             </CardHeader>
@@ -337,12 +359,12 @@ export default function DashboardPage() {
                       <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
                       <XAxis 
                         dataKey="date" 
-                        tick={{ fontSize: 10, fill: 'gray', fontWeight: 700 }} 
+                        tick={{ fontSize: 10, fill: 'gray', fontBold: 700 }} 
                         axisLine={false}
                         tickLine={false}
                         tickFormatter={(val) => new Date(val).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}
                       />
-                      <YAxis tick={{ fontSize: 10, fill: 'gray', fontWeight: 700 }} axisLine={false} tickLine={false} />
+                      <YAxis tick={{ fontSize: 10, fill: 'gray', fontBold: 700 }} axisLine={false} tickLine={false} />
                       <Tooltip 
                         contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 20px 50px rgba(0,0,0,0.1)', backdropFilter: 'blur(10px)', backgroundColor: 'rgba(255,255,255,0.8)' }}
                       />
@@ -443,15 +465,15 @@ export default function DashboardPage() {
         <div className="lg:col-span-4 space-y-8">
           
           {/* Smart Insights Panel */}
-          <Card className="border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-gradient-to-br from-primary to-indigo-900 text-white">
+          <Card className="border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-gradient-to-br from-[#4F46E5] to-[#6D28D9] text-white">
             <CardHeader className="p-8">
               <div className="flex items-center gap-3">
                 <div className="p-2.5 bg-white/10 rounded-xl">
-                  <BarChart3 className="h-5 w-5" />
+                  <BarChart3 className="h-5 w-5 text-white" />
                 </div>
                 <div>
-                  <CardTitle className="font-headline text-xl font-bold">Smart Insights</CardTitle>
-                  <CardDescription className="text-[10px] uppercase font-bold tracking-widest text-white/40">AI-Assisted Business Logic</CardDescription>
+                  <CardTitle className="font-headline text-xl font-bold text-white">Smart Insights</CardTitle>
+                  <CardDescription className="text-[10px] uppercase font-bold tracking-widest text-white/60">AI-Assisted Business Logic</CardDescription>
                 </div>
               </div>
             </CardHeader>
@@ -460,19 +482,19 @@ export default function DashboardPage() {
                 title="Operational Risk" 
                 subtitle={summary?.return_rate > 15 ? "High returns detected" : "Return rate within safety limits"} 
                 icon={AlertCircle} 
-                colorClass={summary?.return_rate > 15 ? "bg-rose-500/20 text-rose-200" : "bg-emerald-500/20 text-emerald-200"}
+                colorClass={summary?.return_rate > 15 ? "bg-rose-500/30 text-rose-100" : "bg-emerald-500/30 text-emerald-100"}
               />
               <InsightCard 
                 title="Top Performer" 
                 subtitle={topSellers[0]?.product_name || "Syncing data..."} 
                 icon={TrendingUp} 
-                colorClass="bg-indigo-500/20 text-indigo-200"
+                colorClass="bg-white/20 text-white"
               />
               <InsightCard 
                 title="Execution Queue" 
                 subtitle={`${(taskProgress?.overall?.total || 0) - (taskProgress?.overall?.completed || 0)} tasks need attention`} 
                 icon={Zap} 
-                colorClass="bg-amber-500/20 text-amber-200"
+                colorClass="bg-amber-500/30 text-amber-100"
               />
             </CardContent>
           </Card>
