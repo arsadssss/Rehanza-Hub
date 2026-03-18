@@ -34,6 +34,7 @@ import {
   Crop,
   Undo2,
   Zap,
+  Library,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -53,6 +54,7 @@ export const navItems = [
   { href: '/expenses', icon: CreditCard, label: 'Expenses', group: 'FINANCE' },
   { href: '/payments', icon: Wallet, label: 'Payments', group: 'FINANCE' },
   { href: '/wholesale-pricing', icon: Tag, label: 'Wholesale', group: 'FINANCE' },
+  { href: '/image-library', icon: Library, label: 'Image Library', group: 'STUDIO' },
   { href: '/image-tool', icon: ImageIcon, label: 'Image Tool', group: 'STUDIO' },
   { href: '/label-crop', icon: Crop, label: 'Label Crop', group: 'STUDIO' },
   { href: '/analytics', icon: BarChart2, label: 'Report', group: 'INSIGHTS' },
