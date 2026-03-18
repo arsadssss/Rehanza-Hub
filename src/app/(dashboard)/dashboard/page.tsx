@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
@@ -11,6 +10,7 @@ import {
   TrendingUp, 
   TrendingDown, 
   ShoppingCart, 
+  ShoppingBag,
   Undo2, 
   Zap, 
   Target, 
@@ -286,10 +286,10 @@ export default function DashboardPage() {
           trend={-2}
         />
         <KpiCard 
-          title="Return Units" 
-          value={returnStats?.summary?.total_returns || 0} 
-          icon={Archive} 
-          description="Total Reversed" 
+          title="Total Orders" 
+          value={summary?.total_orders || 0} 
+          icon={ShoppingBag} 
+          description="Total Dispatched" 
           gradient="from-amber-500 to-orange-600" 
           loading={loading} 
         />
@@ -647,5 +647,3 @@ export default function DashboardPage() {
     </div>
   );
 }
-
-import { ChevronRight } from 'lucide-react';

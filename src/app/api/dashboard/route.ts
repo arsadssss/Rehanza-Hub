@@ -23,6 +23,7 @@ export async function GET(request: Request) {
       // Total Units and Gross Revenue
       sql`
         SELECT 
+          COUNT(id)::int as total_orders,
           COALESCE(SUM(quantity), 0)::int as total_units,
           COALESCE(SUM(total_amount), 0)::numeric as gross_revenue
         FROM orders 
@@ -107,6 +108,7 @@ export async function GET(request: Request) {
     const returnRate = unitsSold > 0 ? (returnUnits / unitsSold) * 100 : 0;
 
     const summary = {
+      total_orders: Number(orderSummary[0]?.total_orders || 0),
       total_units: unitsSold,
       gross_revenue: revenue,
       net_profit: netProfit,
