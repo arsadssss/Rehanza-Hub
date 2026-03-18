@@ -26,7 +26,18 @@ const KpiCard = ({
     isTrendUp 
 }: KpiCardProps) => {
     return (
-        <div className="group relative overflow-hidden bg-white/60 dark:bg-slate-900/40 backdrop-blur-2xl rounded-[2rem] p-6 shadow-[0_10px_40px_rgba(0,0,0,0.04)] border border-white/50 dark:border-white/5 hover:-translate-y-1 transition-all duration-300">
+        <div className="group relative bg-white/60 dark:bg-slate-900/40 backdrop-blur-2xl rounded-[2rem] p-6 shadow-[0_10px_40px_rgba(0,0,0,0.04)] border border-white/50 dark:border-white/5 hover:-translate-y-1 transition-all duration-300">
+            {/* Background decorative elements with dedicated containment */}
+            <div className="absolute inset-0 overflow-hidden rounded-[2rem] pointer-events-none">
+                <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-24 h-24 bg-white/5 rounded-full blur-2xl group-hover:bg-white/10 transition-colors duration-500" />
+                <div className={cn(
+                    "absolute -bottom-10 -left-10 w-20 h-20 blur-3xl opacity-10 rounded-full transition-opacity duration-500",
+                    gradient.includes('violet') ? 'bg-indigo-500' : 
+                    gradient.includes('blue') ? 'bg-cyan-500' :
+                    gradient.includes('orange') ? 'bg-rose-500' : 'bg-emerald-500'
+                )} />
+            </div>
+
             <div className="flex justify-between items-start relative z-10">
                 <div className="flex-1">
                     <p className="text-[10px] font-bold uppercase tracking-[0.15em] text-muted-foreground/80 mb-1">{title}</p>
@@ -61,15 +72,6 @@ const KpiCard = ({
                     <Icon className="h-5 w-5 text-white" strokeWidth={2.5} />
                 </div>
             </div>
-            
-            {/* Background decorative elements */}
-            <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-24 h-24 bg-white/5 rounded-full blur-2xl group-hover:bg-white/10 transition-colors duration-500" />
-            <div className={cn(
-                "absolute -bottom-10 -left-10 w-20 h-20 blur-3xl opacity-10 rounded-full transition-opacity duration-500",
-                gradient.includes('violet') ? 'bg-indigo-500' : 
-                gradient.includes('blue') ? 'bg-cyan-500' :
-                gradient.includes('orange') ? 'bg-rose-500' : 'bg-emerald-500'
-            )} />
         </div>
     );
 };

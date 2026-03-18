@@ -33,11 +33,13 @@ const KpiCard = ({
 }: KpiCardProps) => {
     return (
         <div className={cn(
-            "relative bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 border-l-4 hover:-translate-y-1 overflow-hidden",
+            "relative bg-white dark:bg-slate-900 rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 border-l-4 hover:-translate-y-1",
             borderClass
         )}>
-            {/* Soft Gradient Overlay Layer */}
-            <div className={cn("absolute inset-0 bg-gradient-to-br to-transparent rounded-2xl pointer-events-none opacity-40", glowClass)} />
+            {/* Visual Containment Layer for internal background effects */}
+            <div className="absolute inset-0 overflow-hidden rounded-2xl pointer-events-none">
+                <div className={cn("absolute inset-0 bg-gradient-to-br to-transparent pointer-events-none opacity-40", glowClass)} />
+            </div>
             
             <div className="relative z-10">
                 <p className="text-xs font-semibold text-gray-400 dark:text-muted-foreground tracking-wider uppercase">{title}</p>

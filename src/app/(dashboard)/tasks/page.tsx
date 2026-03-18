@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
@@ -129,17 +128,19 @@ const ProgressCard = ({ title, stats, gradient, loading, icon: Icon }: { title: 
         <Tooltip>
             <TooltipTrigger asChild>
                 <Card className={cn(
-                    "group relative text-white shadow-xl rounded-[2.5rem] border border-white/10 overflow-hidden transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl active:scale-[0.98]",
+                    "group relative text-white shadow-xl rounded-[2.5rem] border border-white/10 transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl active:scale-[0.98]",
                     "bg-gradient-to-br backdrop-blur-xl",
                     gradient
                 )}>
-                    {/* Glass Overlay Effects */}
-                    <div className="absolute inset-0 bg-white/5 opacity-50 group-hover:opacity-10 transition-opacity" />
-                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
-                    
-                    {/* Large Background Decorative Icon */}
-                    <div className="absolute -right-6 -bottom-6 opacity-10 group-hover:opacity-20 group-hover:scale-110 group-hover:-rotate-12 transition-all duration-700 pointer-events-none">
-                        <Icon size={140} strokeWidth={1} />
+                    {/* Visual Content Containment Layer to avoid tooltip clipping */}
+                    <div className="absolute inset-0 rounded-[2.5rem] overflow-hidden pointer-events-none">
+                        <div className="absolute inset-0 bg-white/5 opacity-50 group-hover:opacity-10 transition-opacity" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+                        
+                        {/* Large Background Decorative Icon */}
+                        <div className="absolute -right-6 -bottom-6 opacity-10 group-hover:opacity-20 group-hover:scale-110 group-hover:-rotate-12 transition-all duration-700 pointer-events-none">
+                            <Icon size={140} strokeWidth={1} />
+                        </div>
                     </div>
 
                     {loading ? (
