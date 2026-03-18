@@ -36,7 +36,8 @@ import {
   ChevronRight,
   Clock,
   BarChart3,
-  Sparkles
+  Sparkles,
+  Check
 } from 'lucide-react';
 import { AddTaskModal } from './components/add-task-modal';
 import { cn } from '@/lib/utils';
@@ -204,7 +205,7 @@ const ProgressCard = ({ title, stats, gradient, loading, icon: Icon }: { title: 
                     )}
                 </Card>
             </TooltipTrigger>
-            <TooltipContent className="rounded-2xl border-white/10 bg-slate-900/95 backdrop-blur-xl font-black text-[10px] uppercase tracking-[0.2em] px-5 py-3 shadow-2xl z-[9999]">
+            <TooltipContent className="rounded-2xl text-white border-white/10 bg-slate-900/95 backdrop-blur-xl font-black text-[10px] uppercase tracking-[0.2em] px-5 py-3 shadow-2xl z-[9999]">
                 {stats.completed} OUT OF {stats.total} WORKFLOWS COMPLETE
             </TooltipContent>
         </Tooltip>
@@ -519,15 +520,19 @@ export default function TasksPage() {
                 </TableCell>
 
                 <TableCell className="text-right px-6">
-                    <div className="flex items-center justify-end gap-1">
+                    <div className="flex items-center justify-end gap-2">
                         {task.is_today ? (
                             <div className="flex items-center gap-1">
-                                <Badge className="bg-primary/10 text-primary border-primary/20 text-[9px] font-black py-0 px-2 h-7 rounded-lg">✓ TODAY</Badge>
+                                <Badge className="bg-primary/10 text-primary border-primary/20 text-[10px] font-bold py-0 px-2.5 h-8 rounded-lg flex items-center gap-1 whitespace-nowrap">
+                                    <Check className="h-3 w-3" />
+                                    <span>TODAY</span>
+                                </Badge>
                                 <Button 
                                     variant="ghost" 
                                     size="icon" 
-                                    className="h-8 w-8 text-rose-500 hover:bg-rose-50 rounded-lg"
+                                    className="h-8 w-8 text-rose-500 hover:bg-rose-50 rounded-lg shrink-0"
                                     onClick={() => handleToggleToday(task, false)}
+                                    title="Remove from Today"
                                 >
                                     <Trash2 className="h-4 w-4" />
                                 </Button>
@@ -536,7 +541,7 @@ export default function TasksPage() {
                             <Button 
                                 variant="outline" 
                                 size="sm" 
-                                className="h-8 text-[10px] font-black uppercase tracking-tighter rounded-lg border-primary/20 text-primary hover:bg-primary hover:text-white transition-all opacity-0 group-hover/row:opacity-100"
+                                className="h-8 text-[10px] font-black uppercase tracking-tighter rounded-lg border-primary/20 text-primary hover:bg-primary hover:text-white transition-all opacity-0 group-hover/row:opacity-100 whitespace-nowrap"
                                 onClick={() => handleToggleToday(task, true)}
                                 disabled={task.status === 'Completed'}
                             >
