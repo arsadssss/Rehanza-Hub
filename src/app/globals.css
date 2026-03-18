@@ -1,19 +1,21 @@
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 body {
   font-family: 'PT Sans', sans-serif;
+  background-color: #F5F7FB;
 }
 
 @layer base {
   :root {
-    --background: 220 25% 96%;
-    --foreground: 220 10% 20%;
+    --background: 220 33% 98%;
+    --foreground: 224 71% 4%;
     --card: 0 0% 100%;
-    --card-foreground: 220 10% 20%;
+    --card-foreground: 224 71% 4%;
     --popover: 0 0% 100%;
-    --popover-foreground: 220 10% 20%;
+    --popover-foreground: 224 71% 4%;
     --primary: 244 80% 60%;
     --primary-foreground: 0 0% 98%;
     --secondary: 220 15% 90%;
@@ -28,13 +30,13 @@ body {
     --input: 220 15% 88%;
     --ring: 244 80% 60%;
     
-    --sidebar-background: 224 21% 15%;
-    --sidebar-foreground: 220 15% 85%;
+    --sidebar-background: 0 0% 100%;
+    --sidebar-foreground: 224 71% 4%;
     --sidebar-primary: 244 80% 60%;
     --sidebar-primary-foreground: 0 0% 98%;
     --sidebar-accent: 244 80% 60%;
     --sidebar-accent-foreground: 0 0% 98%;
-    --sidebar-border: 224 21% 25%;
+    --sidebar-border: 220 15% 88%;
     --sidebar-ring: 244 80% 60%;
 
     --chart-1: 340 82% 76%;
@@ -43,11 +45,11 @@ body {
   }
 
   .dark {
-    --background: 224 21% 10%;
+    --background: 224 71% 4%;
     --foreground: 220 15% 85%;
-    --card: 224 21% 15%;
+    --card: 224 71% 4%;
     --card-foreground: 220 15% 85%;
-    --popover: 224 21% 15%;
+    --popover: 224 71% 4%;
     --popover-foreground: 220 15% 85%;
     --primary: 244 80% 65%;
     --primary-foreground: 0 0% 98%;
@@ -63,7 +65,7 @@ body {
     --input: 224 21% 25%;
     --ring: 244 80% 65%;
     
-    --sidebar-background: 224 21% 15%;
+    --sidebar-background: 224 71% 4%;
     --sidebar-foreground: 220 15% 85%;
     --sidebar-primary: 244 80% 65%;
     --sidebar-primary-foreground: 0 0% 98%;

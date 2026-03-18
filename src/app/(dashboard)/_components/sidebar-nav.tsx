@@ -34,6 +34,7 @@ import {
   Crop,
   Undo2,
   Zap,
+  ChevronDown,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -41,7 +42,6 @@ import { LogoutButton } from '@/components/logout-button';
 import { apiFetch } from '@/lib/apiFetch';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
-import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip';
 
 export const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', group: 'MAIN' },
@@ -138,7 +138,7 @@ export function SidebarNav() {
   return (
     <Sidebar 
       collapsible="icon" 
-      className="border-r border-border/50 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl transition-all duration-300"
+      className="border-r border-black/5 bg-white/60 backdrop-blur-2xl transition-all duration-300 rounded-r-[24px] shadow-[4px_0_24px_rgba(0,0,0,0.02)]"
     >
       <SidebarHeader className="p-4 pt-6">
         <div className={cn(
@@ -151,12 +151,12 @@ export function SidebarNav() {
             </div>
             {!isCollapsed && (
               <div className="flex flex-col">
-                <h1 className="text-lg font-black text-foreground tracking-tighter font-headline whitespace-nowrap animate-in fade-in slide-in-from-left-4 duration-500">
+                <h1 className="text-lg font-black text-slate-900 tracking-tighter font-headline whitespace-nowrap animate-in fade-in slide-in-from-left-4 duration-500">
                   Rehanza Hub
                 </h1>
                 <div className="flex items-center gap-1.5">
-                  <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-[8px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">Live Sync</span>
+                  <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-pulse" />
+                  <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400">Live Sync</span>
                 </div>
               </div>
             )}
@@ -168,7 +168,7 @@ export function SidebarNav() {
               size="icon"
               onClick={toggleSidebar}
               className={cn(
-                "h-8 w-8 text-muted-foreground/40 hover:text-primary hover:bg-primary/5 transition-all rounded-xl",
+                "h-8 w-8 text-slate-300 hover:text-primary hover:bg-primary/5 transition-all rounded-xl",
                 isCollapsed && "mt-2"
               )}
             >
@@ -184,12 +184,12 @@ export function SidebarNav() {
         )}>
           {accounts.length > 0 ? (
             <div className={cn(
-              "bg-slate-100 dark:bg-slate-900 p-1 rounded-[1.25rem] relative flex border border-border/50 shadow-inner",
+              "bg-slate-200/50 p-1 rounded-[1.25rem] relative flex border border-white/50 shadow-inner",
               isCollapsed ? "flex-col w-10" : "flex-row w-full h-11 items-center"
             )}>
               {!isCollapsed && activeIndex !== -1 && (
                 <div 
-                  className="absolute h-9 bg-white dark:bg-slate-800 rounded-xl shadow-md transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] z-0"
+                  className="absolute h-9 bg-white rounded-xl shadow-sm transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] z-0"
                   style={{
                     width: `calc((100% - 8px) / ${accounts.length})`,
                     left: `calc(4px + (${activeIndex} * (100% - 8px) / ${accounts.length}))`
@@ -215,8 +215,8 @@ export function SidebarNav() {
                         ? "w-8 h-8 rounded-xl text-[10px]" 
                         : "flex-1 h-full text-[9px]",
                       isActive 
-                        ? (isCollapsed ? "bg-white dark:bg-slate-800 text-primary shadow-sm" : "text-primary") 
-                        : "text-muted-foreground/60 hover:text-foreground"
+                        ? "text-primary" 
+                        : "text-slate-400 hover:text-slate-600"
                     )}
                   >
                     {isCollapsed ? acc.name.charAt(0) : acc.name}
@@ -225,7 +225,7 @@ export function SidebarNav() {
               })}
             </div>
           ) : (
-            !isCollapsed && <div className="h-11 flex items-center justify-center text-[8px] font-black text-muted-foreground/20 uppercase tracking-[0.2em] animate-pulse">Initializing...</div>
+            !isCollapsed && <div className="h-11 flex items-center justify-center text-[8px] font-black text-slate-300 uppercase tracking-[0.2em] animate-pulse">Initializing...</div>
           )}
         </div>
       </SidebarHeader>
@@ -235,7 +235,7 @@ export function SidebarNav() {
           {Object.entries(groupedItems).map(([group, items]) => (
             <div key={group} className="space-y-2">
               {!isCollapsed && (
-                <p className="px-4 text-[9px] font-black text-muted-foreground/40 uppercase tracking-[0.3em] mb-3">
+                <p className="px-4 text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mb-3">
                   {group}
                 </p>
               )}
@@ -253,7 +253,7 @@ export function SidebarNav() {
                           "h-11 w-full transition-all duration-300 group flex items-center gap-3 px-4 rounded-xl relative overflow-hidden",
                           isActive 
                             ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-[0_8px_20px_rgba(99,102,241,0.3)] font-black" 
-                            : "text-slate-600 dark:text-slate-400 hover:bg-primary/5 hover:text-primary hover:translate-x-1"
+                            : "text-slate-600 hover:bg-indigo-500/5 hover:text-indigo-600 hover:translate-x-1"
                         )}
                       >
                         <Link href={item.href}>
@@ -264,7 +264,7 @@ export function SidebarNav() {
                           
                           <item.icon className={cn(
                             "h-4 w-4 shrink-0 transition-all duration-300",
-                            isActive ? "text-white scale-110" : "text-slate-400 group-hover:text-primary group-hover:scale-110"
+                            isActive ? "text-white scale-110" : "text-slate-400 group-hover:text-indigo-600 group-hover:scale-110"
                           )} />
                           
                           {!isCollapsed && (
@@ -288,27 +288,27 @@ export function SidebarNav() {
       </SidebarContent>
 
       <SidebarFooter className="p-4 mt-auto space-y-4">
-        <Separator className="bg-border/50 mx-2" />
+        <Separator className="bg-black/5 mx-2" />
         
         <div className={cn(
           "flex items-center gap-3 px-2 transition-all duration-300 relative group/profile",
           isCollapsed ? "justify-center" : "justify-start"
         )}>
           <div className="relative">
-            <Avatar className="h-9 w-9 border-2 border-background shadow-lg transition-transform group-hover/profile:scale-105">
+            <Avatar className="h-9 w-9 border-2 border-white shadow-lg transition-transform group-hover/profile:scale-105">
               <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-black border border-primary/20">
                 {firstLetter}
               </AvatarFallback>
             </Avatar>
-            <div className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-background bg-emerald-500" />
+            <div className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
           </div>
           
           {!isCollapsed && (
             <div className="flex flex-col overflow-hidden animate-in fade-in slide-in-from-left-2">
-              <span className="text-[11px] font-black text-foreground truncate leading-tight tracking-tight">
+              <span className="text-[11px] font-black text-slate-900 truncate leading-tight tracking-tight">
                 {userName}
               </span>
-              <span className="text-[8px] text-muted-foreground uppercase font-bold tracking-widest mt-0.5">
+              <span className="text-[8px] text-slate-500 uppercase font-bold tracking-widest mt-0.5">
                 {session?.user?.role || 'Member'}
               </span>
             </div>
@@ -318,14 +318,11 @@ export function SidebarNav() {
         <div className="px-1 logout-wrapper">
           <style jsx global>{`
             .logout-wrapper button {
-              color: hsl(var(--muted-foreground));
+              color: #94a3b8;
             }
             .logout-wrapper button:hover {
-              color: hsl(var(--foreground));
-              background-color: rgba(0,0,0,0.05);
-            }
-            .dark .logout-wrapper button:hover {
-              background-color: rgba(255,255,255,0.05);
+              color: #ef4444;
+              background-color: rgba(239, 68, 68, 0.05);
             }
           `}</style>
           <LogoutButton />
@@ -333,7 +330,7 @@ export function SidebarNav() {
         
         {!isCollapsed && (
           <div className="text-center pb-2">
-            <p className="text-[7px] text-muted-foreground/30 font-black uppercase tracking-[0.4em]">Engine v2.5.0</p>
+            <p className="text-[7px] text-slate-300 font-black uppercase tracking-[0.4em]">Engine v2.5.0</p>
           </div>
         )}
       </SidebarFooter>
