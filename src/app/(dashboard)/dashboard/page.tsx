@@ -310,227 +310,214 @@ export default function DashboardPage() {
         />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         
-        {/* 3. Performance Charts (8 columns) */}
-        <div className="lg:col-span-8 space-y-8">
-          
-          <Card className="border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
-            <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-8 pb-0 gap-4">
+        {/* Row 1: Growth Analytics & Smart Insights */}
+        <Card className="lg:col-span-8 border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl h-full">
+          <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-8 pb-0 gap-4">
+            <div>
+              <CardTitle className="font-headline text-2xl font-black tracking-tight">Growth Analytics</CardTitle>
+              <CardDescription className="text-xs font-bold uppercase tracking-widest text-muted-foreground/60">Revenue and order volume trends</CardDescription>
+            </div>
+            <div className="flex flex-wrap items-center gap-4">
+              <Select value={range} onValueChange={setRange}>
+                <SelectTrigger className="w-[140px] h-9 rounded-xl bg-muted/30 border-0 font-bold text-[10px] uppercase tracking-widest focus:ring-primary/20">
+                  <Calendar className="h-3 w-3 mr-2 text-primary" />
+                  <SelectValue placeholder="Range" />
+                </SelectTrigger>
+                <SelectContent className="rounded-xl border-border/50">
+                  <SelectItem value="7d" className="text-[10px] font-bold uppercase">Last 7 Days</SelectItem>
+                  <SelectItem value="30d" className="text-[10px] font-bold uppercase">Last 30 Days</SelectItem>
+                  <SelectItem value="all" className="text-[10px] font-bold uppercase">All Time</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="flex items-center gap-4 border-l border-border/50 pl-4">
+                <div className="flex items-center gap-2">
+                  <div className="h-3 w-3 rounded-full bg-primary" />
+                  <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Orders</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="h-3 w-3 rounded-full bg-emerald-500" />
+                  <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Revenue</span>
+                </div>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="p-8">
+            <div className="h-[350px] w-full mt-4">
+              {loading ? <Skeleton className="h-full w-full rounded-3xl" /> : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <AreaChart data={salesTrend}>
+                    <defs>
+                      <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
+                        <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                      </linearGradient>
+                    </defs>
+                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
+                    <XAxis 
+                      dataKey="date" 
+                      tick={{ fontSize: 10, fill: 'gray', fontBold: 700 }} 
+                      axisLine={false}
+                      tickLine={false}
+                      tickFormatter={(val) => new Date(val).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}
+                    />
+                    <YAxis tick={{ fontSize: 10, fill: 'gray', fontBold: 700 }} axisLine={false} tickLine={false} />
+                    <Tooltip 
+                      contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 20px 50px rgba(0,0,0,0.1)', backdropFilter: 'blur(10px)', backgroundColor: 'rgba(255,255,255,0.8)' }}
+                    />
+                    <Area type="monotone" dataKey="revenue" stroke="#6366f1" strokeWidth={4} fillOpacity={1} fill="url(#colorRev)" />
+                    <Line type="monotone" dataKey="orders" stroke="#10b981" strokeWidth={3} dot={{ r: 4, fill: '#10b981', strokeWidth: 0 }} />
+                  </AreaChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="lg:col-span-4 border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-gradient-to-br from-[#4F46E5] to-[#6D28D9] text-white h-full">
+          <CardHeader className="p-8">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-white/10 rounded-xl">
+                <BarChart3 className="h-5 w-5 text-white" />
+              </div>
               <div>
-                <CardTitle className="font-headline text-2xl font-black tracking-tight">Growth Analytics</CardTitle>
-                <CardDescription className="text-xs font-bold uppercase tracking-widest text-muted-foreground/60">Revenue and order volume trends</CardDescription>
+                <CardTitle className="font-headline text-xl font-bold text-white">Smart Insights</CardTitle>
+                <CardDescription className="text-[10px] uppercase font-bold tracking-widest text-white/60">AI-Assisted Business Logic</CardDescription>
               </div>
-              <div className="flex flex-wrap items-center gap-4">
-                <Select value={range} onValueChange={setRange}>
-                  <SelectTrigger className="w-[140px] h-9 rounded-xl bg-muted/30 border-0 font-bold text-[10px] uppercase tracking-widest focus:ring-primary/20">
-                    <Calendar className="h-3 w-3 mr-2 text-primary" />
-                    <SelectValue placeholder="Range" />
-                  </SelectTrigger>
-                  <SelectContent className="rounded-xl border-border/50">
-                    <SelectItem value="7d" className="text-[10px] font-bold uppercase">Last 7 Days</SelectItem>
-                    <SelectItem value="30d" className="text-[10px] font-bold uppercase">Last 30 Days</SelectItem>
-                    <SelectItem value="all" className="text-[10px] font-bold uppercase">All Time</SelectItem>
-                  </SelectContent>
-                </Select>
-                <div className="flex items-center gap-4 border-l border-border/50 pl-4">
+            </div>
+          </CardHeader>
+          <CardContent className="px-8 pb-8 space-y-4">
+            <InsightCard 
+              title="Operational Risk" 
+              subtitle={summary?.return_rate > 15 ? "High returns detected" : "Return rate within safety limits"} 
+              icon={AlertCircle} 
+              colorClass={summary?.return_rate > 15 ? "bg-rose-500/30 text-rose-100" : "bg-emerald-500/30 text-emerald-100"}
+            />
+            <InsightCard 
+              title="Top Performer" 
+              subtitle={topSellers[0]?.product_name || "Syncing data..."} 
+              icon={TrendingUp} 
+              colorClass="bg-white/20 text-white"
+            />
+            <InsightCard 
+              title="Execution Queue" 
+              subtitle={`${(taskProgress?.overall?.total || 0) - (taskProgress?.overall?.completed || 0)} tasks need attention`} 
+              icon={Zap} 
+              colorClass="bg-amber-500/30 text-amber-100"
+            />
+          </CardContent>
+        </Card>
+
+        {/* Row 2: Execution Health, Marketplace Power & Top Sellers (Aligned) */}
+        <Card className="md:col-span-6 lg:col-span-4 border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl h-full">
+          <CardHeader className="p-8">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-blue-500/10 rounded-xl text-blue-600">
+                <Activity className="h-5 w-5" />
+              </div>
+              <div>
+                <CardTitle className="font-headline text-xl font-bold">Execution Health</CardTitle>
+                <CardDescription className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Real-time workflow progress</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="px-8 pb-8 space-y-6">
+            <div className="space-y-2">
+              <div className="flex justify-between items-end">
+                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Fashion Workflow</span>
+                <span className="text-sm font-black">{taskProgress?.fashion?.percentage.toFixed(0)}%</span>
+              </div>
+              <Progress value={taskProgress?.fashion?.percentage} className="h-2 bg-blue-500/10" />
+            </div>
+            <div className="space-y-2">
+              <div className="flex justify-between items-end">
+                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Cosmetics Workflow</span>
+                <span className="text-sm font-black">{taskProgress?.cosmetics?.percentage.toFixed(0)}%</span>
+              </div>
+              <Progress value={taskProgress?.cosmetics?.percentage} className="h-2 bg-pink-500/10" />
+            </div>
+            <Button asChild variant="outline" className="w-full h-11 rounded-xl font-bold mt-2">
+              <Link href="/tasks">Open Task Engine <ArrowUpRight className="ml-2 h-4 w-4" /></Link>
+            </Button>
+          </CardContent>
+        </Card>
+
+        <Card className="md:col-span-6 lg:col-span-4 border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl h-full">
+          <CardHeader className="p-8">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-emerald-500/10 rounded-xl text-emerald-600">
+                <Sparkles className="h-5 w-5" />
+              </div>
+              <div>
+                <CardTitle className="font-headline text-xl font-bold">Marketplace Power</CardTitle>
+                <CardDescription className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Sales distribution by channel</CardDescription>
+              </div>
+            </div>
+          </CardHeader>
+          <CardContent className="px-8 pb-8 flex items-center justify-between">
+            <div className="h-[140px] w-[140px]">
+              {loading ? <Skeleton className="h-full w-full rounded-full" /> : (
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={platformStats}
+                      innerRadius={45}
+                      outerRadius={65}
+                      paddingAngle={5}
+                      dataKey="orders"
+                    >
+                      {platformStats.map((entry, index) => (
+                        <Cell key={`cell-${index}`} fill={platformColors[entry.platform] || '#8884d8'} stroke="none" />
+                      ))}
+                    </Pie>
+                  </PieChart>
+                </ResponsiveContainer>
+              )}
+            </div>
+            <div className="space-y-2 flex-1 ml-8">
+              {platformStats.map((p) => (
+                <div key={p.platform} className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="h-3 w-3 rounded-full bg-primary" />
-                    <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Orders</span>
+                    <div className="h-2 w-2 rounded-full" style={{ backgroundColor: platformColors[p.platform] }} />
+                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{p.platform}</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <div className="h-3 w-3 rounded-full bg-emerald-500" />
-                    <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Revenue</span>
-                  </div>
+                  <span className="text-xs font-black">{p.orders}</span>
                 </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="md:col-span-12 lg:col-span-4 border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl h-full">
+          <CardHeader className="p-8 border-b border-border/50">
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="font-headline text-xl font-bold">Top Sellers</CardTitle>
+                <CardDescription className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Inventory Velocity Leaders</CardDescription>
               </div>
-            </CardHeader>
-            <CardContent className="p-8">
-              <div className="h-[350px] w-full mt-4">
-                {loading ? <Skeleton className="h-full w-full rounded-3xl" /> : (
-                  <ResponsiveContainer width="100%" height="100%">
-                    <AreaChart data={salesTrend}>
-                      <defs>
-                        <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                          <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
-                          <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
-                        </linearGradient>
-                      </defs>
-                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
-                      <XAxis 
-                        dataKey="date" 
-                        tick={{ fontSize: 10, fill: 'gray', fontBold: 700 }} 
-                        axisLine={false}
-                        tickLine={false}
-                        tickFormatter={(val) => new Date(val).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}
-                      />
-                      <YAxis tick={{ fontSize: 10, fill: 'gray', fontBold: 700 }} axisLine={false} tickLine={false} />
-                      <Tooltip 
-                        contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 20px 50px rgba(0,0,0,0.1)', backdropFilter: 'blur(10px)', backgroundColor: 'rgba(255,255,255,0.8)' }}
-                      />
-                      <Area type="monotone" dataKey="revenue" stroke="#6366f1" strokeWidth={4} fillOpacity={1} fill="url(#colorRev)" />
-                      <Line type="monotone" dataKey="orders" stroke="#10b981" strokeWidth={3} dot={{ r: 4, fill: '#10b981', strokeWidth: 0 }} />
-                    </AreaChart>
-                  </ResponsiveContainer>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-
-          {/* 4. Task Overview Snapshot */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-            <Card className="border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
-              <CardHeader className="p-8">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-blue-500/10 rounded-xl text-blue-600">
-                    <Activity className="h-5 w-5" />
+              <Button variant="ghost" size="icon" asChild className="rounded-xl"><Link href="/products"><ArrowUpRight className="h-4 w-4" /></Link></Button>
+            </div>
+          </CardHeader>
+          <CardContent className="p-0">
+            <div className="divide-y divide-border/50">
+              {loading ? Array.from({ length: 5 }).map((_, i) => (
+                <div key={i} className="p-6 flex items-center justify-between"><Skeleton className="h-10 w-full bg-muted/40" /></div>
+              )) : topSellers.map((sku) => (
+                <div key={sku.variant_sku} className="p-6 flex items-center justify-between hover:bg-muted/30 transition-colors">
+                  <div className="overflow-hidden">
+                    <p className="text-xs font-black truncate">{sku.product_name}</p>
+                    <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">{sku.variant_sku}</p>
                   </div>
-                  <div>
-                    <CardTitle className="font-headline text-xl font-bold">Execution Health</CardTitle>
-                    <CardDescription className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Real-time workflow progress</CardDescription>
+                  <div className="text-right">
+                    <p className="text-sm font-black">{sku.total_units_sold} units</p>
+                    <p className="text-[10px] font-bold text-emerald-600">{formatINR(sku.total_revenue)}</p>
                   </div>
                 </div>
-              </CardHeader>
-              <CardContent className="px-8 pb-8 space-y-6">
-                <div className="space-y-2">
-                  <div className="flex justify-between items-end">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Fashion Workflow</span>
-                    <span className="text-sm font-black">{taskProgress?.fashion?.percentage.toFixed(0)}%</span>
-                  </div>
-                  <Progress value={taskProgress?.fashion?.percentage} className="h-2 bg-blue-500/10" />
-                </div>
-                <div className="space-y-2">
-                  <div className="flex justify-between items-end">
-                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Cosmetics Workflow</span>
-                    <span className="text-sm font-black">{taskProgress?.cosmetics?.percentage.toFixed(0)}%</span>
-                  </div>
-                  <Progress value={taskProgress?.cosmetics?.percentage} className="h-2 bg-pink-500/10" />
-                </div>
-                <Button asChild variant="outline" className="w-full h-11 rounded-xl font-bold mt-2">
-                  <Link href="/tasks">Open Task Engine <ArrowUpRight className="ml-2 h-4 w-4" /></Link>
-                </Button>
-              </CardContent>
-            </Card>
-
-            <Card className="border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
-              <CardHeader className="p-8">
-                <div className="flex items-center gap-3">
-                  <div className="p-2.5 bg-emerald-500/10 rounded-xl text-emerald-600">
-                    <Sparkles className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <CardTitle className="font-headline text-xl font-bold">Marketplace Power</CardTitle>
-                    <CardDescription className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Sales distribution by channel</CardDescription>
-                  </div>
-                </div>
-              </CardHeader>
-              <CardContent className="px-8 pb-8 flex items-center justify-between">
-                <div className="h-[140px] w-[140px]">
-                  {loading ? <Skeleton className="h-full w-full rounded-full" /> : (
-                    <ResponsiveContainer width="100%" height="100%">
-                      <PieChart>
-                        <Pie
-                          data={platformStats}
-                          innerRadius={45}
-                          outerRadius={65}
-                          paddingAngle={5}
-                          dataKey="orders"
-                        >
-                          {platformStats.map((entry, index) => (
-                            <Cell key={`cell-${index}`} fill={platformColors[entry.platform] || '#8884d8'} stroke="none" />
-                          ))}
-                        </Pie>
-                      </PieChart>
-                    </ResponsiveContainer>
-                  )}
-                </div>
-                <div className="space-y-2 flex-1 ml-8">
-                  {platformStats.map((p) => (
-                    <div key={p.platform} className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <div className="h-2 w-2 rounded-full" style={{ backgroundColor: platformColors[p.platform] }} />
-                        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{p.platform}</span>
-                      </div>
-                      <span className="text-xs font-black">{p.orders}</span>
-                    </div>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </div>
-
-        </div>
-
-        {/* 5. Insight & Snapshots (4 columns) */}
-        <div className="lg:col-span-4 space-y-8">
-          
-          {/* Smart Insights Panel */}
-          <Card className="border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-gradient-to-br from-[#4F46E5] to-[#6D28D9] text-white">
-            <CardHeader className="p-8">
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 bg-white/10 rounded-xl">
-                  <BarChart3 className="h-5 w-5 text-white" />
-                </div>
-                <div>
-                  <CardTitle className="font-headline text-xl font-bold text-white">Smart Insights</CardTitle>
-                  <CardDescription className="text-[10px] uppercase font-bold tracking-widest text-white/60">AI-Assisted Business Logic</CardDescription>
-                </div>
-              </div>
-            </CardHeader>
-            <CardContent className="px-8 pb-8 space-y-4">
-              <InsightCard 
-                title="Operational Risk" 
-                subtitle={summary?.return_rate > 15 ? "High returns detected" : "Return rate within safety limits"} 
-                icon={AlertCircle} 
-                colorClass={summary?.return_rate > 15 ? "bg-rose-500/30 text-rose-100" : "bg-emerald-500/30 text-emerald-100"}
-              />
-              <InsightCard 
-                title="Top Performer" 
-                subtitle={topSellers[0]?.product_name || "Syncing data..."} 
-                icon={TrendingUp} 
-                colorClass="bg-white/20 text-white"
-              />
-              <InsightCard 
-                title="Execution Queue" 
-                subtitle={`${(taskProgress?.overall?.total || 0) - (taskProgress?.overall?.completed || 0)} tasks need attention`} 
-                icon={Zap} 
-                colorClass="bg-amber-500/30 text-amber-100"
-              />
-            </CardContent>
-          </Card>
-
-          {/* SKU Snapshot Table */}
-          <Card className="border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
-            <CardHeader className="p-8 border-b border-border/50">
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="font-headline text-xl font-bold">Top Sellers</CardTitle>
-                  <CardDescription className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Inventory Velocity Leaders</CardDescription>
-                </div>
-                <Button variant="ghost" size="icon" asChild className="rounded-xl"><Link href="/products"><ArrowUpRight className="h-4 w-4" /></Link></Button>
-              </div>
-            </CardHeader>
-            <CardContent className="p-0">
-              <div className="divide-y divide-border/50">
-                {loading ? Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="p-6 flex items-center justify-between"><Skeleton className="h-10 w-full bg-muted/40" /></div>
-                )) : topSellers.map((sku) => (
-                  <div key={sku.variant_sku} className="p-6 flex items-center justify-between hover:bg-muted/30 transition-colors">
-                    <div className="overflow-hidden">
-                      <p className="text-xs font-black truncate">{sku.product_name}</p>
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">{sku.variant_sku}</p>
-                    </div>
-                    <div className="text-right">
-                      <p className="text-sm font-black">{sku.total_units_sold} units</p>
-                      <p className="text-[10px] font-bold text-emerald-600">{formatINR(sku.total_revenue)}</p>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </CardContent>
-          </Card>
-
-        </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
 
       </div>
 
