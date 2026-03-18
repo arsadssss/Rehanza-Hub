@@ -16,6 +16,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Progress } from "@/components/ui/progress"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { 
+  Tooltip,
+  TooltipContent,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
+import { 
   PlusCircle, 
   Pencil, 
   Trash2, 
@@ -29,7 +34,9 @@ import {
   CheckCircle2,
   MoreHorizontal,
   ChevronRight,
-  Clock
+  Clock,
+  BarChart3,
+  Sparkles
 } from 'lucide-react';
 import { AddTaskModal } from './components/add-task-modal';
 import { cn } from '@/lib/utils';
@@ -63,29 +70,144 @@ type ProgressStats = {
     percentage: number;
 }
 
-const ProgressCard = ({ title, stats, gradient, loading }: { title: string; stats: ProgressStats; gradient: string; loading: boolean }) => (
-    <Card className={cn("text-white shadow-lg rounded-2xl border-0 overflow-hidden bg-gradient-to-br", gradient)}>
-        {loading ? (
-            <CardContent className="p-6">
-                <Skeleton className="h-5 w-32 bg-white/20" />
-                <Skeleton className="h-4 w-24 mt-4 bg-white/20" />
-                <Skeleton className="h-4 w-full mt-2 bg-white/20" />
-                <Skeleton className="h-5 w-20 mt-2 bg-white/20" />
-            </CardContent>
-        ) : (
-            <CardContent className="p-6">
-                <h3 className="text-lg font-semibold tracking-tight">{title}</h3>
-                <div className="mt-4">
-                    <Progress value={stats.percentage} className="h-2 bg-white/30 [&>div]:bg-white" />
-                    <div className="flex justify-between items-center mt-2 text-sm text-white/90">
-                        <span>{stats.completed} / {stats.total} Completed</span>
-                        <span className="font-bold">{stats.percentage.toFixed(0)}%</span>
+const CircularIndicator = ({ value, colorClass }: { value: number; colorClass: string }) => {
+    const radius = 18;
+    const circumference = 2 * Math.PI * radius;
+    const offset = circumference - (value / 100) * circumference;
+
+    return (
+        <div className="relative flex items-center justify-center w-12 h-12 shrink-0">
+            <svg className="w-full h-full -rotate-90 drop-shadow-sm">
+                <circle
+                    className="text-white/10"
+                    strokeWidth="3"
+                    stroke="currentColor"
+                    fill="transparent"
+                    r={radius}
+                    cx="24"
+                    cy="24"
+                />
+                <circle
+                    className={cn("transition-all duration-[1500ms] ease-out", colorClass.replace('bg-', 'text-'))}
+                    strokeWidth="3"
+                    strokeDasharray={circumference}
+                    style={{ strokeDashoffset: isNaN(offset) ? circumference : offset }}
+                    strokeLinecap="round"
+                    stroke="currentColor"
+                    fill="transparent"
+                    r={radius}
+                    cx="24"
+                    cy="24"
+                />
+            </svg>
+            <span className="absolute text-[10px] font-black text-white/90">{Math.round(value)}%</span>
+        </div>
+    );
+};
+
+const ProgressCard = ({ title, stats, gradient, loading, icon: Icon }: { title: string; stats: ProgressStats; gradient: string; loading: boolean; icon: React.ElementType }) => {
+    const [animatedValue, setAnimatedValue] = useState(0);
+    const [animatedCount, setAnimatedCount] = useState(0);
+
+    useEffect(() => {
+        if (!loading) {
+            const timer = setTimeout(() => {
+                setAnimatedValue(stats.percentage || 0);
+                setAnimatedCount(stats.completed || 0);
+            }, 300);
+            return () => clearTimeout(timer);
+        }
+    }, [loading, stats.percentage, stats.completed]);
+
+    const getStatusColor = (pct: number) => {
+        if (pct < 30) return "bg-rose-500";
+        if (pct < 70) return "bg-amber-500";
+        return "bg-emerald-500";
+    };
+
+    return (
+        <Tooltip>
+            <TooltipTrigger asChild>
+                <Card className={cn(
+                    "group relative text-white shadow-xl rounded-[2.5rem] border border-white/10 overflow-hidden transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl active:scale-[0.98]",
+                    "bg-gradient-to-br backdrop-blur-xl",
+                    gradient
+                )}>
+                    {/* Glass Overlay Effects */}
+                    <div className="absolute inset-0 bg-white/5 opacity-50 group-hover:opacity-10 transition-opacity" />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
+                    
+                    {/* Large Background Decorative Icon */}
+                    <div className="absolute -right-6 -bottom-6 opacity-10 group-hover:opacity-20 group-hover:scale-110 group-hover:-rotate-12 transition-all duration-700 pointer-events-none">
+                        <Icon size={140} strokeWidth={1} />
                     </div>
-                </div>
-            </CardContent>
-        )}
-    </Card>
-);
+
+                    {loading ? (
+                        <CardContent className="p-8">
+                            <Skeleton className="h-6 w-32 bg-white/20 rounded-lg" />
+                            <div className="mt-8 space-y-4">
+                                <Skeleton className="h-3 w-full bg-white/20 rounded-full" />
+                                <div className="flex justify-between">
+                                    <Skeleton className="h-5 w-24 bg-white/20 rounded-md" />
+                                    <Skeleton className="h-5 w-12 bg-white/20 rounded-md" />
+                                </div>
+                            </div>
+                        </CardContent>
+                    ) : (
+                        <CardContent className="p-8 relative z-10">
+                            <div className="flex justify-between items-start">
+                                <div className="space-y-1">
+                                    <h3 className="text-[10px] font-black uppercase tracking-[0.3em] text-white/60 group-hover:text-white transition-colors duration-300">
+                                        {title}
+                                    </h3>
+                                    <div className="flex items-center gap-3 mt-1">
+                                        <div className="text-4xl font-black font-headline tracking-tighter drop-shadow-md">
+                                            {animatedValue.toFixed(0)}%
+                                        </div>
+                                        <div className={cn(
+                                            "h-2 w-2 rounded-full animate-pulse",
+                                            stats.percentage >= 100 ? "bg-emerald-400" : "bg-white/40"
+                                        )} />
+                                    </div>
+                                </div>
+                                <CircularIndicator value={animatedValue} colorClass={getStatusColor(stats.percentage)} />
+                            </div>
+
+                            <div className="mt-10 space-y-4">
+                                <div className="relative h-3 w-full bg-black/20 rounded-full overflow-hidden border border-white/5 shadow-inner">
+                                    <div 
+                                        className={cn(
+                                            "h-full transition-all duration-[1200ms] ease-out relative rounded-full shadow-lg",
+                                            getStatusColor(stats.percentage)
+                                        )}
+                                        style={{ width: `${animatedValue}%` }}
+                                    >
+                                        {/* Premium Shimmer Sweep Effect */}
+                                        <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full animate-shimmer" />
+                                    </div>
+                                </div>
+                                
+                                <div className="flex justify-between items-center">
+                                    <div className="flex items-baseline gap-1.5 bg-white/10 px-3 py-1 rounded-2xl backdrop-blur-md border border-white/10">
+                                        <span className="text-xl font-black tracking-tight">{animatedCount}</span>
+                                        <span className="text-[9px] font-black text-white/50 uppercase tracking-widest">/ {stats.total} COMPLETED</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-[9px] font-black uppercase tracking-tighter px-3 py-1.5 bg-black/20 rounded-xl backdrop-blur-sm border border-white/5 group-hover:bg-white/10 transition-colors">
+                                        <Icon className="h-3 w-3 opacity-70" />
+                                        <span>{stats.percentage >= 100 ? "Fully Synced" : "Operational"}</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    )}
+                </Card>
+            </TooltipTrigger>
+            <TooltipContent className="rounded-2xl border-white/10 bg-slate-900/90 backdrop-blur-xl font-black text-[10px] uppercase tracking-[0.2em] px-5 py-3 shadow-2xl">
+                {stats.completed} OUT OF {stats.total} WORKFLOWS COMPLETE
+            </TooltipContent>
+        </Tooltip>
+    );
+};
 
 export default function TasksPage() {
     const { toast } = useToast();
@@ -462,11 +584,11 @@ export default function TasksPage() {
                 </DialogContent>
             </Dialog>
 
-            {/* Performance Stats */}
+            {/* Premium Performance Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
-                <ProgressCard title="Account Completion" stats={progressStats.overall} gradient="from-indigo-600 to-violet-700" loading={loadingProgress} />
-                <ProgressCard title="Fashion Workflow" stats={progressStats.fashion} gradient="from-blue-600 to-cyan-700" loading={loadingProgress} />
-                <ProgressCard title="Cosmetics Workflow" stats={progressStats.cosmetics} gradient="from-pink-600 to-rose-700" loading={loadingProgress} />
+                <ProgressCard title="Account Completion" stats={progressStats.overall} gradient="from-indigo-600 to-violet-700" icon={BarChart3} loading={loadingProgress} />
+                <ProgressCard title="Fashion Workflow" stats={progressStats.fashion} gradient="from-blue-600 to-cyan-700" icon={ShoppingBag} loading={loadingProgress} />
+                <ProgressCard title="Cosmetics Workflow" stats={progressStats.cosmetics} gradient="from-pink-600 to-rose-700" icon={Sparkles} loading={loadingProgress} />
             </div>
 
             <Card className="border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
@@ -570,7 +692,9 @@ export default function TasksPage() {
                                     </TableHeader>
                                     <TableBody>
                                         {loadingTasks ? (
-                                            Array.from({ length: 5 }).map((_, i) => <TableRow key={i}><TableCell colSpan={6}><Skeleton className="h-12 w-full opacity-40"/></TableCell></TableRow>)
+                                            Array.from({ length: 5 }).map((_, i) => (
+                                                <TableRow key={i}><TableCell colSpan={6}><Skeleton className="h-12 w-full opacity-40"/></TableCell></TableRow>
+                                            ))
                                         ) : tasks.length > 0 ? (
                                             tasks.map(task => <TaskRow key={task.id} task={task} />)
                                         ) : (
@@ -586,7 +710,7 @@ export default function TasksPage() {
                                 <div className="flex items-center gap-3">
                                     <Button variant="outline" size="sm" className="h-10 px-6 rounded-xl font-black text-[10px] uppercase tracking-tighter border-border/50 shadow-sm" onClick={() => setPage(p => p - 1)} disabled={page === 1}>Previous</Button>
                                     <div className="bg-muted/50 h-10 px-4 flex items-center rounded-xl text-[10px] font-black text-muted-foreground">PAGE {page}</div>
-                                    <Button variant="outline" size="sm" className="h-10 px-6 rounded-xl font-black text-[10px] uppercase tracking-tighter border-border/50 shadow-sm" onClick={() => setPage(p => p + 1)} disabled={(page * pageSize) >= totalRows}>Next</Button>
+                                    <Button variant="outline" size="sm" className="h-10 px-6 rounded-xl font-black text-[10px] uppercase tracking-tighter border-border/50 shadow-sm" onClick={() => setPage(p => + 1)} disabled={(page * pageSize) >= totalRows}>Next</Button>
                                 </div>
                             </div>
                         </TabsContent>
