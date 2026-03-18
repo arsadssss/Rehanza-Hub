@@ -187,11 +187,6 @@ export default function DashboardPage() {
         setTrackRecord(t.data || []);
       }
 
-      if (trackRes.ok) {
-        const t = await trackRes.json();
-        setTrackRecord(t.data || []);
-      }
-
       if (taskRes.ok) {
         const tr = await taskRes.json();
         setTaskProgress(tr.progress);
