@@ -138,7 +138,7 @@ export function SidebarNav() {
   return (
     <Sidebar 
       collapsible="icon" 
-      className="border-none bg-gradient-to-b from-slate-950 to-[#0F172A] text-white shadow-2xl overflow-hidden transition-all duration-300"
+      className="border-r border-border/50 bg-white/80 dark:bg-slate-950/80 backdrop-blur-xl transition-all duration-300"
     >
       <SidebarHeader className="p-4 pt-6">
         <div className={cn(
@@ -146,18 +146,17 @@ export function SidebarNav() {
           isCollapsed ? "flex-col justify-center" : "flex-row justify-between px-2"
         )}>
           <div className="flex items-center gap-3 overflow-hidden">
-            <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-indigo-600/20 shadow-xl border border-indigo-500/20 backdrop-blur-md group/logo">
-              <Package className="h-6 w-6 text-indigo-400 group-hover/logo:scale-110 transition-transform" />
-              <div className="absolute inset-0 rounded-2xl bg-indigo-500/10 blur-xl opacity-0 group-hover/logo:opacity-100 transition-opacity" />
+            <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary shadow-xl shadow-primary/20 group/logo">
+              <Package className="h-6 w-6 text-white group-hover/logo:scale-110 transition-transform" />
             </div>
             {!isCollapsed && (
               <div className="flex flex-col">
-                <h1 className="text-lg font-black text-white tracking-tighter font-headline whitespace-nowrap animate-in fade-in slide-in-from-left-4 duration-500">
+                <h1 className="text-lg font-black text-foreground tracking-tighter font-headline whitespace-nowrap animate-in fade-in slide-in-from-left-4 duration-500">
                   Rehanza Hub
                 </h1>
                 <div className="flex items-center gap-1.5">
                   <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                  <span className="text-[8px] font-black uppercase tracking-[0.2em] text-white/40">Live Sync</span>
+                  <span className="text-[8px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">Live Sync</span>
                 </div>
               </div>
             )}
@@ -169,7 +168,7 @@ export function SidebarNav() {
               size="icon"
               onClick={toggleSidebar}
               className={cn(
-                "h-8 w-8 text-white/20 hover:text-white hover:bg-white/5 transition-all rounded-xl",
+                "h-8 w-8 text-muted-foreground/40 hover:text-primary hover:bg-primary/5 transition-all rounded-xl",
                 isCollapsed && "mt-2"
               )}
             >
@@ -185,12 +184,12 @@ export function SidebarNav() {
         )}>
           {accounts.length > 0 ? (
             <div className={cn(
-              "bg-white/5 p-1 rounded-[1.25rem] relative flex border border-white/5 shadow-inner",
+              "bg-slate-100 dark:bg-slate-900 p-1 rounded-[1.25rem] relative flex border border-border/50 shadow-inner",
               isCollapsed ? "flex-col w-10" : "flex-row w-full h-11 items-center"
             )}>
               {!isCollapsed && activeIndex !== -1 && (
                 <div 
-                  className="absolute h-9 bg-white rounded-xl shadow-[0_10px_20px_rgba(0,0,0,0.3)] transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] z-0"
+                  className="absolute h-9 bg-white dark:bg-slate-800 rounded-xl shadow-md transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] z-0"
                   style={{
                     width: `calc((100% - 8px) / ${accounts.length})`,
                     left: `calc(4px + (${activeIndex} * (100% - 8px) / ${accounts.length}))`
@@ -216,8 +215,8 @@ export function SidebarNav() {
                         ? "w-8 h-8 rounded-xl text-[10px]" 
                         : "flex-1 h-full text-[9px]",
                       isActive 
-                        ? (isCollapsed ? "bg-white text-indigo-950 shadow-lg" : "text-indigo-950") 
-                        : "text-white/30 hover:text-white/60"
+                        ? (isCollapsed ? "bg-white dark:bg-slate-800 text-primary shadow-sm" : "text-primary") 
+                        : "text-muted-foreground/60 hover:text-foreground"
                     )}
                   >
                     {isCollapsed ? acc.name.charAt(0) : acc.name}
@@ -226,7 +225,7 @@ export function SidebarNav() {
               })}
             </div>
           ) : (
-            !isCollapsed && <div className="h-11 flex items-center justify-center text-[8px] font-black text-white/10 uppercase tracking-[0.2em] animate-pulse">Initializing...</div>
+            !isCollapsed && <div className="h-11 flex items-center justify-center text-[8px] font-black text-muted-foreground/20 uppercase tracking-[0.2em] animate-pulse">Initializing...</div>
           )}
         </div>
       </SidebarHeader>
@@ -236,7 +235,7 @@ export function SidebarNav() {
           {Object.entries(groupedItems).map(([group, items]) => (
             <div key={group} className="space-y-2">
               {!isCollapsed && (
-                <p className="px-4 text-[9px] font-black text-white/20 uppercase tracking-[0.3em] mb-3">
+                <p className="px-4 text-[9px] font-black text-muted-foreground/40 uppercase tracking-[0.3em] mb-3">
                   {group}
                 </p>
               )}
@@ -254,7 +253,7 @@ export function SidebarNav() {
                           "h-11 w-full transition-all duration-300 group flex items-center gap-3 px-4 rounded-xl relative overflow-hidden",
                           isActive 
                             ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-[0_8px_20px_rgba(99,102,241,0.3)] font-black" 
-                            : "text-white/40 hover:bg-white/5 hover:text-white/80 hover:translate-x-1"
+                            : "text-slate-600 dark:text-slate-400 hover:bg-primary/5 hover:text-primary hover:translate-x-1"
                         )}
                       >
                         <Link href={item.href}>
@@ -265,7 +264,7 @@ export function SidebarNav() {
                           
                           <item.icon className={cn(
                             "h-4 w-4 shrink-0 transition-all duration-300",
-                            isActive ? "text-white scale-110" : "text-white/30 group-hover:text-white group-hover:scale-110"
+                            isActive ? "text-white scale-110" : "text-slate-400 group-hover:text-primary group-hover:scale-110"
                           )} />
                           
                           {!isCollapsed && (
@@ -274,9 +273,8 @@ export function SidebarNav() {
                             </span>
                           )}
 
-                          {/* Mock Notification Dot for Specific Items */}
                           {!isCollapsed && item.label === 'Tasks' && (
-                            <div className="ml-auto h-1.5 w-1.5 rounded-full bg-indigo-400 shadow-[0_0_8px_#818cf8]" />
+                            <div className="ml-auto h-1.5 w-1.5 rounded-full bg-primary shadow-[0_0_8px_hsl(var(--primary))]" />
                           )}
                         </Link>
                       </SidebarMenuButton>
@@ -290,40 +288,52 @@ export function SidebarNav() {
       </SidebarContent>
 
       <SidebarFooter className="p-4 mt-auto space-y-4">
-        <Separator className="bg-white/5 mx-2" />
+        <Separator className="bg-border/50 mx-2" />
         
         <div className={cn(
           "flex items-center gap-3 px-2 transition-all duration-300 relative group/profile",
           isCollapsed ? "justify-center" : "justify-start"
         )}>
           <div className="relative">
-            <Avatar className="h-9 w-9 border-2 border-white/5 shadow-2xl transition-transform group-hover/profile:scale-105">
-              <AvatarFallback className="bg-indigo-600/20 text-indigo-400 text-[10px] font-black border border-indigo-500/20">
+            <Avatar className="h-9 w-9 border-2 border-background shadow-lg transition-transform group-hover/profile:scale-105">
+              <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-black border border-primary/20">
                 {firstLetter}
               </AvatarFallback>
             </Avatar>
-            <div className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-slate-950 bg-emerald-500" />
+            <div className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-background bg-emerald-500" />
           </div>
           
           {!isCollapsed && (
             <div className="flex flex-col overflow-hidden animate-in fade-in slide-in-from-left-2">
-              <span className="text-[11px] font-black text-white truncate leading-tight tracking-tight">
+              <span className="text-[11px] font-black text-foreground truncate leading-tight tracking-tight">
                 {userName}
               </span>
-              <span className="text-[8px] text-white/30 uppercase font-bold tracking-widest mt-0.5">
+              <span className="text-[8px] text-muted-foreground uppercase font-bold tracking-widest mt-0.5">
                 {session?.user?.role || 'Member'}
               </span>
             </div>
           )}
         </div>
 
-        <div className="px-1">
+        <div className="px-1 logout-wrapper">
+          <style jsx global>{`
+            .logout-wrapper button {
+              color: hsl(var(--muted-foreground));
+            }
+            .logout-wrapper button:hover {
+              color: hsl(var(--foreground));
+              background-color: rgba(0,0,0,0.05);
+            }
+            .dark .logout-wrapper button:hover {
+              background-color: rgba(255,255,255,0.05);
+            }
+          `}</style>
           <LogoutButton />
         </div>
         
         {!isCollapsed && (
           <div className="text-center pb-2">
-            <p className="text-[7px] text-white/10 font-black uppercase tracking-[0.4em]">Engine v2.5.0</p>
+            <p className="text-[7px] text-muted-foreground/30 font-black uppercase tracking-[0.4em]">Engine v2.5.0</p>
           </div>
         )}
       </SidebarFooter>

@@ -248,9 +248,9 @@ export default function DashboardPage() {
             <div className="p-2.5 bg-primary rounded-2xl shadow-xl shadow-primary/20 text-white">
               <LayoutDashboard className="h-6 w-6" />
             </div>
-            <h1 className="text-4xl font-black tracking-tighter font-headline">Command Center</h1>
+            <h1 className="text-4xl font-black tracking-tighter font-headline">Rehanza Dashboard</h1>
           </div>
-          <p className="text-muted-foreground font-medium ml-1">Real-time operational intelligence and execution backlog.</p>
+          <p className="text-muted-foreground font-medium ml-1">Real-time operational intelligence and execution tasks.</p>
         </div>
         <div className="flex gap-3">
           <Badge variant="outline" className="h-11 px-4 rounded-xl bg-white/50 backdrop-blur-sm border-border/50 font-bold text-xs uppercase tracking-widest flex items-center gap-2">
