@@ -76,8 +76,8 @@ const AnimatedValue = ({ value, prefix = "", suffix = "", isCurrency = false }: 
   return <span>{prefix}{Math.floor(displayValue).toLocaleString()}{suffix}</span>;
 };
 
-const KpiCard = ({ title, value, icon: Icon, description, gradient, loading, isCurrency = false, trend }: any) => (
-  <Card className="relative overflow-hidden border-0 shadow-xl rounded-[2rem] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl group hover:-translate-y-1 transition-all duration-300">
+const KpiCard = ({ title, value, icon: Icon, description, gradient, loading, isCurrency = false, trend, suffix = "" }: any) => (
+  <Card className="relative overflow-hidden border-0 shadow-xl rounded-[2rem] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl group hover:-translate-y-1 transition-all duration-300 h-full">
     <div className={cn("absolute inset-0 opacity-5 group-hover:opacity-10 transition-opacity bg-gradient-to-br", gradient)} />
     <CardContent className="p-6 relative z-10">
       <div className="flex justify-between items-start">
@@ -85,7 +85,7 @@ const KpiCard = ({ title, value, icon: Icon, description, gradient, loading, isC
           <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">{title}</p>
           {loading ? <Skeleton className="h-10 w-24 bg-muted/40" /> : (
             <h2 className="text-3xl font-black font-headline tracking-tighter">
-              <AnimatedValue value={value} isCurrency={isCurrency} />
+              <AnimatedValue value={value} isCurrency={isCurrency} suffix={suffix} />
             </h2>
           )}
         </div>
@@ -242,8 +242,8 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 2. Top KPI Layer */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+      {/* 2. Top KPI Layer - Responsive Grid */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         <KpiCard 
           title="Revenue" 
           value={summary?.gross_revenue || 0} 
