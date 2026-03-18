@@ -6,6 +6,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { useToast } from '@/hooks/use-toast';
+import { useTheme } from '@/components/theme-provider';
 import {
   Card,
   CardContent,
@@ -42,6 +43,7 @@ import {
 } from '@/components/ui/form';
 import { apiFetch } from '@/lib/apiFetch';
 import { navItems } from '@/app/(dashboard)/_components/sidebar-nav';
+import { Moon, Sun, Monitor } from 'lucide-react';
 
 const businessConfigSchema = z.object({
   businessName: z.string().min(1, 'Business name is required.'),
@@ -49,17 +51,10 @@ const businessConfigSchema = z.object({
   gstRate: z.coerce.number().min(0, 'GST rate cannot be negative.').max(100, 'GST rate cannot exceed 100.'),
 });
 
-const platformChargesSchema = z.object({
-  commission: z.coerce.number().min(0).max(100),
-  fixedFee: z.coerce.number().min(0),
-  collectionFee: z.coerce.number().min(0).max(100),
-  shippingFee: z.coerce.number().min(0),
-});
-
 const platformsSchema = z.object({
-  meesho: platformChargesSchema,
-  flipkart: platformChargesSchema,
-  amazon: platformChargesSchema,
+  meesho: z.object({ commission: z.coerce.number(), fixedFee: z.coerce.number(), collectionFee: z.coerce.number(), shippingFee: z.coerce.number() }),
+  flipkart: z.object({ commission: z.coerce.number(), fixedFee: z.coerce.number(), collectionFee: z.coerce.number(), shippingFee: z.coerce.number() }),
+  amazon: z.object({ commission: z.coerce.number(), fixedFee: z.coerce.number(), collectionFee: z.coerce.number(), shippingFee: z.coerce.number() }),
 });
 
 const profitRulesSchema = z.object({
@@ -81,7 +76,6 @@ const preferencesSchema = z.object({
   notifications: z.boolean(),
 });
 
-// Sidebar schema: simple key-value of href -> boolean
 const sidebarConfigSchema = z.record(z.string(), z.boolean());
 
 type Settings = {
@@ -112,6 +106,7 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
+  const { setTheme } = useTheme();
 
   useEffect(() => {
     async function fetchSettings() {
@@ -149,13 +144,17 @@ export default function SettingsPage() {
             const errorData = await res.json();
             throw new Error(errorData.message);
         }
+        
+        if (setting_key === 'preferences' && setting_value.theme) {
+          setTheme(setting_value.theme);
+        }
+
         toast({
             title: 'Settings Saved',
             description: `Your changes to ${setting_key.replace(/_/g, ' ')} have been saved.`,
         });
         setSettings(prev => prev ? ({ ...prev, [setting_key]: setting_value }) : null);
         
-        // Notify sidebar if menu visibility changed
         if (setting_key === 'sidebar_config') {
           window.dispatchEvent(new Event('sidebar-config-updated'));
         }
@@ -196,14 +195,14 @@ export default function SettingsPage() {
         <p className="text-muted-foreground">Manage your entire e-commerce operation from one place.</p>
       </div>
       <Tabs defaultValue="business_config" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-7 mb-6">
-          <TabsTrigger value="business_config">Business</TabsTrigger>
-          <TabsTrigger value="platform_charges">Platforms</TabsTrigger>
-          <TabsTrigger value="profit_rules">Profit Rules</TabsTrigger>
-          <TabsTrigger value="return_rules">Returns</TabsTrigger>
-          <TabsTrigger value="inventory_settings">Inventory</TabsTrigger>
-          <TabsTrigger value="sidebar_config">Menus</TabsTrigger>
-          <TabsTrigger value="preferences">Preferences</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 md:grid-cols-7 mb-6 bg-muted/50 p-1 rounded-2xl h-auto">
+          <TabsTrigger value="business_config" className="rounded-xl px-4 py-2 font-bold text-xs">Business</TabsTrigger>
+          <TabsTrigger value="platform_charges" className="rounded-xl px-4 py-2 font-bold text-xs">Platforms</TabsTrigger>
+          <TabsTrigger value="profit_rules" className="rounded-xl px-4 py-2 font-bold text-xs">Profit Rules</TabsTrigger>
+          <TabsTrigger value="return_rules" className="rounded-xl px-4 py-2 font-bold text-xs">Returns</TabsTrigger>
+          <TabsTrigger value="inventory_settings" className="rounded-xl px-4 py-2 font-bold text-xs">Inventory</TabsTrigger>
+          <TabsTrigger value="sidebar_config" className="rounded-xl px-4 py-2 font-bold text-xs">Menus</TabsTrigger>
+          <TabsTrigger value="preferences" className="rounded-xl px-4 py-2 font-bold text-xs">Preferences</TabsTrigger>
         </TabsList>
         
         <TabsContent value="business_config">
@@ -446,7 +445,6 @@ export default function SettingsPage() {
             render={({ form }) => (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
                 {navItems.map((item) => {
-                  // Skip core items that shouldn't be hidden
                   if (item.href === '/dashboard' || item.href === '/settings' || item.href === '/profile') return null;
                   
                   return (
@@ -490,27 +488,49 @@ export default function SettingsPage() {
                 schema={preferencesSchema}
                 onSave={handleSave}
                 render={({ form }) => (
-                <>
+                <div className="space-y-6">
                     <FormField
                         control={form.control}
                         name="theme"
                         render={({ field }) => (
-                            <FormItem>
-                            <FormLabel>Theme</FormLabel>
-                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                <FormControl>
-                                <SelectTrigger>
-                                    <SelectValue placeholder="Select a theme" />
-                                </SelectTrigger>
-                                </FormControl>
-                                <SelectContent>
-                                    <SelectItem value="light">Light</SelectItem>
-                                    <SelectItem value="dark">Dark</SelectItem>
-                                    <SelectItem value="system">System</SelectItem>
-                                </SelectContent>
-                            </Select>
-                             <FormDescription>
-                                This will change the color scheme of the entire application.
+                            <FormItem className="space-y-3">
+                            <FormLabel className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Appearance Mode</FormLabel>
+                            <FormControl>
+                                <div className="grid grid-cols-3 gap-4">
+                                  {['light', 'dark', 'system'].map((mode) => {
+                                    const Icon = mode === 'light' ? Sun : mode === 'dark' ? Moon : Monitor;
+                                    const isActive = field.value === mode;
+                                    return (
+                                      <button
+                                        key={mode}
+                                        type="button"
+                                        onClick={() => field.onChange(mode)}
+                                        className={cn(
+                                          "flex flex-col items-center gap-3 p-4 rounded-[1.5rem] border-2 transition-all duration-300",
+                                          isActive 
+                                            ? "border-primary bg-primary/5 shadow-lg shadow-primary/10" 
+                                            : "border-transparent bg-muted/30 hover:bg-muted/50"
+                                        )}
+                                      >
+                                        <div className={cn(
+                                          "p-3 rounded-xl",
+                                          isActive ? "bg-primary text-white" : "bg-background text-muted-foreground"
+                                        )}>
+                                          <Icon className="h-5 w-5" />
+                                        </div>
+                                        <span className={cn(
+                                          "text-[10px] font-black uppercase tracking-widest",
+                                          isActive ? "text-primary" : "text-muted-foreground"
+                                        )}>
+                                          {mode}
+                                        </span>
+                                      </button>
+                                    );
+                                  })}
+                                </div>
+                            </FormControl>
+                            <FormDescription>
+                                Theme updates instantly across all connected windows.
                             </FormDescription>
                             <FormMessage />
                             </FormItem>
@@ -520,10 +540,10 @@ export default function SettingsPage() {
                         control={form.control}
                         name="notifications"
                         render={({ field }) => (
-                            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                            <FormItem className="flex flex-row items-center justify-between rounded-2xl border p-5 bg-background/50">
                                 <div className="space-y-0.5">
-                                    <FormLabel>Enable Notifications</FormLabel>
-                                    <FormDescription>Receive toast notifications for important events.</FormDescription>
+                                    <FormLabel className="text-sm font-bold">In-App Notifications</FormLabel>
+                                    <FormDescription className="text-xs">Receive toast alerts for critical system events.</FormDescription>
                                 </div>
                                 <FormControl>
                                     <Switch
@@ -534,7 +554,7 @@ export default function SettingsPage() {
                             </FormItem>
                         )}
                     />
-                </>
+                </div>
                 )}
             />
         </TabsContent>
@@ -586,16 +606,16 @@ function SettingsForm<T extends z.ZodType<any, any>>({
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)}>
-        <Card>
-          <CardHeader>
-            <CardTitle>{title}</CardTitle>
-            <CardDescription>{description}</CardDescription>
+        <Card className="border-0 shadow-xl rounded-[2rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
+          <CardHeader className="p-8 pb-4">
+            <CardTitle className="font-headline text-2xl font-bold tracking-tight">{title}</CardTitle>
+            <CardDescription className="font-medium">{description}</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="p-8 pt-4 space-y-6">
             {render({ form })}
           </CardContent>
-          <CardFooter className="border-t px-6 py-4">
-            <Button type="submit" disabled={isSaving || !form.formState.isDirty}>
+          <CardFooter className="border-t border-border/50 bg-muted/20 px-8 py-6">
+            <Button type="submit" disabled={isSaving || !form.formState.isDirty} className="min-w-[140px] h-11 rounded-xl font-bold">
               {isSaving ? 'Saving...' : 'Save Changes'}
             </Button>
           </CardFooter>

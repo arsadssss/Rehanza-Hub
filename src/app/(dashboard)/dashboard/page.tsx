@@ -249,7 +249,7 @@ export default function DashboardPage() {
             <div className="p-2.5 bg-primary rounded-2xl shadow-xl shadow-primary/20 text-white">
               <LayoutDashboard className="h-6 w-6" />
             </div>
-            <h1 className="text-4xl font-black tracking-tighter font-headline">Rehanza Dashboard</h1>
+            <h1 className="text-4xl font-black tracking-tighter font-headline">Dashboard</h1>
           </div>
           <p className="text-muted-foreground font-medium ml-1">Real-time operational intelligence and execution tasks.</p>
         </div>

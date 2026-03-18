@@ -34,7 +34,6 @@ import {
   Crop,
   Undo2,
   Zap,
-  ChevronDown,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -138,7 +137,7 @@ export function SidebarNav() {
   return (
     <Sidebar 
       collapsible="icon" 
-      className="border-r border-black/5 bg-white/60 backdrop-blur-2xl transition-all duration-300 rounded-r-[24px] shadow-[4px_0_24px_rgba(0,0,0,0.02)]"
+      className="border-r border-black/5 dark:border-white/5 bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl transition-all duration-300 rounded-r-[24px] shadow-[4px_0_24px_rgba(0,0,0,0.02)]"
     >
       <SidebarHeader className="p-4 pt-6">
         <div className={cn(
@@ -151,7 +150,7 @@ export function SidebarNav() {
             </div>
             {!isCollapsed && (
               <div className="flex flex-col">
-                <h1 className="text-lg font-black text-slate-900 tracking-tighter font-headline whitespace-nowrap animate-in fade-in slide-in-from-left-4 duration-500">
+                <h1 className="text-lg font-black text-slate-900 dark:text-white tracking-tighter font-headline whitespace-nowrap animate-in fade-in slide-in-from-left-4 duration-500">
                   Rehanza Hub
                 </h1>
                 <div className="flex items-center gap-1.5">
@@ -184,12 +183,12 @@ export function SidebarNav() {
         )}>
           {accounts.length > 0 ? (
             <div className={cn(
-              "bg-slate-200/50 p-1 rounded-[1.25rem] relative flex border border-white/50 shadow-inner",
+              "bg-slate-200/50 dark:bg-white/5 p-1 rounded-[1.25rem] relative flex border border-white/50 dark:border-white/5 shadow-inner",
               isCollapsed ? "flex-col w-10" : "flex-row w-full h-11 items-center"
             )}>
               {!isCollapsed && activeIndex !== -1 && (
                 <div 
-                  className="absolute h-9 bg-white rounded-xl shadow-sm transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] z-0"
+                  className="absolute h-9 bg-white dark:bg-slate-800 rounded-xl shadow-sm transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] z-0"
                   style={{
                     width: `calc((100% - 8px) / ${accounts.length})`,
                     left: `calc(4px + (${activeIndex} * (100% - 8px) / ${accounts.length}))`
@@ -215,8 +214,8 @@ export function SidebarNav() {
                         ? "w-8 h-8 rounded-xl text-[10px]" 
                         : "flex-1 h-full text-[9px]",
                       isActive 
-                        ? "text-primary" 
-                        : "text-slate-400 hover:text-slate-600"
+                        ? "text-primary dark:text-primary" 
+                        : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
                     )}
                   >
                     {isCollapsed ? acc.name.charAt(0) : acc.name}
@@ -253,7 +252,7 @@ export function SidebarNav() {
                           "h-11 w-full transition-all duration-300 group flex items-center gap-3 px-4 rounded-xl relative overflow-hidden",
                           isActive 
                             ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-[0_8px_20px_rgba(99,102,241,0.3)] font-black" 
-                            : "text-slate-600 hover:bg-indigo-500/5 hover:text-indigo-600 hover:translate-x-1"
+                            : "text-slate-600 dark:text-slate-400 hover:bg-indigo-500/5 hover:text-indigo-600 dark:hover:text-indigo-400 hover:translate-x-1"
                         )}
                       >
                         <Link href={item.href}>
@@ -264,7 +263,7 @@ export function SidebarNav() {
                           
                           <item.icon className={cn(
                             "h-4 w-4 shrink-0 transition-all duration-300",
-                            isActive ? "text-white scale-110" : "text-slate-400 group-hover:text-indigo-600 group-hover:scale-110"
+                            isActive ? "text-white scale-110" : "text-slate-400 group-hover:text-indigo-600 dark:group-hover:text-indigo-400 group-hover:scale-110"
                           )} />
                           
                           {!isCollapsed && (
@@ -288,24 +287,24 @@ export function SidebarNav() {
       </SidebarContent>
 
       <SidebarFooter className="p-4 mt-auto space-y-4">
-        <Separator className="bg-black/5 mx-2" />
+        <Separator className="bg-black/5 dark:bg-white/5 mx-2" />
         
         <div className={cn(
           "flex items-center gap-3 px-2 transition-all duration-300 relative group/profile",
           isCollapsed ? "justify-center" : "justify-start"
         )}>
           <div className="relative">
-            <Avatar className="h-9 w-9 border-2 border-white shadow-lg transition-transform group-hover/profile:scale-105">
+            <Avatar className="h-9 w-9 border-2 border-white dark:border-slate-800 shadow-lg transition-transform group-hover/profile:scale-105">
               <AvatarFallback className="bg-primary/10 text-primary text-[10px] font-black border border-primary/20">
                 {firstLetter}
               </AvatarFallback>
             </Avatar>
-            <div className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white bg-emerald-500" />
+            <div className="absolute -bottom-0.5 -right-0.5 h-2.5 w-2.5 rounded-full border-2 border-white dark:border-slate-800 bg-emerald-500" />
           </div>
           
           {!isCollapsed && (
             <div className="flex flex-col overflow-hidden animate-in fade-in slide-in-from-left-2">
-              <span className="text-[11px] font-black text-slate-900 truncate leading-tight tracking-tight">
+              <span className="text-[11px] font-black text-slate-900 dark:text-white truncate leading-tight tracking-tight">
                 {userName}
               </span>
               <span className="text-[8px] text-slate-500 uppercase font-bold tracking-widest mt-0.5">
