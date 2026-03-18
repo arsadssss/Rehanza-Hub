@@ -17,6 +17,7 @@ import { format, isToday as isDateToday, parseISO } from "date-fns"
 import type { Task } from "../page"
 import { apiFetch } from "@/lib/apiFetch"
 import { useSession } from "next-auth/react"
+import { cn } from "@/lib/utils"
 
 const formSchema = z.object({
   task_name: z.string().min(1, "Task name is required"),
