@@ -25,14 +25,12 @@ import {
   Pencil, 
   Trash2, 
   FileText, 
-  User, 
   Zap,
   Image as ImageIcon,
   ShoppingBag,
   Package,
   Calendar,
   CheckCircle2,
-  MoreHorizontal,
   ChevronRight,
   Clock,
   BarChart3,
@@ -134,12 +132,9 @@ const ProgressCard = ({ title, stats, gradient, loading, icon: Icon }: { title: 
                     "bg-gradient-to-br backdrop-blur-xl",
                     gradient
                 )}>
-                    {/* Visual Content Containment Layer to avoid internal effect clipping */}
                     <div className="absolute inset-0 rounded-[2.5rem] overflow-hidden pointer-events-none">
                         <div className="absolute inset-0 bg-white/5 opacity-50 group-hover:opacity-10 transition-opacity" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
-                        
-                        {/* Large Background Decorative Icon */}
                         <div className="absolute -right-6 -bottom-6 opacity-10 group-hover:opacity-20 group-hover:scale-110 group-hover:-rotate-12 transition-all duration-700 pointer-events-none">
                             <Icon size={140} strokeWidth={1} />
                         </div>
@@ -185,7 +180,6 @@ const ProgressCard = ({ title, stats, gradient, loading, icon: Icon }: { title: 
                                         )}
                                         style={{ width: `${animatedValue}%` }}
                                     >
-                                        {/* Premium Shimmer Sweep Effect */}
                                         <div className="absolute inset-0 w-full h-full bg-gradient-to-r from-transparent via-white/30 to-transparent -translate-x-full animate-shimmer" />
                                     </div>
                                 </div>
@@ -234,7 +228,7 @@ export default function TasksPage() {
     const [viewingTaskNotes, setViewingTaskNotes] = useState<Task | null>(null);
 
     const [page, setPage] = useState(1);
-    const [pageSize] = useState(25);
+    const [pageSize, setPageSize] = useState(25);
     const [totalRows, setTotalRows] = useState(0);
 
     const [groupFilter, setGroupFilter] = useState('all');
@@ -325,7 +319,6 @@ export default function TasksPage() {
 
         const newSteps = { ...task.listing_steps, [step]: val };
         
-        // Optimistic update
         const originalTasks = [...tasks];
         setTasks(prev => prev.map(t => {
             if (t.id === id) {
@@ -405,6 +398,13 @@ export default function TasksPage() {
             updateTaskStatus(task.id, next);
         };
 
+        const listingStepsConfig = [
+          { key: 'imageGeneration', icon: ImageIcon, label: 'Image Generated', activeBg: 'bg-indigo-500', iconColor: 'text-white' },
+          { key: 'meesho', icon: ShoppingBag, label: 'Listed on Meesho', activeBg: 'bg-[#ff4fa3]', iconColor: 'text-white' },
+          { key: 'flipkart', icon: Package, label: 'Listed on Flipkart', activeBg: 'bg-[#ffda00]', iconColor: 'text-[#2874f0]' },
+          { key: 'amazon', icon: Zap, label: 'Listed on Amazon', activeBg: 'bg-slate-100 dark:bg-slate-800', iconColor: 'text-[#ff9900]' }
+        ];
+
         return (
             <TableRow key={task.id} className={cn(
                 "group/row relative transition-all duration-300 border-l-4",
@@ -439,45 +439,33 @@ export default function TasksPage() {
                 <TableCell className="w-[240px]">
                     {task.is_listing_task && task.listing_steps ? (
                         <div className="flex flex-col gap-2">
-                            <div className="flex items-center gap-1.5">
-                                <button 
-                                    onClick={() => updateListingStep(task.id, 'imageGeneration', !task.listing_steps?.imageGeneration)}
-                                    className={cn(
-                                        "px-2 py-1 rounded-md text-[9px] font-black uppercase transition-all flex items-center gap-1 border",
-                                        task.listing_steps.imageGeneration ? "bg-indigo-500 text-white border-indigo-600" : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"
-                                    )}
-                                >
-                                    <ImageIcon className="h-2.5 w-2.5" /> Img
-                                </button>
-                                <button 
-                                    onClick={() => updateListingStep(task.id, 'meesho', !task.listing_steps?.meesho)}
-                                    className={cn(
-                                        "px-2 py-1 rounded-md text-[9px] font-black uppercase transition-all flex items-center gap-1 border",
-                                        task.listing_steps.meesho ? "bg-pink-500 text-white border-pink-600" : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"
-                                    )}
-                                >
-                                    <ShoppingBag className="h-2.5 w-2.5" /> Msh
-                                </button>
-                                <button 
-                                    onClick={() => updateListingStep(task.id, 'flipkart', !task.listing_steps?.flipkart)}
-                                    className={cn(
-                                        "px-2 py-1 rounded-md text-[9px] font-black uppercase transition-all flex items-center gap-1 border",
-                                        task.listing_steps.flipkart ? "bg-amber-500 text-white border-amber-600" : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"
-                                    )}
-                                >
-                                    <Package className="h-2.5 w-2.5" /> Fkt
-                                </button>
-                                <button 
-                                    onClick={() => updateListingStep(task.id, 'amazon', !task.listing_steps?.amazon)}
-                                    className={cn(
-                                        "px-2 py-1 rounded-md text-[9px] font-black uppercase transition-all flex items-center gap-1 border",
-                                        task.listing_steps.amazon ? "bg-slate-800 text-white border-black" : "bg-muted/50 text-muted-foreground border-transparent hover:bg-muted"
-                                    )}
-                                >
-                                    <Zap className="h-2.5 w-2.5" /> Amz
-                                </button>
-                            </div>
                             <div className="flex items-center gap-2">
+                                {listingStepsConfig.map((step) => {
+                                  const isActive = task.listing_steps?.[step.key as keyof typeof task.listing_steps];
+                                  const Icon = step.icon;
+                                  return (
+                                    <Tooltip key={step.key}>
+                                      <TooltipTrigger asChild>
+                                        <button 
+                                          onClick={() => updateListingStep(task.id, step.key as any, !isActive)}
+                                          className={cn(
+                                            "w-8 h-8 flex items-center justify-center rounded-lg transition-all duration-300 hover:-translate-y-0.5 active:scale-95 border border-transparent",
+                                            isActive 
+                                              ? cn(step.activeBg, step.iconColor, "shadow-md scale-105") 
+                                              : "bg-muted/50 text-muted-foreground/40 opacity-40 hover:opacity-100"
+                                          )}
+                                        >
+                                          <Icon className="h-4 w-4" />
+                                        </button>
+                                      </TooltipTrigger>
+                                      <TooltipContent className="text-[10px] font-black uppercase tracking-widest px-3 py-1.5 rounded-lg">
+                                        {step.label}
+                                      </TooltipContent>
+                                    </Tooltip>
+                                  );
+                                })}
+                            </div>
+                            <div className="flex items-center gap-2 pr-4">
                                 <Progress value={progressPercent} className="h-1 flex-1 bg-muted" />
                                 <span className="text-[9px] font-black text-muted-foreground">{Math.round(progressPercent)}%</span>
                             </div>
@@ -591,7 +579,6 @@ export default function TasksPage() {
                 </DialogContent>
             </Dialog>
 
-            {/* Premium Performance Stats Grid */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full relative z-20">
                 <ProgressCard title="Account Completion" stats={progressStats.overall} gradient="from-indigo-600 to-violet-700" icon={BarChart3} loading={loadingProgress} />
                 <ProgressCard title="Fashion Workflow" stats={progressStats.fashion} gradient="from-blue-600 to-cyan-700" icon={ShoppingBag} loading={loadingProgress} />
@@ -639,10 +626,10 @@ export default function TasksPage() {
                     <Tabs defaultValue="today" className="w-full">
                         <TabsList className="bg-muted/50 p-1.5 rounded-2xl mb-8 flex w-fit h-auto">
                             <TabsTrigger value="today" className="rounded-xl px-10 py-3 font-black uppercase tracking-widest text-[10px] flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-lg data-[state=active]:text-primary transition-all">
-                                <Zap className="h-3.5 w-3.5" /> TODAY QUEUE ({todayTasks.length})
+                                <Zap className="h-3.5 w-3.5" /> TODAY TASKS ({todayTasks.length})
                             </TabsTrigger>
                             <TabsTrigger value="all" className="rounded-xl px-10 py-3 font-black uppercase tracking-widest text-[10px] flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:shadow-lg data-[state=active]:text-primary transition-all">
-                                <ChevronRight className="h-3.5 w-3.5" /> FULL BACKLOG ({totalRows})
+                                <ChevronRight className="h-3.5 w-3.5" /> FULL TASKS ({totalRows})
                             </TabsTrigger>
                         </TabsList>
 
