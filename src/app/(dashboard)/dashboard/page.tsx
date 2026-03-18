@@ -1,54 +1,195 @@
+
 "use client";
 
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { formatINR } from '@/lib/format';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Wallet, Archive } from 'lucide-react';
+import { 
+  Wallet, 
+  Archive, 
+  TrendingUp, 
+  TrendingDown, 
+  ShoppingCart, 
+  Undo2, 
+  Zap, 
+  Target, 
+  BarChart3,
+  Activity,
+  AlertCircle,
+  Package,
+  ArrowUpRight,
+  Sparkles,
+  RefreshCw,
+  LayoutDashboard
+} from 'lucide-react';
 import { apiFetch } from '@/lib/apiFetch';
 import { TaskPerformanceCard, type TrackRecordEntry } from '@/components/TaskPerformanceCard';
-import { AnalyticsSection } from '@/components/AnalyticsSection';
-import { SalesKpiSection } from '@/components/SalesKpiSection';
+import { 
+  AreaChart, 
+  Area, 
+  XAxis, 
+  YAxis, 
+  CartesianGrid, 
+  Tooltip, 
+  ResponsiveContainer, 
+  LineChart, 
+  Line,
+  PieChart,
+  Pie,
+  Cell,
+  BarChart,
+  Bar
+} from 'recharts';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Progress } from '@/components/ui/progress';
+import { cn } from '@/lib/utils';
+import Link from 'next/link';
+
+// --- Sub-components for cleaner structure ---
+
+const AnimatedValue = ({ value, prefix = "", suffix = "", isCurrency = false }: { value: number, prefix?: string, suffix?: string, isCurrency?: boolean }) => {
+  const [displayValue, setDisplayValue] = useState(0);
+  
+  useEffect(() => {
+    let start = 0;
+    const end = value;
+    if (start === end) return;
+    const totalDuration = 1000;
+    const increment = end / (totalDuration / 16);
+    
+    const timer = setInterval(() => {
+      start += increment;
+      if (start >= end) {
+        setDisplayValue(end);
+        clearInterval(timer);
+      } else {
+        setDisplayValue(start);
+      }
+    }, 16);
+    return () => clearInterval(timer);
+  }, [value]);
+
+  if (isCurrency) return <span>{formatINR(displayValue)}</span>;
+  return <span>{prefix}{Math.floor(displayValue).toLocaleString()}{suffix}</span>;
+};
+
+const KpiCard = ({ title, value, icon: Icon, description, gradient, loading, isCurrency = false, trend }: any) => (
+  <Card className="relative overflow-hidden border-0 shadow-xl rounded-[2rem] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl group hover:-translate-y-1 transition-all duration-300">
+    <div className={cn("absolute inset-0 opacity-5 group-hover:opacity-10 transition-opacity bg-gradient-to-br", gradient)} />
+    <CardContent className="p-6 relative z-10">
+      <div className="flex justify-between items-start">
+        <div className="space-y-1">
+          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">{title}</p>
+          {loading ? <Skeleton className="h-10 w-24 bg-muted/40" /> : (
+            <h2 className="text-3xl font-black font-headline tracking-tighter">
+              <AnimatedValue value={value} isCurrency={isCurrency} />
+            </h2>
+          )}
+        </div>
+        <div className={cn("p-3 rounded-2xl shadow-lg shadow-black/5", gradient.replace('from-', 'bg-').split(' ')[0], "text-white")}>
+          <Icon className="h-5 w-5" />
+        </div>
+      </div>
+      <div className="mt-4 flex items-center gap-2">
+        {trend && (
+          <div className={cn(
+            "flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold",
+            trend > 0 ? "bg-emerald-500/10 text-emerald-600" : "bg-rose-500/10 text-rose-600"
+          )}>
+            {trend > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+            {Math.abs(trend)}%
+          </div>
+        )}
+        <p className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest">{description}</p>
+      </div>
+    </CardContent>
+  </Card>
+);
+
+const InsightCard = ({ title, subtitle, icon: Icon, colorClass }: any) => (
+  <div className="flex items-center gap-4 p-4 rounded-2xl bg-white/40 dark:bg-white/5 border border-border/50 hover:bg-white transition-all duration-300">
+    <div className={cn("p-2.5 rounded-xl", colorClass)}>
+      <Icon className="h-4 w-4" />
+    </div>
+    <div className="overflow-hidden">
+      <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">{title}</p>
+      <p className="text-xs font-bold truncate">{subtitle}</p>
+    </div>
+  </div>
+);
+
+// --- Main Dashboard Page ---
 
 export default function DashboardPage() {
   const { toast } = useToast();
-  
-  // Account detection state
   const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
-
-  // High level data
-  const [summary, setSummary] = useState<any>(null);
-  const [trackRecord, setTrackRecord] = useState<TrackRecordEntry[]>([]);
-  const [totalDueAllVendors, setTotalDueAllVendors] = useState(0);
-  const [totalInventoryValue, setTotalInventoryValue] = useState(0);
-
-  // Analytics Section Data
-  const [salesData, setSalesData] = useState<any>(null);
-  const [timeRange, setTimeRange] = useState('30d');
-  
-  // Loading states
-  const [loading, setLoading] = useState(true);
-  const [loadingAnalytics, setLoadingAnalytics] = useState(true);
-  const [loadingTrackRecord, setLoadingTrackRecord] = useState(true);
   const [isMounted, setIsMounted] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const fetchAnalytics = useCallback(async (range: string) => {
+  // Data States
+  const [summary, setSummary] = useState<any>(null);
+  const [salesTrend, setSalesTrend] = useState<any[]>([]);
+  const [platformStats, setPlatformStats] = useState<any[]>([]);
+  const [trackRecord, setTrackRecord] = useState<TrackRecordEntry[]>([]);
+  const [taskProgress, setTaskProgress] = useState<any>(null);
+  const [topSellers, setTopSellers] = useState<any[]>([]);
+  const [inventoryValue, setInventoryValue] = useState(0);
+  const [returnStats, setReturnStats] = useState<any>(null);
+
+  const fetchAllData = useCallback(async () => {
     if (!activeAccountId) return;
-    setLoadingAnalytics(true);
+    setLoading(true);
     try {
-      const res = await apiFetch(`/api/analytics?range=${range}`);
-      if (res.ok) {
-        const data = await res.json();
-        setSalesData(data);
-      }
-    } catch (error) {
-      console.error("Dashboard Analytics Fetch Error:", error);
-    } finally {
-      setLoadingAnalytics(false);
-    }
-  }, [activeAccountId]);
+      const [dashRes, analyticsRes, vendorRes, trackRes, taskRes, returnRes] = await Promise.all([
+        apiFetch('/api/dashboard'),
+        apiFetch('/api/analytics?range=30d'),
+        apiFetch('/api/vendors/summary'),
+        apiFetch('/api/tasks/track-record'),
+        apiFetch('/api/tasks?pageSize=1'),
+        apiFetch('/api/analytics/returns')
+      ]);
 
-  // Initial account setup and listening for initialization
+      if (dashRes.ok) {
+        const d = await dashRes.json();
+        setSummary(d.summary);
+        setTopSellers(d.topSellingProducts || []);
+      }
+      
+      if (analyticsRes.ok) {
+        const a = await analyticsRes.json();
+        setSalesTrend(a.salesTrend || []);
+        setPlatformStats(a.platformOrders?.breakdown || []);
+      }
+
+      if (vendorRes.ok) {
+        const v = await vendorRes.json();
+        setInventoryValue(v.totalInventoryValue || 0);
+      }
+
+      if (trackRes.ok) {
+        const t = await trackRes.json();
+        setTrackRecord(t.data || []);
+      }
+
+      if (taskRes.ok) {
+        const tr = await taskRes.json();
+        setTaskProgress(tr.progress);
+      }
+
+      if (returnRes.ok) {
+        const rs = await returnRes.json();
+        setReturnStats(rs);
+      }
+
+    } catch (error: any) {
+      toast({ variant: 'destructive', title: 'Intelligence Offline', description: error.message });
+    } finally {
+      setLoading(false);
+    }
+  }, [activeAccountId, toast]);
+
   useEffect(() => {
     setIsMounted(true);
     const id = sessionStorage.getItem("active_account");
@@ -64,94 +205,315 @@ export default function DashboardPage() {
   }, []);
 
   useEffect(() => {
-    if (!activeAccountId) return;
+    if (activeAccountId) fetchAllData();
+  }, [activeAccountId, fetchAllData]);
 
-    async function fetchDashboardData() {
-      setLoading(true);
-      setLoadingTrackRecord(true);
-      try {
-        const [dashRes, vendorRes, trackRes] = await Promise.all([
-          apiFetch('/api/dashboard'),
-          apiFetch('/api/vendors/summary'),
-          apiFetch('/api/tasks/track-record'),
-        ]);
+  const platformColors: Record<string, string> = {
+    'Meesho': '#FF4FA3',
+    'Flipkart': '#FFC107',
+    'Amazon': '#FF9900'
+  };
 
-        if (dashRes.ok) {
-          const data = await dashRes.json();
-          setSummary(data.summary);
-        }
-
-        if (vendorRes.ok) {
-          const vData = await vendorRes.json();
-          setTotalDueAllVendors(vData.totalDueAllVendors);
-          setTotalInventoryValue(vData.totalInventoryValue);
-        }
-
-        if (trackRes.ok) {
-          const tData = await trackRes.json();
-          setTrackRecord(tData.data || []);
-        }
-      } catch (error: any) {
-        toast({ variant: 'destructive', title: 'Error', description: error.message });
-      } finally {
-        setLoading(false);
-        setLoadingTrackRecord(false);
-      }
-    }
-
-    fetchDashboardData();
-    fetchAnalytics(timeRange);
-  }, [toast, fetchAnalytics, timeRange, activeAccountId]);
+  if (!isMounted) return null;
 
   return (
-    <div className="p-6 md:p-8 space-y-8 bg-gray-50/50 dark:bg-black/50">
-      {/* 1. Sales Intelligence KPI Section */}
-      <SalesKpiSection 
-        totalUnits={summary?.total_units || 0}
-        grossRevenue={summary?.gross_revenue || 0}
-        netProfit={summary?.net_profit || 0}
-        returnRate={summary?.return_rate || 0}
-        loading={loading}
-      />
-
-      {/* 4. Analytics Section (Trends + Platform Distribution) */}
-      <AnalyticsSection 
-        salesTrendRaw={salesData?.salesTrend || []}
-        platformBreakdownRaw={salesData?.platformOrders?.breakdown || []}
-        totalPlatformOrders={salesData?.platformOrders?.totalOrders || 0}
-        timeRange={timeRange}
-        onTimeRangeChange={setTimeRange}
-        loading={loadingAnalytics}
-      />
+    <div className="p-6 md:p-10 space-y-10 bg-gray-50/50 dark:bg-black/50 min-h-screen font-body">
       
-      {/* 5. Task Performance section */}
-      <TaskPerformanceCard data={trackRecord} loading={loadingTrackRecord} title="Task Performance" />
-      
-      {/* 2. Vendor + Inventory summary cards (Due, Investment) */}
-      <div className="grid gap-6 md:grid-cols-2">
-        <div className="bg-gradient-to-r from-red-500 to-orange-600 text-white rounded-2xl p-6 shadow-lg">
-          {loading ? <Skeleton className="h-20 w-full bg-white/20" /> : (
-            <div className="flex items-center justify-between">
-              <div>
-                  <h3 className="text-sm font-medium">Total Due Across Vendors</h3>
-                  <div className="text-4xl font-bold font-headline mt-1">{isMounted ? formatINR(totalDueAllVendors) : '...'}</div>
-              </div>
-              <Wallet className="h-8 w-8 text-white/80" />
+      {/* 1. Page Header & Global Controls */}
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
+        <div>
+          <div className="flex items-center gap-3 mb-1">
+            <div className="p-2.5 bg-primary rounded-2xl shadow-xl shadow-primary/20 text-white">
+              <LayoutDashboard className="h-6 w-6" />
             </div>
-          )}
+            <h1 className="text-4xl font-black tracking-tighter font-headline">Command Center</h1>
+          </div>
+          <p className="text-muted-foreground font-medium ml-1">Real-time operational intelligence and execution backlog.</p>
         </div>
-        <div className="bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-2xl p-6 shadow-lg">
-          {loading ? <Skeleton className="h-20 w-full bg-white/20" /> : (
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="text-sm font-medium">Total Inventory Purchase Value</h3>
-                <div className="text-4xl font-bold font-headline mt-1">{isMounted ? formatINR(totalInventoryValue) : '...'}</div>
-              </div>
-              <Archive className="h-8 w-8 text-white/80" />
-            </div>
-          )}
+        <div className="flex gap-3">
+          <Badge variant="outline" className="h-11 px-4 rounded-xl bg-white/50 backdrop-blur-sm border-border/50 font-bold text-xs uppercase tracking-widest flex items-center gap-2">
+            <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+            Live Sync: Online
+          </Badge>
+          <Button onClick={fetchAllData} variant="outline" size="icon" className="h-11 w-11 rounded-xl bg-white/50 backdrop-blur-sm border-border/50 hover:bg-white transition-all">
+            <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
+          </Button>
         </div>
       </div>
+
+      {/* 2. Top KPI Layer */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6">
+        <KpiCard 
+          title="Revenue" 
+          value={summary?.gross_revenue || 0} 
+          icon={ShoppingCart} 
+          description="30D Performance" 
+          gradient="from-indigo-600 to-violet-700" 
+          loading={loading} 
+          isCurrency 
+          trend={12}
+        />
+        <KpiCard 
+          title="Return Rate" 
+          value={summary?.return_rate || 0} 
+          icon={Undo2} 
+          description="Operational Loss" 
+          gradient="from-rose-500 to-red-600" 
+          loading={loading} 
+          suffix="%"
+          trend={-2}
+        />
+        <KpiCard 
+          title="Return Units" 
+          value={returnStats?.summary?.total_returns || 0} 
+          icon={Archive} 
+          description="Total Reversed" 
+          gradient="from-amber-500 to-orange-600" 
+          loading={loading} 
+        />
+        <KpiCard 
+          title="Active Tasks" 
+          value={(taskProgress?.overall?.total || 0) - (taskProgress?.overall?.completed || 0)} 
+          icon={Zap} 
+          description="Pending Execution" 
+          gradient="from-blue-600 to-cyan-700" 
+          loading={loading} 
+        />
+        <KpiCard 
+          title="Net Profit" 
+          value={summary?.net_profit || 0} 
+          icon={Target} 
+          description="Post-Cost Ledger" 
+          gradient="from-emerald-500 to-teal-600" 
+          loading={loading} 
+          isCurrency
+          trend={5}
+        />
+        <KpiCard 
+          title="Inventory Value" 
+          value={inventoryValue} 
+          icon={Package} 
+          description="Capital Invested" 
+          gradient="from-slate-700 to-slate-900" 
+          loading={loading} 
+          isCurrency
+        />
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        {/* 3. Performance Charts (8 columns) */}
+        <div className="lg:col-span-8 space-y-8">
+          
+          <Card className="border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
+            <CardHeader className="flex flex-row items-center justify-between p-8 pb-0">
+              <div>
+                <CardTitle className="font-headline text-2xl font-black tracking-tight">Growth Analytics</CardTitle>
+                <CardDescription className="text-xs font-bold uppercase tracking-widest text-muted-foreground/60">Revenue and order volume trends</CardDescription>
+              </div>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <div className="h-3 w-3 rounded-full bg-primary" />
+                  <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Orders</span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="h-3 w-3 rounded-full bg-emerald-500" />
+                  <span className="text-[10px] font-black uppercase tracking-widest opacity-60">Revenue</span>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="p-8">
+              <div className="h-[350px] w-full mt-4">
+                {loading ? <Skeleton className="h-full w-full rounded-3xl" /> : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <AreaChart data={salesTrend}>
+                      <defs>
+                        <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#6366f1" stopOpacity={0.3}/>
+                          <stop offset="95%" stopColor="#6366f1" stopOpacity={0}/>
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
+                      <XAxis 
+                        dataKey="date" 
+                        tick={{ fontSize: 10, fill: 'gray', fontWeight: 700 }} 
+                        axisLine={false}
+                        tickLine={false}
+                        tickFormatter={(val) => new Date(val).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}
+                      />
+                      <YAxis tick={{ fontSize: 10, fill: 'gray', fontWeight: 700 }} axisLine={false} tickLine={false} />
+                      <Tooltip 
+                        contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 20px 50px rgba(0,0,0,0.1)', backdropFilter: 'blur(10px)', backgroundColor: 'rgba(255,255,255,0.8)' }}
+                      />
+                      <Area type="monotone" dataKey="revenue" stroke="#6366f1" strokeWidth={4} fillOpacity={1} fill="url(#colorRev)" />
+                      <Line type="monotone" dataKey="orders" stroke="#10b981" strokeWidth={3} dot={{ r: 4, fill: '#10b981', strokeWidth: 0 }} />
+                    </AreaChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* 4. Task Overview Snapshot */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <Card className="border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
+              <CardHeader className="p-8">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-blue-500/10 rounded-xl text-blue-600">
+                    <Activity className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <CardTitle className="font-headline text-xl font-bold">Execution Health</CardTitle>
+                    <CardDescription className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Real-time workflow progress</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="px-8 pb-8 space-y-6">
+                <div className="space-y-2">
+                  <div className="flex justify-between items-end">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Fashion Workflow</span>
+                    <span className="text-sm font-black">{taskProgress?.fashion?.percentage.toFixed(0)}%</span>
+                  </div>
+                  <Progress value={taskProgress?.fashion?.percentage} className="h-2 bg-blue-500/10" />
+                </div>
+                <div className="space-y-2">
+                  <div className="flex justify-between items-end">
+                    <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Cosmetics Workflow</span>
+                    <span className="text-sm font-black">{taskProgress?.cosmetics?.percentage.toFixed(0)}%</span>
+                  </div>
+                  <Progress value={taskProgress?.cosmetics?.percentage} className="h-2 bg-pink-500/10" />
+                </div>
+                <Button asChild variant="outline" className="w-full h-11 rounded-xl font-bold mt-2">
+                  <Link href="/tasks">Open Task Engine <ArrowUpRight className="ml-2 h-4 w-4" /></Link>
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card className="border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
+              <CardHeader className="p-8">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 bg-emerald-500/10 rounded-xl text-emerald-600">
+                    <Sparkles className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <CardTitle className="font-headline text-xl font-bold">Marketplace Power</CardTitle>
+                    <CardDescription className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Sales distribution by channel</CardDescription>
+                  </div>
+                </div>
+              </CardHeader>
+              <CardContent className="px-8 pb-8 flex items-center justify-between">
+                <div className="h-[140px] w-[140px]">
+                  {loading ? <Skeleton className="h-full w-full rounded-full" /> : (
+                    <ResponsiveContainer width="100%" height="100%">
+                      <PieChart>
+                        <Pie
+                          data={platformStats}
+                          innerRadius={45}
+                          outerRadius={65}
+                          paddingAngle={5}
+                          dataKey="orders"
+                        >
+                          {platformStats.map((entry, index) => (
+                            <Cell key={`cell-${index}`} fill={platformColors[entry.platform] || '#8884d8'} stroke="none" />
+                          ))}
+                        </Pie>
+                      </PieChart>
+                    </ResponsiveContainer>
+                  )}
+                </div>
+                <div className="space-y-2 flex-1 ml-8">
+                  {platformStats.map((p) => (
+                    <div key={p.platform} className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-2 rounded-full" style={{ backgroundColor: platformColors[p.platform] }} />
+                        <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{p.platform}</span>
+                      </div>
+                      <span className="text-xs font-black">{p.orders}</span>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+        </div>
+
+        {/* 5. Insight & Snapshots (4 columns) */}
+        <div className="lg:col-span-4 space-y-8">
+          
+          {/* Smart Insights Panel */}
+          <Card className="border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-gradient-to-br from-primary to-indigo-900 text-white">
+            <CardHeader className="p-8">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-white/10 rounded-xl">
+                  <BarChart3 className="h-5 w-5" />
+                </div>
+                <div>
+                  <CardTitle className="font-headline text-xl font-bold">Smart Insights</CardTitle>
+                  <CardDescription className="text-[10px] uppercase font-bold tracking-widest text-white/40">AI-Assisted Business Logic</CardDescription>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="px-8 pb-8 space-y-4">
+              <InsightCard 
+                title="Operational Risk" 
+                subtitle={summary?.return_rate > 15 ? "High returns detected" : "Return rate within safety limits"} 
+                icon={AlertCircle} 
+                colorClass={summary?.return_rate > 15 ? "bg-rose-500/20 text-rose-200" : "bg-emerald-500/20 text-emerald-200"}
+              />
+              <InsightCard 
+                title="Top Performer" 
+                subtitle={topSellers[0]?.product_name || "Syncing data..."} 
+                icon={TrendingUp} 
+                colorClass="bg-indigo-500/20 text-indigo-200"
+              />
+              <InsightCard 
+                title="Execution Queue" 
+                subtitle={`${(taskProgress?.overall?.total || 0) - (taskProgress?.overall?.completed || 0)} tasks need attention`} 
+                icon={Zap} 
+                colorClass="bg-amber-500/20 text-amber-200"
+              />
+            </CardContent>
+          </Card>
+
+          {/* SKU Snapshot Table */}
+          <Card className="border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
+            <CardHeader className="p-8 border-b border-border/50">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="font-headline text-xl font-bold">Top Sellers</CardTitle>
+                  <CardDescription className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Inventory Velocity Leaders</CardDescription>
+                </div>
+                <Button variant="ghost" size="icon" asChild className="rounded-xl"><Link href="/products"><ArrowUpRight className="h-4 w-4" /></Link></Button>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="divide-y divide-border/50">
+                {loading ? Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="p-6 flex items-center justify-between"><Skeleton className="h-10 w-full bg-muted/40" /></div>
+                )) : topSellers.map((sku) => (
+                  <div key={sku.variant_sku} className="p-6 flex items-center justify-between hover:bg-muted/30 transition-colors">
+                    <div className="overflow-hidden">
+                      <p className="text-xs font-black truncate">{sku.product_name}</p>
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-tighter">{sku.variant_sku}</p>
+                    </div>
+                    <div className="text-right">
+                      <p className="text-sm font-black">{sku.total_units_sold} units</p>
+                      <p className="text-[10px] font-bold text-emerald-600">{formatINR(sku.total_revenue)}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+
+        </div>
+
+      </div>
+
+      {/* 6. Team Performance Integration (Full Width) */}
+      <TaskPerformanceCard data={trackRecord} loading={loading} />
+
     </div>
   );
 }
