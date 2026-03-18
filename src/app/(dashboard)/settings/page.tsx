@@ -44,6 +44,7 @@ import {
 import { apiFetch } from '@/lib/apiFetch';
 import { navItems } from '@/app/(dashboard)/_components/sidebar-nav';
 import { Moon, Sun, Monitor } from 'lucide-react';
+import { cn } from '@/lib/utils';
 
 const businessConfigSchema = z.object({
   businessName: z.string().min(1, 'Business name is required.'),
