@@ -25,7 +25,8 @@ import {
   Calendar,
   CheckCircle2,
   Clock,
-  ShieldCheck
+  ShieldCheck,
+  ChevronRight
 } from 'lucide-react';
 import { apiFetch } from '@/lib/apiFetch';
 import { TaskPerformanceCard, type TrackRecordEntry } from '@/components/TaskPerformanceCard';
@@ -179,6 +180,11 @@ export default function DashboardPage() {
       if (vendorRes.ok) {
         const v = await vendorRes.json();
         setInventoryValue(v.totalInventoryValue || 0);
+      }
+
+      if (trackRes.ok) {
+        const t = await trackRes.json();
+        setTrackRecord(t.data || []);
       }
 
       if (trackRes.ok) {
