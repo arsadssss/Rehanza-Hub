@@ -109,7 +109,7 @@ export async function POST(request: Request) {
         if (!session) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
         const body = await request.json();
-        const { task_name, task_date, task_group, notes, is_today, is_listing_task, listing_steps } = body;
+        const { task_name, task_date, task_group, notes, is_today, is_listing_task, listing_steps, created_by } = body;
         
         if (!task_name || !task_date || !task_group) {
             return NextResponse.json({ message: 'Missing required fields' }, { status: 400 });
@@ -135,7 +135,7 @@ export async function POST(request: Request) {
             )
             VALUES (
                 ${task_name}, ${task_date}, ${task_group}, ${finalStatus}, ${notes}, 
-                ${session.user.id}, NOW(), ${!!is_today}, ${!!is_listing_task}, ${JSON.stringify(finalListingSteps)}
+                ${created_by || session.user.id}, NOW(), ${!!is_today}, ${!!is_listing_task}, ${JSON.stringify(finalListingSteps)}
             )
             RETURNING *;
         `;
@@ -152,7 +152,7 @@ export async function PUT(request: Request) {
         if (!session) return NextResponse.json({ message: "Unauthorized" }, { status: 401 });
 
         const body = await request.json();
-        const { id, task_name, task_date, task_group, status, notes, is_today, is_listing_task, listing_steps, quick_today_toggle } = body;
+        const { id, task_name, task_date, task_group, status, notes, is_today, is_listing_task, listing_steps, quick_today_toggle, created_by } = body;
         
         if (!id) return NextResponse.json({ message: 'ID is required' }, { status: 400 });
 
@@ -183,6 +183,7 @@ export async function PUT(request: Request) {
                 is_today = ${!!is_today},
                 is_listing_task = ${!!is_listing_task},
                 listing_steps = ${JSON.stringify(listing_steps)},
+                created_by = ${created_by},
                 updated_by = ${session.user.id},
                 updated_at = NOW()
             WHERE id = ${id}

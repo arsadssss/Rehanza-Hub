@@ -1,4 +1,3 @@
-
 "use client"
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
@@ -21,6 +20,14 @@ import {
   TooltipTrigger,
 } from "@/components/ui/tooltip";
 import { 
+  DropdownMenu, 
+  DropdownMenuContent, 
+  DropdownMenuItem, 
+  DropdownMenuTrigger,
+  DropdownMenuLabel,
+  DropdownMenuSeparator
+} from "@/components/ui/dropdown-menu";
+import { 
   PlusCircle, 
   Pencil, 
   Trash2, 
@@ -35,7 +42,9 @@ import {
   Clock,
   BarChart3,
   Sparkles,
-  Check
+  Check,
+  ChevronDown,
+  User
 } from 'lucide-react';
 import { AddTaskModal } from './components/add-task-modal';
 import { cn } from '@/lib/utils';
@@ -61,6 +70,7 @@ export type Task = {
   notes: string | null;
   created_by_name?: string;
   updated_by_name?: string;
+  created_by: string;
 };
 
 type ProgressStats = {
@@ -211,6 +221,7 @@ export default function TasksPage() {
     const [isMounted, setIsMounted] = useState(false);
 
     const [tasks, setTasks] = useState<Task[]>([]);
+    const [users, setUsers] = useState<{id: string, name: string}[]>([]);
     const [progressStats, setProgressStats] = useState({
         overall: { total: 0, completed: 0, percentage: 0 },
         fashion: { total: 0, completed: 0, percentage: 0 },
@@ -233,6 +244,13 @@ export default function TasksPage() {
 
     const [groupFilter, setGroupFilter] = useState('all');
     const [statusFilter, setStatusFilter] = useState('all');
+
+    const fetchUsers = useCallback(async () => {
+        try {
+            const res = await apiFetch('/api/users');
+            if (res.ok) setUsers(await res.json());
+        } catch (e) { console.error("Failed to fetch users", e); }
+    }, []);
 
     const fetchTrackRecord = useCallback(async () => {
         setLoadingTrackRecord(true);
@@ -277,8 +295,9 @@ export default function TasksPage() {
 
     useEffect(() => { 
         setIsMounted(true);
+        fetchUsers();
         fetchPageData(); 
-    }, [fetchPageData]);
+    }, [fetchPageData, fetchUsers]);
     
     useEffect(() => { setPage(1); }, [groupFilter, statusFilter]);
     
@@ -339,6 +358,28 @@ export default function TasksPage() {
         } catch (e) {
             setTasks(originalTasks);
             toast({ variant: 'destructive', title: "Update Failed" });
+        }
+    };
+
+    const handleUpdateOwner = async (taskId: string, newOwnerId: string, newOwnerName: string) => {
+        const task = tasks.find(t => t.id === taskId);
+        if (!task || task.created_by === newOwnerId) return;
+
+        const originalTasks = [...tasks];
+        setTasks(prev => prev.map(t => t.id === taskId ? { ...t, created_by: newOwnerId, created_by_name: newOwnerName } : t));
+
+        try {
+            const payload = { ...task, created_by: newOwnerId };
+            const res = await apiFetch('/api/tasks', {
+                method: 'PUT',
+                body: JSON.stringify(payload)
+            });
+            if (!res.ok) throw new Error();
+            toast({ title: "Owner Updated", description: `Task reassigned to ${newOwnerName}` });
+            fetchTrackRecord(); // Refresh performance stats
+        } catch (e) {
+            setTasks(originalTasks);
+            toast({ variant: 'destructive', title: "Update Failed", description: "Could not reassign task." });
         }
     };
 
@@ -492,12 +533,44 @@ export default function TasksPage() {
                 </TableCell>
 
                 <TableCell>
-                    <div className="flex items-center gap-2">
-                        <div className="h-7 w-7 rounded-full bg-muted border-2 border-white flex items-center justify-center text-[10px] font-black text-muted-foreground shadow-sm">
-                            {(task.created_by_name || "S").charAt(0).toUpperCase()}
-                        </div>
-                        <span className="text-xs font-bold text-foreground/70">{task.created_by_name || "Ahmad"}</span>
-                    </div>
+                    <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                            <button className="flex items-center gap-2 hover:bg-muted/50 p-1.5 pr-3 rounded-xl transition-all group/owner outline-none border border-transparent hover:border-border/50">
+                                <div className="h-7 w-7 rounded-full bg-gradient-to-br from-indigo-500 to-violet-600 border-2 border-white flex items-center justify-center text-[10px] font-black text-white shadow-sm transition-transform group-hover/owner:scale-110">
+                                    {(task.created_by_name || "S").charAt(0).toUpperCase()}
+                                </div>
+                                <div className="flex flex-col items-start overflow-hidden">
+                                    <span className="text-xs font-bold text-foreground/70 group-hover/owner:text-primary transition-colors truncate max-w-[80px]">
+                                        {task.created_by_name || "System"}
+                                    </span>
+                                    <span className="text-[8px] font-black text-muted-foreground/40 uppercase tracking-[0.1em]">Assignee</span>
+                                </div>
+                                <ChevronDown className="h-3 w-3 text-muted-foreground/30 ml-1 opacity-0 group-hover/owner:opacity-100 transition-opacity" />
+                            </button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="start" className="rounded-2xl w-56 p-2 shadow-2xl border-border/50 backdrop-blur-xl">
+                            <DropdownMenuLabel className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60 px-3 py-2">Change Assignment</DropdownMenuLabel>
+                            <DropdownMenuSeparator className="opacity-50" />
+                            {users.map(u => (
+                                <DropdownMenuItem 
+                                    key={u.id} 
+                                    onClick={() => handleUpdateOwner(task.id, u.id, u.name)}
+                                    className="flex items-center gap-3 py-2.5 px-3 rounded-xl cursor-pointer transition-colors focus:bg-primary/5 group/item"
+                                >
+                                    <div className="h-7 w-7 rounded-lg bg-primary/10 flex items-center justify-center text-[10px] font-black text-primary transition-transform group-focus/item:scale-110">
+                                        {u.name.charAt(0).toUpperCase()}
+                                    </div>
+                                    <span className={cn(
+                                        "text-xs font-bold tracking-tight",
+                                        u.id === task.created_by ? "text-primary" : "text-foreground/70 group-hover/item:text-foreground"
+                                    )}>
+                                        {u.name}
+                                    </span>
+                                    {u.id === task.created_by && <Check className="h-3.5 w-3.5 ml-auto text-primary animate-in zoom-in-50 duration-300" />}
+                                </DropdownMenuItem>
+                            ))}
+                        </DropdownMenuContent>
+                    </DropdownMenu>
                 </TableCell>
 
                 <TableCell className="text-xs font-bold text-muted-foreground/80">
@@ -641,7 +714,7 @@ export default function TasksPage() {
                                             <TableHead className="px-6 font-black text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Task Overview</TableHead>
                                             <TableHead className="font-black text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Workflow Steps</TableHead>
                                             <TableHead className="w-[140px] font-black text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Live Status</TableHead>
-                                            <TableHead className="w-[160px] font-black text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Owner</TableHead>
+                                            <TableHead className="w-[160px] font-black text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Assignee</TableHead>
                                             <TableHead className="w-[100px] font-black text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Deadline</TableHead>
                                             <TableHead className="text-right w-[180px] px-6 font-black text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Actions</TableHead>
                                         </TableRow>
@@ -679,7 +752,7 @@ export default function TasksPage() {
                                             <TableHead className="px-6 font-black text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Task Overview</TableHead>
                                             <TableHead className="font-black text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Workflow Steps</TableHead>
                                             <TableHead className="w-[140px] font-black text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Live Status</TableHead>
-                                            <TableHead className="w-[160px] font-black text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Owner</TableHead>
+                                            <TableHead className="w-[160px] font-black text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Assignee</TableHead>
                                             <TableHead className="w-[100px] font-black text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Deadline</TableHead>
                                             <TableHead className="text-right w-[180px] px-6 font-black text-[10px] uppercase tracking-[0.2em] text-muted-foreground">Actions</TableHead>
                                         </TableRow>
