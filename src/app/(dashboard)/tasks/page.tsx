@@ -1,3 +1,4 @@
+
 "use client"
 
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
@@ -128,11 +129,11 @@ const ProgressCard = ({ title, stats, gradient, loading, icon: Icon }: { title: 
         <Tooltip>
             <TooltipTrigger asChild>
                 <Card className={cn(
-                    "group relative text-white shadow-xl rounded-[2.5rem] border border-white/10 transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl active:scale-[0.98]",
+                    "group relative text-white shadow-xl rounded-[2.5rem] border border-white/10 transition-all duration-500 hover:-translate-y-2 hover:shadow-2xl active:scale-[0.98] hover:z-30",
                     "bg-gradient-to-br backdrop-blur-xl",
                     gradient
                 )}>
-                    {/* Visual Content Containment Layer to avoid tooltip clipping */}
+                    {/* Visual Content Containment Layer to avoid internal effect clipping */}
                     <div className="absolute inset-0 rounded-[2.5rem] overflow-hidden pointer-events-none">
                         <div className="absolute inset-0 bg-white/5 opacity-50 group-hover:opacity-10 transition-opacity" />
                         <div className="absolute inset-0 bg-gradient-to-t from-black/20 to-transparent" />
@@ -203,7 +204,7 @@ const ProgressCard = ({ title, stats, gradient, loading, icon: Icon }: { title: 
                     )}
                 </Card>
             </TooltipTrigger>
-            <TooltipContent className="rounded-2xl border-white/10 bg-slate-900/90 backdrop-blur-xl font-black text-[10px] uppercase tracking-[0.2em] px-5 py-3 shadow-2xl">
+            <TooltipContent className="rounded-2xl border-white/10 bg-slate-900/95 backdrop-blur-xl font-black text-[10px] uppercase tracking-[0.2em] px-5 py-3 shadow-2xl z-[9999]">
                 {stats.completed} OUT OF {stats.total} WORKFLOWS COMPLETE
             </TooltipContent>
         </Tooltip>
@@ -586,13 +587,13 @@ export default function TasksPage() {
             </Dialog>
 
             {/* Premium Performance Stats Grid */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full relative z-20">
                 <ProgressCard title="Account Completion" stats={progressStats.overall} gradient="from-indigo-600 to-violet-700" icon={BarChart3} loading={loadingProgress} />
                 <ProgressCard title="Fashion Workflow" stats={progressStats.fashion} gradient="from-blue-600 to-cyan-700" icon={ShoppingBag} loading={loadingProgress} />
                 <ProgressCard title="Cosmetics Workflow" stats={progressStats.cosmetics} gradient="from-pink-600 to-rose-700" icon={Sparkles} loading={loadingProgress} />
             </div>
 
-            <Card className="border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
+            <Card className="relative z-10 border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
                 <CardHeader className="bg-muted/20 pb-8 border-b border-border/50 px-8 pt-8">
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                         <div>
