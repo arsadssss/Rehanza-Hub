@@ -608,7 +608,7 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Row 2: Top Sellers */}
+        {/* Row 2: Top Sellers - Updated to top 7 */}
         <Card className="md:col-span-12 lg:col-span-4 border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl h-full">
           <CardHeader className="p-8 border-b border-border/50">
             <div className="flex items-center justify-between">
@@ -621,7 +621,7 @@ export default function DashboardPage() {
           </CardHeader>
           <CardContent className="p-0">
             <div className="divide-y divide-border/50">
-              {loading ? Array.from({ length: 5 }).map((_, i) => (
+              {loading ? Array.from({ length: 7 }).map((_, i) => (
                 <div key={i} className="p-6 flex items-center justify-between"><Skeleton className="h-10 w-full bg-muted/40" /></div>
               )) : topSellers.map((sku) => (
                 <div key={sku.variant_sku} className="p-6 flex items-center justify-between hover:bg-muted/30 transition-colors">

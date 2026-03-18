@@ -79,7 +79,7 @@ export async function GET(request: Request) {
         ORDER BY o.order_date DESC, o.created_at DESC 
         LIMIT 5
       `,
-      // Top Selling Products
+      // Top Selling Products - Increased to top 7
       sql`
         SELECT 
           p.product_name,
@@ -92,7 +92,7 @@ export async function GET(request: Request) {
         WHERE o.account_id = ${accountId} AND o.is_deleted = false
         GROUP BY p.product_name, pv.variant_sku
         ORDER BY total_units_sold DESC
-        LIMIT 5
+        LIMIT 7
       `
     ]);
 
