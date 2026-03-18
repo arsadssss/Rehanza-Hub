@@ -26,7 +26,8 @@ import {
   FilterX, 
   Image as ImageIcon,
   CheckCircle2,
-  FolderOpen
+  FolderOpen,
+  Link2
 } from 'lucide-react';
 import { AddImageModal } from './components/add-image-modal';
 import {
@@ -122,13 +123,13 @@ export default function ImageLibraryPage() {
             </div>
             <h1 className="text-4xl font-black tracking-tighter font-headline">Image Library</h1>
           </div>
-          <p className="text-muted-foreground font-medium ml-1 mt-1">Manage and preview cloud-hosted business assets.</p>
+          <p className="text-muted-foreground font-medium ml-1 mt-1">Manage and access cloud-hosted business assets.</p>
         </div>
         <Button 
           onClick={() => setIsAddModalOpen(true)}
           className="rounded-xl h-12 px-8 font-black shadow-xl shadow-primary/20 hover:scale-[1.02] transition-transform"
         >
-          <PlusCircle className="mr-2 h-5 w-5" /> ADD NEW IMAGE
+          <PlusCircle className="mr-2 h-5 w-5" /> ADD NEW LINK
         </Button>
       </div>
 
@@ -168,79 +169,80 @@ export default function ImageLibraryPage() {
       {loading ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {Array.from({ length: 8 }).map((_, i) => (
-            <Skeleton key={i} className="h-[320px] w-full rounded-[2rem]" />
+            <Skeleton key={i} className="h-[180px] w-full rounded-[2rem]" />
           ))}
         </div>
       ) : assets.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
           {assets.map((asset) => (
             <Card key={asset.id} className="group relative border-0 shadow-xl rounded-[2rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl hover:-translate-y-1 transition-all duration-300">
-              <div className="aspect-square relative bg-muted overflow-hidden">
-                <img 
-                  src={asset.image_url} 
-                  alt={asset.title}
-                  className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700"
-                  loading="lazy"
-                  onError={(e) => {
-                    (e.target as HTMLImageElement).src = "https://placehold.co/600x600/6366f1/ffffff?text=Image+Not+Found";
-                  }}
-                />
-                <div className="absolute top-3 left-3">
-                  <Badge className="bg-black/60 backdrop-blur-md border-0 text-[9px] font-black uppercase px-2.5 py-1">
+              <div className="p-6">
+                <div className="flex justify-between items-start mb-4">
+                  <Badge className="bg-primary/10 text-primary border-primary/20 text-[9px] font-black uppercase px-2.5 py-1">
                     {asset.category}
                   </Badge>
-                </div>
-                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
-                  <Button 
-                    size="icon" 
-                    variant="secondary" 
-                    className="h-10 w-10 rounded-xl"
-                    onClick={() => handleCopy(asset.image_url)}
-                    title="Copy direct link"
-                  >
-                    <Copy className="h-4 w-4" />
-                  </Button>
-                  <Button 
-                    size="icon" 
-                    variant="secondary" 
-                    className="h-10 w-10 rounded-xl"
-                    asChild
-                  >
-                    <a href={asset.image_url} target="_blank" rel="noopener noreferrer">
-                      <ExternalLink className="h-4 w-4" />
-                    </a>
-                  </Button>
-                </div>
-              </div>
-              <CardContent className="p-5">
-                <div className="flex justify-between items-start gap-2">
-                  <div className="overflow-hidden">
-                    <h3 className="font-bold text-sm truncate leading-tight">{asset.title}</h3>
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {asset.tags?.map((tag, idx) => (
-                        <span key={idx} className="text-[8px] font-black uppercase text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded-md">
-                          #{tag}
-                        </span>
-                      ))}
-                    </div>
+                  <div className="flex gap-1">
+                    <Button 
+                      size="icon" 
+                      variant="secondary" 
+                      className="h-8 w-8 rounded-xl bg-white dark:bg-slate-800 shadow-sm border border-border/50"
+                      onClick={() => handleCopy(asset.image_url)}
+                      title="Copy direct link"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button 
+                      size="icon" 
+                      variant="secondary" 
+                      className="h-8 w-8 rounded-xl bg-white dark:bg-slate-800 shadow-sm border border-border/50"
+                      asChild
+                    >
+                      <a href={asset.image_url} target="_blank" rel="noopener noreferrer">
+                        <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    </Button>
                   </div>
-                  <Button 
+                </div>
+                
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 bg-muted rounded-lg text-muted-foreground">
+                      <Link2 className="h-4 w-4" />
+                    </div>
+                    <h3 className="font-bold text-sm truncate leading-tight flex-1">{asset.title}</h3>
+                  </div>
+                  
+                  <div className="flex flex-wrap gap-1">
+                    {asset.tags?.map((tag, idx) => (
+                      <span key={idx} className="text-[8px] font-black uppercase text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded-md">
+                        #{tag}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="mt-6 pt-4 border-t border-border/50 flex justify-between items-center">
+                   <div className="flex items-center gap-1.5 opacity-40">
+                      <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                      <span className="text-[9px] font-black uppercase tracking-widest">Indexed</span>
+                   </div>
+                   <Button 
                     variant="ghost" 
                     size="icon" 
-                    className="h-8 w-8 text-rose-500 hover:bg-rose-500/10 shrink-0"
+                    className="h-8 w-8 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/30 rounded-lg transition-colors"
                     onClick={() => setAssetToDelete(asset)}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
-              </CardContent>
+              </div>
             </Card>
           ))}
         </div>
       ) : (
         <div className="flex flex-col items-center justify-center py-32 text-center bg-white/40 dark:bg-slate-900/40 backdrop-blur-xl rounded-[2rem] border-2 border-dashed border-border/50">
           <div className="p-8 bg-muted rounded-full mb-6">
-            <ImageIcon className="h-16 w-16 text-muted-foreground opacity-30" />
+            <Link2 className="h-16 w-16 text-muted-foreground opacity-30" />
           </div>
           <h3 className="text-2xl font-black font-headline tracking-tight">Library is Empty</h3>
           <p className="text-muted-foreground mt-2 max-w-xs mx-auto">Start building your media registry by adding your first asset link.</p>
@@ -249,7 +251,7 @@ export default function ImageLibraryPage() {
             variant="outline"
             className="mt-8 rounded-xl border-primary/20 text-primary hover:bg-primary/5 px-8 font-bold"
           >
-            Authorize First Asset
+            Authorize First Link
           </Button>
         </div>
       )}
