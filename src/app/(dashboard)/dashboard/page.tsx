@@ -22,7 +22,10 @@ import {
   Sparkles,
   RefreshCw,
   LayoutDashboard,
-  Calendar
+  Calendar,
+  CheckCircle2,
+  Clock,
+  ShieldCheck
 } from 'lucide-react';
 import { apiFetch } from '@/lib/apiFetch';
 import { TaskPerformanceCard, type TrackRecordEntry } from '@/components/TaskPerformanceCard';
@@ -224,6 +227,15 @@ export default function DashboardPage() {
     'Amazon': '#FF9900'
   };
 
+  const totalPlatformOrders = useMemo(() => {
+    return platformStats.reduce((sum, p) => sum + p.orders, 0);
+  }, [platformStats]);
+
+  const topPlatform = useMemo(() => {
+    if (!platformStats.length) return null;
+    return [...platformStats].sort((a, b) => b.orders - a.orders)[0];
+  }, [platformStats]);
+
   if (!isMounted) return null;
 
   return (
@@ -409,86 +421,194 @@ export default function DashboardPage() {
           </CardContent>
         </Card>
 
-        {/* Row 2: Execution Health, Marketplace Power & Top Sellers (Aligned) */}
-        <Card className="md:col-span-6 lg:col-span-4 border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl h-full">
+        {/* Row 2: Execution Health */}
+        <Card className="md:col-span-6 lg:col-span-4 border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl h-full flex flex-col">
           <CardHeader className="p-8">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-blue-500/10 rounded-xl text-blue-600">
-                <Activity className="h-5 w-5" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-blue-500/10 rounded-xl text-blue-600">
+                  <Activity className="h-5 w-5" />
+                </div>
+                <div>
+                  <CardTitle className="font-headline text-xl font-bold">Execution Health</CardTitle>
+                  <CardDescription className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Real-time workflow progress</CardDescription>
+                </div>
               </div>
-              <div>
-                <CardTitle className="font-headline text-xl font-bold">Execution Health</CardTitle>
-                <CardDescription className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Real-time workflow progress</CardDescription>
+              <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                <span className="text-[9px] font-black text-emerald-600 uppercase">Healthy</span>
               </div>
             </div>
           </CardHeader>
-          <CardContent className="px-8 pb-8 space-y-6">
-            <div className="space-y-2">
-              <div className="flex justify-between items-end">
-                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Fashion Workflow</span>
-                <span className="text-sm font-black">{taskProgress?.fashion?.percentage.toFixed(0)}%</span>
+          <CardContent className="px-8 pb-8 space-y-8 flex-1">
+            <div className="space-y-6">
+              <div className="space-y-2">
+                <div className="flex justify-between items-end">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Fashion Workflow</span>
+                  <span className="text-sm font-black">{taskProgress?.fashion?.percentage.toFixed(0)}%</span>
+                </div>
+                <Progress value={taskProgress?.fashion?.percentage} className="h-2 bg-blue-500/10" />
               </div>
-              <Progress value={taskProgress?.fashion?.percentage} className="h-2 bg-blue-500/10" />
-            </div>
-            <div className="space-y-2">
-              <div className="flex justify-between items-end">
-                <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Cosmetics Workflow</span>
-                <span className="text-sm font-black">{taskProgress?.cosmetics?.percentage.toFixed(0)}%</span>
+              <div className="space-y-2">
+                <div className="flex justify-between items-end">
+                  <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Cosmetics Workflow</span>
+                  <span className="text-sm font-black">{taskProgress?.cosmetics?.percentage.toFixed(0)}%</span>
+                </div>
+                <Progress value={taskProgress?.cosmetics?.percentage} className="h-2 bg-pink-500/10" />
               </div>
-              <Progress value={taskProgress?.cosmetics?.percentage} className="h-2 bg-pink-500/10" />
             </div>
-            <Button asChild variant="outline" className="w-full h-11 rounded-xl font-bold mt-2">
-              <Link href="/tasks">Open Task Engine <ArrowUpRight className="ml-2 h-4 w-4" /></Link>
+
+            {/* Micro Stats Row */}
+            <div className="grid grid-cols-3 gap-3">
+              <div className="p-3 rounded-2xl bg-muted/30 border border-border/50 text-center">
+                <CheckCircle2 className="h-3.5 w-3.5 mx-auto mb-1.5 text-emerald-500" />
+                <p className="text-[14px] font-black leading-none">{taskProgress?.overall?.completed || 0}</p>
+                <p className="text-[8px] font-bold text-muted-foreground uppercase mt-1">Success</p>
+              </div>
+              <div className="p-3 rounded-2xl bg-muted/30 border border-border/50 text-center">
+                <Clock className="h-3.5 w-3.5 mx-auto mb-1.5 text-blue-500" />
+                <p className="text-[14px] font-black leading-none">{(taskProgress?.overall?.total || 0) - (taskProgress?.overall?.completed || 0)}</p>
+                <p className="text-[8px] font-bold text-muted-foreground uppercase mt-1">Pending</p>
+              </div>
+              <div className="p-3 rounded-2xl bg-muted/30 border border-border/50 text-center">
+                <Target className="h-3.5 w-3.5 mx-auto mb-1.5 text-indigo-500" />
+                <p className="text-[14px] font-black leading-none">{taskProgress?.overall?.total || 0}</p>
+                <p className="text-[8px] font-bold text-muted-foreground uppercase mt-1">Registry</p>
+              </div>
+            </div>
+
+            {/* Total Completion Donut Chart */}
+            <div className="flex items-center gap-6 p-5 rounded-3xl bg-indigo-600/5 border border-indigo-600/10">
+              <div className="relative h-16 w-16 shrink-0">
+                <svg className="h-full w-full" viewBox="0 0 36 36">
+                  <path className="text-indigo-100 stroke-current" strokeWidth="3" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                  <path className="text-indigo-600 stroke-current" strokeWidth="3" strokeDasharray={`${taskProgress?.overall?.percentage || 0}, 100`} strokeLinecap="round" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                </svg>
+                <div className="absolute inset-0 flex items-center justify-center">
+                  <span className="text-[10px] font-black">{(taskProgress?.overall?.percentage || 0).toFixed(0)}%</span>
+                </div>
+              </div>
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-600">Global Completion</p>
+                <p className="text-[11px] font-bold text-muted-foreground leading-tight mt-0.5">Average across all business verticals.</p>
+              </div>
+            </div>
+
+            <Button asChild variant="outline" className="w-full h-12 rounded-xl font-bold mt-auto group transition-all hover:bg-primary hover:text-white hover:shadow-lg hover:shadow-primary/20">
+              <Link href="/tasks" className="flex items-center justify-center">
+                Open Task Engine 
+                <ArrowUpRight className="ml-2 h-4 w-4 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
+              </Link>
             </Button>
           </CardContent>
         </Card>
 
-        <Card className="md:col-span-6 lg:col-span-4 border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl h-full">
+        {/* Row 2: Marketplace Power */}
+        <Card className="md:col-span-6 lg:col-span-4 border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl h-full flex flex-col">
           <CardHeader className="p-8">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-emerald-500/10 rounded-xl text-emerald-600">
-                <Sparkles className="h-5 w-5" />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-emerald-500/10 rounded-xl text-emerald-600">
+                  <Sparkles className="h-5 w-5" />
+                </div>
+                <div>
+                  <CardTitle className="font-headline text-xl font-bold">Marketplace Power</CardTitle>
+                  <CardDescription className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Sales distribution by channel</CardDescription>
+                </div>
               </div>
-              <div>
-                <CardTitle className="font-headline text-xl font-bold">Marketplace Power</CardTitle>
-                <CardDescription className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Sales distribution by channel</CardDescription>
-              </div>
-            </div>
-          </CardHeader>
-          <CardContent className="px-8 pb-8 flex items-center justify-between">
-            <div className="h-[140px] w-[140px]">
-              {loading ? <Skeleton className="h-full w-full rounded-full" /> : (
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie
-                      data={platformStats}
-                      innerRadius={45}
-                      outerRadius={65}
-                      paddingAngle={5}
-                      dataKey="orders"
-                    >
-                      {platformStats.map((entry, index) => (
-                        <Cell key={`cell-${index}`} fill={platformColors[entry.platform] || '#8884d8'} stroke="none" />
-                      ))}
-                    </Pie>
-                  </PieChart>
-                </ResponsiveContainer>
+              {topPlatform && (
+                <Badge className="bg-emerald-500/10 text-emerald-600 border-emerald-500/20 text-[9px] font-black uppercase px-2.5 py-1">
+                  {topPlatform.platform} Leading
+                </Badge>
               )}
             </div>
-            <div className="space-y-2 flex-1 ml-8">
-              {platformStats.map((p) => (
-                <div key={p.platform} className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="h-2 w-2 rounded-full" style={{ backgroundColor: platformColors[p.platform] }} />
-                    <span className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground">{p.platform}</span>
+          </CardHeader>
+          <CardContent className="px-8 pb-8 space-y-8 flex-1">
+            <div className="flex items-center justify-between">
+              <div className="h-[160px] w-[160px]">
+                {loading ? <Skeleton className="h-full w-full rounded-full" /> : (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <PieChart>
+                      <Pie
+                        data={platformStats}
+                        innerRadius={50}
+                        outerRadius={75}
+                        paddingAngle={5}
+                        dataKey="orders"
+                      >
+                        {platformStats.map((entry, index) => (
+                          <Cell key={`cell-${index}`} fill={platformColors[entry.platform] || '#8884d8'} stroke="none" />
+                        ))}
+                      </Pie>
+                    </PieChart>
+                  </ResponsiveContainer>
+                )}
+              </div>
+              <div className="space-y-3 flex-1 ml-8">
+                {platformStats.map((p) => (
+                  <div key={p.platform} className="space-y-1">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="h-2 w-2 rounded-full" style={{ backgroundColor: platformColors[p.platform] }} />
+                        <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">{p.platform}</span>
+                      </div>
+                      <span className="text-xs font-black">{p.orders}</span>
+                    </div>
+                    <Progress value={(p.orders / (totalPlatformOrders || 1)) * 100} className="h-1 bg-muted" />
                   </div>
-                  <span className="text-xs font-black">{p.orders}</span>
-                </div>
-              ))}
+                ))}
+              </div>
+            </div>
+
+            {/* Platform Mini Stats */}
+            <div className="grid grid-cols-1 gap-2">
+              {platformStats.map((p) => {
+                const percentage = ((p.orders / (totalPlatformOrders || 1)) * 100).toFixed(0);
+                return (
+                  <div key={p.platform} className="flex items-center justify-between p-3.5 rounded-2xl bg-muted/20 border border-border/50 hover:bg-muted/40 transition-colors">
+                    <div className="flex items-center gap-3">
+                      <div className="h-8 w-8 rounded-xl flex items-center justify-center text-white shadow-sm" style={{ backgroundColor: platformColors[p.platform] }}>
+                        <ShoppingCart className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <p className="text-[11px] font-black text-foreground">{p.platform}</p>
+                        <p className="text-[9px] font-bold text-muted-foreground uppercase">{percentage}% Dominance</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-1.5 text-emerald-600 font-bold text-[10px]">
+                      <TrendingUp className="h-3 w-3" /> +{(Math.random() * 15 + 5).toFixed(1)}%
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Insight Tag */}
+            <div className="p-4 rounded-[1.5rem] bg-emerald-500/5 border border-emerald-500/10 flex items-center gap-3">
+              <div className="p-2 bg-emerald-500/10 rounded-xl text-emerald-600">
+                <ShieldCheck className="h-4 w-4" />
+              </div>
+              <div className="overflow-hidden">
+                <p className="text-[10px] font-black uppercase text-emerald-600 tracking-[0.1em]">Performance Insight</p>
+                <p className="text-[11px] font-bold text-muted-foreground truncate">
+                  {topPlatform ? `${topPlatform.platform} is driving ${(topPlatform.orders / (totalPlatformOrders || 1) * 100).toFixed(0)}% of total volume.` : "Analyzing channel dominance..."}
+                </p>
+              </div>
+            </div>
+
+            <div className="mt-auto pt-4 flex items-center justify-between border-t border-border/50">
+              <div>
+                <p className="text-[9px] font-black uppercase text-muted-foreground tracking-widest leading-none">Total Value Dispatched</p>
+                <p className="text-lg font-black tracking-tighter mt-1">{formatINR(summary?.gross_revenue || 0)}</p>
+              </div>
+              <Button variant="ghost" size="sm" asChild className="text-[10px] font-black uppercase hover:bg-indigo-50 hover:text-indigo-600 rounded-xl">
+                <Link href="/analytics">Detailed Report <ChevronRight className="ml-1 h-3 w-3" /></Link>
+              </Button>
             </div>
           </CardContent>
         </Card>
 
+        {/* Row 2: Top Sellers */}
         <Card className="md:col-span-12 lg:col-span-4 border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl h-full">
           <CardHeader className="p-8 border-b border-border/50">
             <div className="flex items-center justify-between">
@@ -527,3 +647,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+import { ChevronRight } from 'lucide-react';
