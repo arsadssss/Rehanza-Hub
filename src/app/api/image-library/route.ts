@@ -12,15 +12,46 @@ export const revalidate = 0;
  */
 
 function convertDriveLink(url: string) {
-  const match = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)\//) || url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
-  if (match && match[1]) {
-    return `https://drive.google.com/uc?export=view&id=${match[1]}`;
+  // Support for files: /file/d/ID/view
+  const fileMatch = url.match(/\/file\/d\/([a-zA-Z0-9_-]+)/);
+  if (fileMatch && fileMatch[1]) {
+    return `https://drive.google.com/uc?export=view&id=${fileMatch[1]}`;
   }
+  
+  // Support for direct IDs in query params: ?id=ID
+  const idMatch = url.match(/[?&]id=([a-zA-Z0-9_-]+)/);
+  if (idMatch && idMatch[1]) {
+    return `https://drive.google.com/uc?export=view&id=${idMatch[1]}`;
+  }
+
+  // Folders and other links are returned as is (they won't preview but won't crash the converter)
   return url;
+}
+
+async function ensureTableExists() {
+  try {
+    await sql`
+      CREATE TABLE IF NOT EXISTS image_links (
+        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+        title TEXT NOT NULL,
+        image_url TEXT NOT NULL,
+        category TEXT NOT NULL,
+        tags JSONB DEFAULT '[]',
+        account_id UUID NOT NULL,
+        created_by UUID NOT NULL,
+        is_deleted BOOLEAN DEFAULT false,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+      );
+    `;
+  } catch (e) {
+    console.error("Database schema initialization failed:", e);
+  }
 }
 
 export async function GET(request: Request) {
   try {
+    await ensureTableExists();
+    
     const { searchParams } = new URL(request.url);
     const accountId = request.headers.get("x-account-id");
     
@@ -66,11 +97,13 @@ export async function GET(request: Request) {
 
 export async function POST(request: Request) {
   try {
+    await ensureTableExists();
+    
     const session = await getServerSession(authOptions);
     const accountId = request.headers.get("x-account-id");
 
-    if (!session || !accountId) {
-      return NextResponse.json({ success: false, message: "Unauthorized" }, { status: 401 });
+    if (!session || !session.user?.id || !accountId) {
+      return NextResponse.json({ success: false, message: "Unauthorized or Account context missing" }, { status: 401 });
     }
 
     const body = await request.json();
@@ -91,7 +124,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, data: result[0] }, { status: 201 });
   } catch (error: any) {
     console.error("Image Library POST Error:", error);
-    return NextResponse.json({ success: false, message: error.message }, { status: 500 });
+    return NextResponse.json({ success: false, message: "Database insertion failed: " + error.message }, { status: 500 });
   }
 }
 
