@@ -16,27 +16,28 @@ const BORDER_COLORS = [
   "#14B8A6"  // Teal
 ];
 
+// Recalculated for 1200x1200px square canvas
 const ICON_POSITIONS = [
-  { top: 80, left: 900 },
-  { top: 100, left: 100 },
-  { top: 1450, left: 900 },
-  { top: 1400, left: 100 },
-  { top: 200, left: 800 },
-  { top: 300, left: 150 },
-  { top: 1200, left: 850 },
-  { top: 1100, left: 200 },
-  { top: 500, left: 850 },
-  { top: 700, left: 150 }
+  { top: 60, left: 1020 },
+  { top: 60, left: 60 },
+  { top: 1020, left: 1020 },
+  { top: 1020, left: 60 },
+  { top: 200, left: 900 },
+  { top: 200, left: 200 },
+  { top: 900, left: 900 },
+  { top: 900, left: 200 },
+  { top: 500, left: 1000 },
+  { top: 500, left: 100 }
 ];
 
 /**
  * generateVariants - Creates 10 branded variations of a product image.
  * 
  * Logic:
- * 1. Normalize base to 1118x1630 (fit: contain, background: white).
+ * 1. Normalize base to 1200x1200px (Square 1:1, fit: contain, background: white).
  * 2. For each variant:
- *    - Add 30px colored border.
- *    - Re-normalize to 1118x1630.
+ *    - Add 33px colored border.
+ *    - Re-normalize to 1200x1200px.
  *    - Optionally add icon at specific position.
  *    - Export as optimized JPEG.
  */
@@ -49,10 +50,10 @@ export async function generateVariants({
   addBorder: boolean;
   addIcon: boolean;
 }) {
-  // 1. Initial Normalization
+  // 1. Initial Normalization to Square
   const normalizedBase = await sharp(buffer)
     .withMetadata(false)
-    .resize(1118, 1630, {
+    .resize(1200, 1200, {
       fit: 'contain',
       background: { r: 255, g: 255, b: 255 },
     })
@@ -61,23 +62,24 @@ export async function generateVariants({
   const variantPromises = BORDER_COLORS.map(async (color, index) => {
     let pipeline = sharp(normalizedBase);
 
-    // 2. Add Border
+    // 2. Add Border (Increased to 33px)
     if (addBorder) {
       pipeline = pipeline
         .extend({
-          top: 30,
-          bottom: 30,
-          left: 30,
-          right: 30,
+          top: 33,
+          bottom: 33,
+          left: 33,
+          right: 33,
           background: color,
         })
-        // Guarantee final dimensions 1118x1630
-        .resize(1118, 1630);
+        // Guarantee final square dimensions
+        .resize(1200, 1200);
     }
 
     // 3. Add Icon Overlay
     if (addIcon) {
       const iconPath = path.join(process.cwd(), 'public', 'overlays', 'emoji1.png');
+      // We check if it exists, otherwise icons won't come in generated images
       if (fs.existsSync(iconPath)) {
         pipeline = pipeline.composite([
           {
@@ -92,7 +94,7 @@ export async function generateVariants({
     // 4. Export
     return await pipeline
       .jpeg({
-        quality: 88,
+        quality: 90,
         mozjpeg: true,
       })
       .toBuffer();

@@ -61,7 +61,7 @@ export default function ImageToolPage() {
       
       toast({
         title: 'Normalization Complete',
-        description: `Generated 10 unique branded variants at 1118x1630.`,
+        description: `Generated 10 unique branded variants at 1200x1200px (Square).`,
       });
     } catch (error: any) {
       toast({
@@ -97,7 +97,7 @@ export default function ImageToolPage() {
           Image Intelligence
         </h1>
         <p className="text-muted-foreground text-sm font-medium">
-          Normalize product photography into 10 unique branded templates instantly.
+          Normalize product photography into 10 unique square branded templates instantly.
         </p>
       </div>
 
@@ -142,7 +142,7 @@ export default function ImageToolPage() {
                 <div className="flex items-center justify-between p-4 rounded-2xl bg-gray-100/50 dark:bg-white/5 border border-transparent">
                   <div className="space-y-0.5">
                     <Label className="text-xs font-bold uppercase tracking-widest">Branded Borders</Label>
-                    <p className="text-[10px] text-muted-foreground">Generate 10 color variants</p>
+                    <p className="text-[10px] text-muted-foreground">33px thick color variants</p>
                   </div>
                   <Switch 
                     checked={options.addBorder} 
@@ -194,7 +194,7 @@ export default function ImageToolPage() {
           <div className="p-4 rounded-2xl border border-amber-500/20 bg-amber-500/5 flex gap-3 text-[11px] leading-relaxed text-amber-700 dark:text-amber-400 font-medium">
             <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
             <p>
-              Processing generates 10 high-resolution variants simultaneously. 
+              Processing generates 10 high-resolution (1200x1200px) variants simultaneously. 
               Images are temporary and only exist in your current session.
             </p>
           </div>
@@ -206,7 +206,7 @@ export default function ImageToolPage() {
             <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
               {variants.map((img, idx) => (
                 <Card key={idx} className="group overflow-hidden border-0 shadow-lg bg-white dark:bg-slate-900 rounded-2xl">
-                  <div className="aspect-[1118/1630] relative bg-muted">
+                  <div className="aspect-square relative bg-muted">
                     <img 
                       src={img} 
                       alt={`Variant ${idx + 1}`}
@@ -236,7 +236,7 @@ export default function ImageToolPage() {
               </div>
               <h3 className="text-xl font-headline font-bold text-foreground">No Variants Generated</h3>
               <p className="text-sm text-muted-foreground max-w-md mt-2">
-                Upload a product image and click generate to see 10 unique branded templates here.
+                Upload a product image and click generate to see 10 unique 1:1 branded templates here.
               </p>
             </Card>
           )}
