@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
-import { Image as ImageIcon, Upload, Download, Sparkles, RefreshCcw, AlertCircle, Grid, Layers } from 'lucide-react';
+import { Image as ImageIcon, Upload, Download, Sparkles, RefreshCcw, AlertCircle, Grid, Layers, CheckCircle2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 export default function ImageToolPage() {
@@ -81,6 +81,21 @@ export default function ImageToolPage() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  const handleDownloadAll = async () => {
+    if (variants.length === 0) return;
+    
+    toast({
+      title: 'Batch Download Started',
+      description: `Initializing downloads for all ${variants.length} variants. Please allow multiple downloads if prompted by your browser.`,
+    });
+
+    for (let i = 0; i < variants.length; i++) {
+      handleDownload(variants[i], i);
+      // Small delay helps avoid browser blocking multiple simultaneous downloads
+      await new Promise(resolve => setTimeout(resolve, 300));
+    }
   };
 
   const reset = () => {
@@ -203,31 +218,53 @@ export default function ImageToolPage() {
         {/* Results Section */}
         <div className="lg:col-span-8">
           {variants.length > 0 ? (
-            <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
-              {variants.map((img, idx) => (
-                <Card key={idx} className="group overflow-hidden border-0 shadow-lg bg-white dark:bg-slate-900 rounded-2xl">
-                  <div className="aspect-square relative bg-muted">
-                    <img 
-                      src={img} 
-                      alt={`Variant ${idx + 1}`}
-                      className="w-full h-full object-cover"
-                    />
-                    <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-4">
-                      <Button 
-                        size="sm" 
-                        variant="secondary"
-                        className="w-full font-black text-[10px] uppercase tracking-tighter"
-                        onClick={() => handleDownload(img, idx)}
-                      >
-                        <Download className="mr-1.5 h-3 w-3" /> Save Jpeg
-                      </Button>
-                    </div>
-                    <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md px-2 py-0.5 rounded-full text-white text-[8px] font-black uppercase">
-                      v.{idx + 1}
-                    </div>
+            <div className="space-y-6">
+              {/* Batch Download Bar */}
+              <div className="flex flex-col sm:flex-row items-center justify-between gap-4 bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl p-5 rounded-[2rem] border border-border/50 shadow-lg">
+                <div className="flex items-center gap-4">
+                  <div className="h-12 w-12 rounded-2xl bg-emerald-500/10 flex items-center justify-center text-emerald-600">
+                    <CheckCircle2 className="h-6 w-6" />
                   </div>
-                </Card>
-              ))}
+                  <div>
+                    <h3 className="font-headline font-bold text-foreground">Generation Success</h3>
+                    <p className="text-[10px] font-black uppercase tracking-widest text-muted-foreground/60">10 unique variants ready for deployment</p>
+                  </div>
+                </div>
+                <Button 
+                  onClick={handleDownloadAll}
+                  className="w-full sm:w-auto h-12 px-8 rounded-xl font-black uppercase tracking-tight bg-indigo-600 hover:bg-indigo-700 text-white shadow-xl shadow-indigo-500/20 transition-all hover:scale-[1.02] active:scale-[0.98]"
+                >
+                  <Download className="mr-2 h-5 w-5" /> Download ALL (ZIP Style)
+                </Button>
+              </div>
+
+              {/* Variants Grid */}
+              <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-4">
+                {variants.map((img, idx) => (
+                  <Card key={idx} className="group overflow-hidden border-0 shadow-lg bg-white dark:bg-slate-900 rounded-2xl">
+                    <div className="aspect-square relative bg-muted">
+                      <img 
+                        src={img} 
+                        alt={`Variant ${idx + 1}`}
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-4">
+                        <Button 
+                          size="sm" 
+                          variant="secondary"
+                          className="w-full font-black text-[10px] uppercase tracking-tighter"
+                          onClick={() => handleDownload(img, idx)}
+                        >
+                          <Download className="mr-1.5 h-3 w-3" /> Save Jpeg
+                        </Button>
+                      </div>
+                      <div className="absolute top-2 right-2 bg-black/60 backdrop-blur-md px-2 py-0.5 rounded-full text-white text-[8px] font-black uppercase">
+                        v.{idx + 1}
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
             </div>
           ) : (
             <Card className="h-full min-h-[600px] shadow-2xl border-0 bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl rounded-[2rem] flex flex-col items-center justify-center text-center p-12">
