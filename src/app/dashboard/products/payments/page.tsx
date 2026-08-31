@@ -46,7 +46,7 @@ import { SummaryStatCard } from '@/components/SummaryStatCard';
 
 export type PlatformPayout = {
   id: string;
-  gst_account: 'Fashion' | 'Cosmetics';
+  gst_account: 'Fashion';
   platform: 'Meesho' | 'Flipkart' | 'Amazon';
   amount: number;
   payout_date: string;
@@ -209,7 +209,6 @@ export default function PaymentsPage() {
               <SelectContent>
                 <SelectItem value="all">All Accounts</SelectItem>
                 <SelectItem value="Fashion">Fashion</SelectItem>
-                <SelectItem value="Cosmetics">Cosmetics</SelectItem>
               </SelectContent>
             </Select>
             <Select value={platformFilter} onValueChange={setPlatformFilter}>

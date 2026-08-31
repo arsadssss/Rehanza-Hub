@@ -450,30 +450,23 @@ export default function DashboardPage() {
                 </div>
                 <Progress value={taskProgress?.fashion?.percentage} className="h-2 bg-blue-500/10" />
               </div>
-              <div className="space-y-2">
-                <div className="flex justify-between items-end">
-                  <span className="text-[10px] font-black uppercase tracking-widest text-muted-foreground">Cosmetics Workflow</span>
-                  <span className="text-sm font-black">{taskProgress?.cosmetics?.percentage.toFixed(0)}%</span>
-                </div>
-                <Progress value={taskProgress?.cosmetics?.percentage} className="h-2 bg-pink-500/10" />
-              </div>
             </div>
 
             {/* Micro Stats Row */}
             <div className="grid grid-cols-3 gap-3">
               <div className="p-3 rounded-2xl bg-muted/30 border border-border/50 text-center">
                 <CheckCircle2 className="h-3.5 w-3.5 mx-auto mb-1.5 text-emerald-500" />
-                <p className="text-[14px] font-black leading-none">{taskProgress?.overall?.completed || 0}</p>
+                <p className="text-[14px] font-black leading-none">{taskProgress?.fashion?.completed || 0}</p>
                 <p className="text-[8px] font-bold text-muted-foreground uppercase mt-1">Success</p>
               </div>
               <div className="p-3 rounded-2xl bg-muted/30 border border-border/50 text-center">
                 <Clock className="h-3.5 w-3.5 mx-auto mb-1.5 text-blue-500" />
-                <p className="text-[14px] font-black leading-none">{(taskProgress?.overall?.total || 0) - (taskProgress?.overall?.completed || 0)}</p>
+                <p className="text-[14px] font-black leading-none">{(taskProgress?.fashion?.total || 0) - (taskProgress?.fashion?.completed || 0)}</p>
                 <p className="text-[8px] font-bold text-muted-foreground uppercase mt-1">Pending</p>
               </div>
               <div className="p-3 rounded-2xl bg-muted/30 border border-border/50 text-center">
                 <Target className="h-3.5 w-3.5 mx-auto mb-1.5 text-indigo-500" />
-                <p className="text-[14px] font-black leading-none">{taskProgress?.overall?.total || 0}</p>
+                <p className="text-[14px] font-black leading-none">{taskProgress?.fashion?.total || 0}</p>
                 <p className="text-[8px] font-bold text-muted-foreground uppercase mt-1">Registry</p>
               </div>
             </div>
@@ -483,15 +476,15 @@ export default function DashboardPage() {
               <div className="relative h-16 w-16 shrink-0">
                 <svg className="h-full w-full" viewBox="0 0 36 36">
                   <path className="text-indigo-100 stroke-current" strokeWidth="3" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
-                  <path className="text-indigo-600 stroke-current" strokeWidth="3" strokeDasharray={`${taskProgress?.overall?.percentage || 0}, 100`} strokeLinecap="round" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
+                  <path className="text-indigo-600 stroke-current" strokeWidth="3" strokeDasharray={`${taskProgress?.fashion?.percentage || 0}, 100`} strokeLinecap="round" fill="none" d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831" />
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
-                  <span className="text-[10px] font-black">{(taskProgress?.overall?.percentage || 0).toFixed(0)}%</span>
+                  <span className="text-[10px] font-black">{(taskProgress?.fashion?.percentage || 0).toFixed(0)}%</span>
                 </div>
               </div>
               <div>
-                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-600">Global Completion</p>
-                <p className="text-[11px] font-bold text-muted-foreground leading-tight mt-0.5">Average across all business verticals.</p>
+                <p className="text-[10px] font-black uppercase tracking-widest text-indigo-600">Fashion Completion</p>
+                <p className="text-[11px] font-bold text-muted-foreground leading-tight mt-0.5">Overall progress for Fashion workflow.</p>
               </div>
             </div>
 

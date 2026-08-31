@@ -34,7 +34,7 @@ import { format } from "date-fns"
 import { apiFetch } from "@/lib/apiFetch"
 
 const formSchema = z.object({
-  gst_account: z.enum(["Fashion", "Cosmetics"], { required_error: "Sub-account type is required" }),
+  gst_account: z.enum(["Fashion"], { required_error: "Sub-account type is required" }),
   platform: z.enum(["Meesho", "Flipkart", "Amazon"], { required_error: "Platform is required" }),
   amount: z.coerce.number().positive("Amount must be a positive number"),
   payout_date: z.string({ required_error: "Payout date is required" }).min(1, "Payout date is required"),
@@ -48,7 +48,7 @@ interface AddPayoutModalProps {
   onClose: () => void
   onSuccess: () => void
   payout?: any | null
-  accountType?: "Fashion" | "Cosmetics"
+  accountType?: "Fashion"
 }
 
 export function AddPayoutModal({ isOpen, onClose, onSuccess, payout, accountType }: AddPayoutModalProps) {
@@ -132,7 +132,6 @@ export function AddPayoutModal({ isOpen, onClose, onSuccess, payout, accountType
                         <FormControl><SelectTrigger><SelectValue placeholder="Type" /></SelectTrigger></FormControl>
                         <SelectContent>
                           <SelectItem value="Fashion">Fashion</SelectItem>
-                          <SelectItem value="Cosmetics">Cosmetics</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />

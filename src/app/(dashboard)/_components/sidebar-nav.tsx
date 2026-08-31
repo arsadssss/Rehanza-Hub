@@ -62,42 +62,18 @@ export const navItems = [
   { href: '/settings', icon: Settings, label: 'Settings', group: 'SYSTEM' },
 ];
 
-type Account = {
-  id: string;
-  name: string;
-};
-
 export function SidebarNav() {
   const pathname = usePathname();
   const { data: session } = useSession();
   const { state, isMobile, toggleSidebar } = useSidebar();
   const isCollapsed = state === 'collapsed';
   
-  const [accounts, setAccounts] = useState<Account[]>([]);
-  const [selectedAccount, setSelectedAccount] = useState<string | null>(null);
   const [sidebarConfig, setSidebarConfig] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     async function fetchInitialData() {
       try {
-        const [accRes, settingsRes] = await Promise.all([
-          apiFetch("/api/accounts"),
-          apiFetch("/api/settings")
-        ]);
-
-        const accJson = await accRes.json();
-        if (accJson.success) {
-          setAccounts(accJson.data);
-          const saved = sessionStorage.getItem("active_account");
-          if (saved) {
-            setSelectedAccount(saved);
-          } else if (accJson.data.length > 0) {
-            const firstAccountId = accJson.data[0].id;
-            setSelectedAccount(firstAccountId);
-            sessionStorage.setItem("active_account", firstAccountId);
-            window.dispatchEvent(new Event('active-account-changed'));
-          }
-        }
+        const settingsRes = await apiFetch("/api/settings");
 
         const settingsJson = await settingsRes.json();
         if (settingsJson.sidebar_config) {
@@ -119,8 +95,6 @@ export function SidebarNav() {
 
   const userName = session?.user?.name ?? 'User';
   const firstLetter = userName.charAt(0).toUpperCase();
-
-  const activeIndex = accounts.findIndex(acc => acc.id === selectedAccount);
 
   const visibleNavItems = navItems.filter(item => {
     if (item.href === '/dashboard' || item.href === '/settings' || item.href === '/profile') return true;
@@ -178,56 +152,21 @@ export function SidebarNav() {
           )}
         </div>
 
-        {/* Account Switcher - Segmented Control */}
+        {/* Dashboard Label - Static Text */}
         <div className={cn(
           "mt-8 px-2 transition-all duration-500",
           isCollapsed ? "flex flex-col items-center gap-2" : "block"
         )}>
-          {accounts.length > 0 ? (
-            <div className={cn(
-              "bg-slate-200/50 dark:bg-white/5 p-1 rounded-[1.25rem] relative flex border border-white/50 dark:border-white/5 shadow-inner",
-              isCollapsed ? "flex-col w-10" : "flex-row w-full h-11 items-center"
-            )}>
-              {!isCollapsed && activeIndex !== -1 && (
-                <div 
-                  className="absolute h-9 bg-white dark:bg-slate-800 rounded-xl shadow-sm transition-all duration-500 ease-[cubic-bezier(0.23,1,0.32,1)] z-0"
-                  style={{
-                    width: `calc((100% - 8px) / ${accounts.length})`,
-                    left: `calc(4px + (${activeIndex} * (100% - 8px) / ${accounts.length}))`
-                  }}
-                />
-              )}
-
-              {accounts.map((acc) => {
-                const isActive = selectedAccount === acc.id;
-                return (
-                  <button
-                    key={acc.id}
-                    onClick={() => {
-                      if (!isActive) {
-                        sessionStorage.setItem("active_account", acc.id);
-                        setSelectedAccount(acc.id);
-                        window.location.reload();
-                      }
-                    }}
-                    className={cn(
-                      "relative z-10 transition-all duration-300 flex items-center justify-center font-black uppercase tracking-widest",
-                      isCollapsed 
-                        ? "w-8 h-8 rounded-xl text-[10px]" 
-                        : "flex-1 h-full text-[9px]",
-                      isActive 
-                        ? "text-primary dark:text-primary" 
-                        : "text-slate-400 hover:text-slate-600 dark:hover:text-slate-300"
-                    )}
-                  >
-                    {isCollapsed ? acc.name.charAt(0) : acc.name}
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            !isCollapsed && <div className="h-11 flex items-center justify-center text-[8px] font-black text-slate-300 uppercase tracking-[0.2em] animate-pulse">Initializing...</div>
-          )}
+          <div className={cn(
+            "flex items-center justify-center",
+            isCollapsed ? "h-10 w-10" : "h-11 w-full"
+          )}>
+            {!isCollapsed && (
+              <span className="text-[9px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest">
+                Dashboard
+              </span>
+            )}
+          </div>
         </div>
       </SidebarHeader>
 

@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils"
 const formSchema = z.object({
   task_name: z.string().min(1, "Task name is required"),
   task_date: z.string({ required_error: "Task date is required" }).min(1, "Task date is required"),
-  task_group: z.enum(["Fashion", "Cosmetics"], { required_error: "Task group is required" }),
+  task_group: z.enum(["Fashion"], { required_error: "Task group is required" }),
   status: z.enum(["Pending", "In Progress", "Completed"], { required_error: "Status is required" }),
   notes: z.string().optional(),
   is_today: z.boolean().default(false),
@@ -202,7 +202,6 @@ export function AddTaskModal({ isOpen, onClose, onSuccess, task }: AddTaskModalP
                             <FormControl><SelectTrigger className="bg-muted/30 border-0 rounded-xl h-11"><SelectValue placeholder="Select Group" /></SelectTrigger></FormControl>
                             <SelectContent className="rounded-xl">
                                 <SelectItem value="Fashion" className="text-xs font-bold uppercase">Fashion</SelectItem>
-                                <SelectItem value="Cosmetics" className="text-xs font-bold uppercase">Cosmetics</SelectItem>
                             </SelectContent>
                             </Select>
                             <FormMessage className="text-[10px] font-bold" />

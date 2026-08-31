@@ -67,7 +67,7 @@ export default function PaymentsPage() {
   const [dateTo, setDateTo] = useState('');
 
   // Account detection state for modal
-  const [activeAccountType, setActiveAccountType] = useState<"Fashion" | "Cosmetics" | undefined>(undefined);
+  const [activeAccountType] = useState<"Fashion">("Fashion");
 
   const fetchData = useCallback(async () => {
     if (!activeAccountId) return;
@@ -119,17 +119,11 @@ export default function PaymentsPage() {
       try {
         const res = await apiFetch("/api/accounts");
         const json = await res.json();
-        if (json.success) {
-          const activeId = sessionStorage.getItem("active_account");
-          const active = json.data.find((a: any) => a.id === activeId);
-          if (active) {
-            const name = active.name.toLowerCase();
-            if (name.includes("fashion")) {
-              setActiveAccountType("Fashion");
-            } else if (name.includes("cosmetics")) {
-              setActiveAccountType("Cosmetics");
-            }
-          }
+        if (json.success && json.data.length > 0) {
+          // Get the first (only) account and set it as active
+          const firstAccountId = json.data[0].id;
+          setActiveAccountId(firstAccountId);
+          sessionStorage.setItem("active_account", firstAccountId);
         }
       } catch (e) {
         console.error("Failed to detect active account info", e);

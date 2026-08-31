@@ -6,21 +6,12 @@ import { authOptions } from "@/lib/auth";
 export const revalidate = 0;
 
 const calculateProgress = (allTasks: any[]) => {
-    const overallTotal = allTasks.length;
-    const overallCompleted = allTasks.filter(t => t.status === 'Completed').length;
-    
     const fashionTasks = allTasks.filter(t => t.task_group === 'Fashion');
     const fashionTotal = fashionTasks.length;
     const fashionCompleted = fashionTasks.filter(t => t.status === 'Completed').length;
 
-    const cosmeticsTasks = allTasks.filter(t => t.task_group === 'Cosmetics');
-    const cosmeticsTotal = cosmeticsTasks.length;
-    const cosmeticsCompleted = cosmeticsTasks.filter(t => t.status === 'Completed').length;
-
     return {
-        overall: { total: overallTotal, completed: overallCompleted, percentage: overallTotal > 0 ? (overallCompleted / overallTotal) * 100 : 0 },
         fashion: { total: fashionTotal, completed: fashionCompleted, percentage: fashionTotal > 0 ? (fashionCompleted / fashionTotal) * 100 : 0 },
-        cosmetics: { total: cosmeticsTotal, completed: cosmeticsCompleted, percentage: cosmeticsTotal > 0 ? (cosmeticsCompleted / cosmeticsTotal) * 100 : 0 },
     };
 };
 
@@ -48,14 +39,10 @@ export async function GET(request: Request) {
   const offset = (page - 1) * pageSize;
 
   try {
-    let whereClauses = ['t.is_deleted = false'];
+    let whereClauses = ['t.is_deleted = false', "t.task_group = 'Fashion'"];
     let params: any[] = [];
     let paramIndex = 1;
 
-    if (group && group !== 'all') {
-        whereClauses.push(`t.task_group = $${paramIndex++}`);
-        params.push(group);
-    }
     if (status && status !== 'all') {
         whereClauses.push(`t.status = $${paramIndex++}`);
         params.push(status);
@@ -76,7 +63,7 @@ export async function GET(request: Request) {
         LIMIT ${pageSize} OFFSET ${offset}
     `;
     const countQuery = `SELECT COUNT(*) FROM tasks t ${whereString}`;
-    const progressQuery = `SELECT status, task_group FROM tasks WHERE is_deleted = false`;
+    const progressQuery = `SELECT status, task_group FROM tasks WHERE is_deleted = false AND task_group = 'Fashion'`;
 
     const [data, countResult, progressResult] = await Promise.all([
         sql(dataQuery, params),

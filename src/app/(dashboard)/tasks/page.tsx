@@ -56,7 +56,7 @@ export type Task = {
   task_name: string;
   status: 'Pending' | 'In Progress' | 'Completed';
   task_date: string;
-  task_group: 'Fashion' | 'Cosmetics';
+  task_group: 'Fashion';
   is_today: boolean;
   is_listing_task: boolean;
   listing_steps: {
@@ -223,9 +223,7 @@ export default function TasksPage() {
     const [tasks, setTasks] = useState<Task[]>([]);
     const [users, setUsers] = useState<{id: string, name: string}[]>([]);
     const [progressStats, setProgressStats] = useState({
-        overall: { total: 0, completed: 0, percentage: 0 },
         fashion: { total: 0, completed: 0, percentage: 0 },
-        cosmetics: { total: 0, completed: 0, percentage: 0 },
     });
     const [trackRecord, setTrackRecord] = useState<TrackRecordEntry[]>([]);
 
@@ -242,7 +240,7 @@ export default function TasksPage() {
     const [pageSize, setPageSize] = useState(25);
     const [totalRows, setTotalRows] = useState(0);
 
-    const [groupFilter, setGroupFilter] = useState('all');
+    const [groupFilter, setGroupFilter] = useState('Fashion');
     const [statusFilter, setStatusFilter] = useState('all');
 
     const fetchUsers = useCallback(async () => {
@@ -652,10 +650,8 @@ export default function TasksPage() {
                 </DialogContent>
             </Dialog>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 w-full relative z-20">
-                <ProgressCard title="Account Completion" stats={progressStats.overall} gradient="from-indigo-600 to-violet-700" icon={BarChart3} loading={loadingProgress} />
+            <div className="grid grid-cols-1 md:grid-cols-1 gap-6 w-full relative z-20">
                 <ProgressCard title="Fashion Workflow" stats={progressStats.fashion} gradient="from-blue-600 to-cyan-700" icon={ShoppingBag} loading={loadingProgress} />
-                <ProgressCard title="Cosmetics Workflow" stats={progressStats.cosmetics} gradient="from-pink-600 to-rose-700" icon={Sparkles} loading={loadingProgress} />
             </div>
 
             <Card className="relative z-10 border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
@@ -678,11 +674,9 @@ export default function TasksPage() {
                 <CardContent className="pt-8 px-8">
                     <div className="flex flex-col md:flex-row gap-4 mb-8">
                         <Select value={groupFilter} onValueChange={setGroupFilter}>
-                            <SelectTrigger className="w-full md:w-[220px] h-11 bg-background rounded-xl border-border/50 font-bold text-xs uppercase tracking-tight"><SelectValue placeholder="All Categories" /></SelectTrigger>
+                            <SelectTrigger className="w-full md:w-[220px] h-11 bg-background rounded-xl border-border/50 font-bold text-xs uppercase tracking-tight"><SelectValue placeholder="Fashion" /></SelectTrigger>
                             <SelectContent className="rounded-xl">
-                                <SelectItem value="all" className="text-xs font-bold">ALL CATEGORIES</SelectItem>
                                 <SelectItem value="Fashion" className="text-xs font-bold">FASHION</SelectItem>
-                                <SelectItem value="Cosmetics" className="text-xs font-bold">COSMETICS</SelectItem>
                             </SelectContent>
                         </Select>
                         <Select value={statusFilter} onValueChange={setStatusFilter}>

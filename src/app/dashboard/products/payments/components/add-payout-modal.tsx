@@ -38,9 +38,6 @@ const formSchema = z.object({
     "Fashion-Meesho",
     "Fashion-Flipkart",
     "Fashion-Amazon",
-    "Cosmetics-Meesho",
-    "Cosmetics-Flipkart",
-    "Cosmetics-Amazon",
   ], { required_error: "An account is required" }),
   amount: z.coerce.number().positive("Amount must be a positive number"),
   payout_date: z.string({ required_error: "Payout date is required" }).min(1, "Payout date is required"),
@@ -153,9 +150,6 @@ export function AddPayoutModal({ isOpen, onClose, onSuccess, payout }: AddPayout
                         <SelectItem value="Fashion-Meesho">Fashion - Meesho</SelectItem>
                         <SelectItem value="Fashion-Flipkart">Fashion - Flipkart</SelectItem>
                         <SelectItem value="Fashion-Amazon">Fashion - Amazon</SelectItem>
-                        <SelectItem value="Cosmetics-Meesho">Cosmetics - Meesho</SelectItem>
-                        <SelectItem value="Cosmetics-Flipkart">Cosmetics - Flipkart</SelectItem>
-                        <SelectItem value="Cosmetics-Amazon">Cosmetics - Amazon</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
