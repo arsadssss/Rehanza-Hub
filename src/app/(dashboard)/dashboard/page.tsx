@@ -1,5 +1,6 @@
 "use client";
 
+import Image from 'next/image';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { formatINR } from '@/lib/format';
@@ -21,7 +22,6 @@ import {
   ArrowUpRight,
   Sparkles,
   RefreshCw,
-  LayoutDashboard,
   Calendar,
   CheckCircle2,
   Clock,
@@ -89,7 +89,7 @@ const AnimatedValue = ({ value, prefix = "", suffix = "", isCurrency = false }: 
 };
 
 const KpiCard = ({ title, value, icon: Icon, description, gradient, loading, isCurrency = false, trend, suffix = "" }: any) => (
-  <Card className="relative overflow-hidden border-0 shadow-xl rounded-[2rem] bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl group hover:-translate-y-1 transition-all duration-300 h-full">
+  <Card className="glass-panel relative h-full overflow-hidden rounded-[1.5rem] border border-white/10 bg-slate-900/40 shadow-[0_20px_50px_rgba(2,6,23,0.35)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:border-indigo-400/30 hover:shadow-[0_20px_60px_rgba(79,70,229,0.18)] group">
     <div className={cn("absolute inset-0 opacity-5 group-hover:opacity-10 transition-opacity bg-gradient-to-br", gradient)} />
     <CardContent className="p-6 relative z-10">
       <div className="flex justify-between items-start">
@@ -240,25 +240,29 @@ export default function DashboardPage() {
   if (!isMounted) return null;
 
   return (
-    <div className="p-6 md:p-10 space-y-10 bg-gray-50/50 dark:bg-black/50 min-h-screen font-body">
+    <div className="relative min-h-screen space-y-10 p-6 md:p-10 font-body">
       
       {/* 1. Page Header & Global Controls */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6">
         <div>
-          <div className="flex items-center gap-3 mb-1">
-            <div className="p-2.5 bg-primary rounded-2xl shadow-xl shadow-primary/20 text-white">
-              <LayoutDashboard className="h-6 w-6" />
-            </div>
-            <h1 className="text-4xl font-black tracking-tighter font-headline">Dashboard</h1>
+          <div className="mb-1 flex items-center gap-3">
+            <Image
+              src="/images/rehanza2.png"
+              alt="Rehanza Hub"
+              width={220}
+              height={56}
+              className="h-10 w-auto object-contain md:h-12"
+            />
+            <h1 className="text-3xl font-black tracking-tighter font-headline text-foreground md:text-4xl leading-none">Dashboard</h1>
           </div>
           <p className="text-muted-foreground font-medium ml-1">Real-time operational intelligence and execution tasks.</p>
         </div>
         <div className="flex gap-3">
-          <Badge variant="outline" className="h-11 px-4 rounded-xl bg-white/50 backdrop-blur-sm border-border/50 font-bold text-xs uppercase tracking-widest flex items-center gap-2">
+          <Badge variant="outline" className="glass-pill h-11 px-4 rounded-xl border border-white/10 bg-slate-900/35 font-bold text-xs uppercase tracking-widest flex items-center gap-2 text-slate-200">
             <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
             Live Sync: Online
           </Badge>
-          <Button onClick={fetchAllData} variant="outline" size="icon" className="h-11 w-11 rounded-xl bg-white/50 backdrop-blur-sm border-border/50 hover:bg-white transition-all">
+          <Button onClick={fetchAllData} variant="outline" size="icon" className="glass-button h-11 w-11 rounded-xl border border-white/10 bg-slate-900/35 text-slate-200 hover:bg-white/5 hover:text-white transition-all">
             <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
           </Button>
         </div>

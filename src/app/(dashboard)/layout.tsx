@@ -17,11 +17,11 @@ export default async function DashboardLayout({
 
   return (
     <SidebarProvider defaultOpen={defaultOpen}>
-      <div className="flex min-h-screen w-full">
+      <div className="dashboard-shell flex min-h-screen w-full">
         <SidebarNav />
-        <main className="flex-1 min-w-0 bg-background flex flex-col relative">
+        <main className="relative flex min-w-0 flex-1 flex-col bg-transparent">
           <MobileHeader />
-          <div className="flex-1 w-full pb-20 md:pb-0">
+          <div className="relative z-10 flex-1 w-full pb-20 md:pb-0">
             {children}
           </div>
           <MobileBottomNav />

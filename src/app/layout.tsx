@@ -8,6 +8,11 @@ import { ThemeProvider } from "@/components/theme-provider"
 export const metadata: Metadata = {
   title: 'Rehanza Hub',
   description: 'CRM for REHANZA Brand',
+  icons: {
+    icon: '/images/favicon.png',
+    shortcut: '/images/favicon.png',
+    apple: '/images/favicon.png',
+  },
 };
 
 export default function RootLayout({

@@ -1,6 +1,7 @@
 
 'use client';
 
+import Image from 'next/image';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import React, { useEffect, useState, useMemo } from 'react';
@@ -113,21 +114,27 @@ export function SidebarNav() {
   return (
     <Sidebar 
       collapsible="icon" 
-      className="border-r border-black/5 dark:border-white/5 bg-white/60 dark:bg-slate-900/60 backdrop-blur-2xl transition-all duration-300 rounded-r-[24px] shadow-[4px_0_24px_rgba(0,0,0,0.02)]"
+      className="glass-panel border-r border-white/10 bg-slate-950/55 backdrop-blur-2xl transition-all duration-300 rounded-r-[24px] shadow-[0_30px_80px_rgba(2,6,23,0.45)]"
     >
       <SidebarHeader className="p-4 pt-6">
         <div className={cn(
           "flex items-center gap-3",
           isCollapsed ? "flex-col justify-center" : "flex-row justify-between px-2"
         )}>
-          <div className="flex items-center gap-3 overflow-hidden">
-            <div className="relative flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl bg-primary shadow-xl shadow-primary/20 group/logo">
-              <Package className="h-6 w-6 text-white group-hover/logo:scale-110 transition-transform" />
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="relative flex h-11 w-11 shrink-0 items-center justify-center group/logo">
+              <Image
+                src="/images/favicon.png"
+                alt="Rehanza Hub"
+                width={44}
+                height={44}
+                className="h-full w-full object-contain transition-transform duration-300 group-hover/logo:scale-105"
+              />
             </div>
             {!isCollapsed && (
-              <div className="flex flex-col">
-                <h1 className="text-lg font-black text-slate-900 dark:text-white tracking-tighter font-headline whitespace-nowrap animate-in fade-in slide-in-from-left-4 duration-500">
-                  Rehanza Hub
+              <div className="flex min-w-0 flex-col">
+                <h1 className="truncate text-lg font-black text-slate-900 dark:text-white tracking-tighter font-headline whitespace-nowrap animate-in fade-in slide-in-from-left-4 duration-500">
+                  Rehanza
                 </h1>
                 <div className="flex items-center gap-1.5">
                   <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-pulse" />
@@ -150,23 +157,6 @@ export function SidebarNav() {
               {isCollapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
             </Button>
           )}
-        </div>
-
-        {/* Dashboard Label - Static Text */}
-        <div className={cn(
-          "mt-8 px-2 transition-all duration-500",
-          isCollapsed ? "flex flex-col items-center gap-2" : "block"
-        )}>
-          <div className={cn(
-            "flex items-center justify-center",
-            isCollapsed ? "h-10 w-10" : "h-11 w-full"
-          )}>
-            {!isCollapsed && (
-              <span className="text-[9px] font-black text-slate-600 dark:text-slate-300 uppercase tracking-widest">
-                Dashboard
-              </span>
-            )}
-          </div>
         </div>
       </SidebarHeader>
 
@@ -192,8 +182,8 @@ export function SidebarNav() {
                         className={cn(
                           "h-11 w-full transition-all duration-300 group flex items-center gap-3 px-4 rounded-xl relative overflow-hidden",
                           isActive 
-                            ? "bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-[0_8px_20px_rgba(99,102,241,0.3)] font-black" 
-                            : "text-slate-600 dark:text-slate-400 hover:bg-indigo-500/5 hover:text-indigo-600 dark:hover:text-indigo-400 hover:translate-x-1"
+                            ? "glass-pill text-white font-black shadow-[0_10px_30px_rgba(99,102,241,0.22)]" 
+                            : "text-slate-300 hover:bg-white/5 hover:text-white hover:border hover:border-white/10 hover:translate-x-1"
                         )}
                       >
                         <Link href={item.href}>
