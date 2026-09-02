@@ -51,7 +51,7 @@ export function VendorFinancialCard({
     <div 
       onClick={onClick}
       className={cn(
-        "group relative bg-white dark:bg-slate-900 rounded-xl p-5 shadow-md hover:shadow-xl transition-all duration-300 border-b-4 cursor-pointer",
+        "group relative glass-panel rounded-[1.5rem] p-5 shadow-[0_18px_45px_rgba(2,6,23,0.18)] hover:shadow-[0_20px_55px_rgba(2,6,23,0.22)] transition-all duration-300 border-b-4 cursor-pointer",
         theme.border,
         "hover:-translate-y-1"
       )}

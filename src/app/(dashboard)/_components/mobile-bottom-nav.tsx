@@ -4,8 +4,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { 
-  LayoutDashboard, 
-  ShoppingCart,
+  LayoutDashboard,
   Package, 
   BarChart2, 
   User 
@@ -14,7 +13,6 @@ import { cn } from '@/lib/utils';
 
 const bottomNavItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Home' },
-  { href: '/orders', icon: ShoppingCart, label: 'Orders' },
   { href: '/products', icon: Package, label: 'Products' },
   { href: '/analytics', icon: BarChart2, label: 'Report' },
   { href: '/profile', icon: User, label: 'Profile' },
@@ -24,7 +22,7 @@ export function MobileBottomNav() {
   const pathname = usePathname();
 
   return (
-    <nav className="glass-panel fixed bottom-0 left-0 right-0 z-50 h-16 border-t border-white/10 bg-slate-950/55 backdrop-blur-xl flex items-center justify-around px-2 md:hidden">
+    <nav className="glass-panel fixed bottom-0 left-0 right-0 z-50 h-16 border-t border-white/10 bg-slate-950/25 backdrop-blur-xl flex items-center justify-around px-2 md:hidden">
       {bottomNavItems.map((item) => {
         const isActive = pathname === item.href || (item.href !== '/dashboard' && pathname.startsWith(item.href));
         

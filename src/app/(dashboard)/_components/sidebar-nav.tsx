@@ -19,7 +19,6 @@ import {
 import {
   LayoutDashboard,
   Package,
-  ShoppingCart,
   Warehouse,
   Building,
   BarChart2,
@@ -29,13 +28,9 @@ import {
   User,
   Tag,
   Wallet,
-  Image as ImageIcon,
   ChevronLeft,
   ChevronRight,
-  Crop,
-  Undo2,
   Zap,
-  Library,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -46,8 +41,6 @@ import { Button } from '@/components/ui/button';
 
 export const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', group: 'MAIN' },
-  { href: '/orders', icon: ShoppingCart, label: 'Orders', group: 'OPERATIONS' },
-  { href: '/returns', icon: Undo2, label: 'Returns', group: 'OPERATIONS' },
   { href: '/tasks', icon: ListTodo, label: 'Tasks', group: 'OPERATIONS' },
   { href: '/products', icon: Package, label: 'Products', group: 'CATALOG' },
   { href: '/inventory', icon: Warehouse, label: 'Inventory', group: 'CATALOG' },
@@ -55,9 +48,6 @@ export const navItems = [
   { href: '/expenses', icon: CreditCard, label: 'Expenses', group: 'FINANCE' },
   { href: '/payments', icon: Wallet, label: 'Payments', group: 'FINANCE' },
   { href: '/wholesale-pricing', icon: Tag, label: 'Wholesale', group: 'FINANCE' },
-  { href: '/image-library', icon: Library, label: 'Image Library', group: 'STUDIO' },
-  { href: '/image-tool', icon: ImageIcon, label: 'Image Tool', group: 'STUDIO' },
-  { href: '/label-crop', icon: Crop, label: 'Label Crop', group: 'STUDIO' },
   { href: '/analytics', icon: BarChart2, label: 'Report', group: 'INSIGHTS' },
   { href: '/profile', icon: User, label: 'Profile', group: 'SYSTEM' },
   { href: '/settings', icon: Settings, label: 'Settings', group: 'SYSTEM' },
@@ -114,7 +104,7 @@ export function SidebarNav() {
   return (
     <Sidebar 
       collapsible="icon" 
-      className="glass-panel border-r border-white/10 bg-slate-950/55 backdrop-blur-2xl transition-all duration-300 rounded-r-[24px] shadow-[0_30px_80px_rgba(2,6,23,0.45)]"
+      className="glass-panel border-r border-white/10 bg-slate-950/35 backdrop-blur-2xl transition-all duration-300 rounded-r-[28px] shadow-[0_24px_80px_rgba(2,6,23,0.22)]"
     >
       <SidebarHeader className="p-4 pt-6">
         <div className={cn(
@@ -133,12 +123,12 @@ export function SidebarNav() {
             </div>
             {!isCollapsed && (
               <div className="flex min-w-0 flex-col">
-                <h1 className="truncate text-lg font-black text-slate-900 dark:text-white tracking-tighter font-headline whitespace-nowrap animate-in fade-in slide-in-from-left-4 duration-500">
+                <h1 className="truncate text-lg font-black text-white tracking-tighter font-headline whitespace-nowrap animate-in fade-in slide-in-from-left-4 duration-500 drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
                   Rehanza
                 </h1>
                 <div className="flex items-center gap-1.5">
                   <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.6)] animate-pulse" />
-                  <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-400">Live Sync</span>
+                  <span className="text-[8px] font-black uppercase tracking-[0.2em] text-slate-300">Live Sync</span>
                 </div>
               </div>
             )}
@@ -165,7 +155,7 @@ export function SidebarNav() {
           {Object.entries(groupedItems).map(([group, items]) => (
             <div key={group} className="space-y-2">
               {!isCollapsed && (
-                <p className="px-4 text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mb-3">
+                <p className="px-4 text-[9px] font-black text-slate-300/70 uppercase tracking-[0.3em] mb-3">
                   {group}
                 </p>
               )}
@@ -180,10 +170,10 @@ export function SidebarNav() {
                         isActive={isActive}
                         tooltip={item.label}
                         className={cn(
-                          "h-11 w-full transition-all duration-300 group flex items-center gap-3 px-4 rounded-xl relative overflow-hidden",
+                          "h-11 w-full transition-all duration-300 group flex items-center gap-3 px-4 rounded-2xl relative overflow-hidden",
                           isActive 
-                            ? "glass-pill text-white font-black shadow-[0_10px_30px_rgba(99,102,241,0.22)]" 
-                            : "text-slate-300 hover:bg-white/5 hover:text-white hover:border hover:border-white/10 hover:translate-x-1"
+                            ? "glass-pill text-white font-black shadow-[0_10px_30px_rgba(99,102,241,0.18)]" 
+                            : "text-slate-200/90 hover:bg-white/6 hover:text-white hover:border hover:border-white/10 hover:translate-x-1"
                         )}
                       >
                         <Link href={item.href}>
@@ -235,10 +225,10 @@ export function SidebarNav() {
           
           {!isCollapsed && (
             <div className="flex flex-col overflow-hidden animate-in fade-in slide-in-from-left-2">
-              <span className="text-[11px] font-black text-slate-900 dark:text-white truncate leading-tight tracking-tight">
+              <span className="text-[11px] font-black text-white truncate leading-tight tracking-tight drop-shadow-[0_1px_2px_rgba(0,0,0,0.3)]">
                 {userName}
               </span>
-              <span className="text-[8px] text-slate-500 uppercase font-bold tracking-widest mt-0.5">
+              <span className="text-[8px] text-slate-300/70 uppercase font-bold tracking-widest mt-0.5">
                 {session?.user?.role || 'Member'}
               </span>
             </div>
@@ -248,11 +238,11 @@ export function SidebarNav() {
         <div className="px-1 logout-wrapper">
           <style jsx global>{`
             .logout-wrapper button {
-              color: #94a3b8;
+              color: #cbd5e1;
             }
             .logout-wrapper button:hover {
               color: #ef4444;
-              background-color: rgba(239, 68, 68, 0.05);
+              background-color: rgba(239, 68, 68, 0.1);
             }
           `}</style>
           <LogoutButton />
@@ -260,7 +250,7 @@ export function SidebarNav() {
         
         {!isCollapsed && (
           <div className="text-center pb-2">
-            <p className="text-[7px] text-slate-300 font-black uppercase tracking-[0.4em]">Engine v2.5.0</p>
+            <p className="text-[7px] text-slate-300/60 font-black uppercase tracking-[0.4em]">Engine v2.5.0</p>
           </div>
         )}
       </SidebarFooter>

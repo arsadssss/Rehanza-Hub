@@ -26,7 +26,7 @@ const KpiCard = ({
     isTrendUp 
 }: KpiCardProps) => {
     return (
-        <div className="group relative bg-white/60 dark:bg-slate-900/40 backdrop-blur-2xl rounded-[2rem] p-6 shadow-[0_10px_40px_rgba(0,0,0,0.04)] border border-white/50 dark:border-white/5 hover:-translate-y-1 transition-all duration-300">
+        <div className="group relative glass-panel rounded-[2rem] p-6 shadow-[0_18px_50px_rgba(2,6,23,0.25)] border border-white/10 hover:-translate-y-1 transition-all duration-300">
             {/* Background decorative elements with dedicated containment */}
             <div className="absolute inset-0 overflow-hidden rounded-[2rem] pointer-events-none">
                 <div className="absolute top-0 right-0 -translate-y-1/2 translate-x-1/2 w-24 h-24 bg-white/5 rounded-full blur-2xl group-hover:bg-white/10 transition-colors duration-500" />

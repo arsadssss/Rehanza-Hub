@@ -67,7 +67,7 @@ const AnimatedNumber = ({ value }: { value: number }) => {
 };
 
 const SummaryMiniCard = ({ title, value, icon: Icon, colorClass, loading }: any) => (
-    <div className="relative group overflow-hidden bg-white/50 dark:bg-slate-900/50 backdrop-blur-md rounded-2xl p-4 border border-border/50 shadow-sm transition-all duration-300 hover:shadow-md hover:-translate-y-1">
+    <div className="relative group overflow-hidden glass-panel-soft rounded-2xl p-4 border border-white/10 shadow-[0_14px_35px_rgba(2,6,23,0.18)] transition-all duration-300 hover:shadow-[0_16px_40px_rgba(2,6,23,0.22)] hover:-translate-y-1">
         <div className={cn("absolute -right-4 -bottom-4 opacity-10 group-hover:scale-110 transition-transform duration-500", colorClass.replace('text-', 'text-'))}>
             <Icon size={80} />
         </div>
@@ -118,7 +118,7 @@ export function TaskPerformanceCard({ data, loading, title = "Task Performance" 
     };
 
     return (
-        <Card className="border-0 shadow-xl rounded-[2.5rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
+        <Card className="border-0 shadow-[0_18px_55px_rgba(2,6,23,0.22)] rounded-[2.5rem] overflow-hidden glass-panel">
             <CardHeader className="p-8 pb-6 border-b border-border/50 bg-muted/20">
                 <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                     <div className="flex items-center gap-4">
@@ -185,7 +185,7 @@ export function TaskPerformanceCard({ data, loading, title = "Task Performance" 
                             return (
                                 <div 
                                     key={user.created_by} 
-                                    className="group relative flex flex-col lg:flex-row items-center gap-6 p-6 rounded-[2rem] border border-border/50 bg-white/40 dark:bg-white/5 hover:bg-white dark:hover:bg-white/10 hover:shadow-xl hover:-translate-y-1 transition-all duration-300"
+                                    className="group relative flex flex-col lg:flex-row items-center gap-6 p-6 rounded-[2rem] border border-white/10 bg-slate-900/15 hover:bg-white/5 hover:shadow-[0_18px_50px_rgba(2,6,23,0.22)] hover:-translate-y-1 transition-all duration-300"
                                 >
                                     {/* User Info */}
                                     <div className="flex items-center gap-4 min-w-[240px]">

@@ -1,7 +1,6 @@
 "use client"
 
 import React from 'react';
-import Link from 'next/link';
 import { format } from 'date-fns';
 import {
   PieChart,
@@ -27,7 +26,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Skeleton } from '@/components/ui/skeleton';
-import { TrendingUp, ArrowUpRight, ChevronRight } from 'lucide-react';
+import { TrendingUp, ChevronRight } from 'lucide-react';
 import { formatINR } from '@/lib/format';
 
 const SalesTooltip = ({ active, payload, label }: any) => {
@@ -116,7 +115,7 @@ export function AnalyticsSection({
 
   return (
     <div className="grid grid-cols-1 lg:grid-cols-5 gap-8">
-        <div className="lg:col-span-3 bg-white/40 dark:bg-black/20 backdrop-blur-xl rounded-[2rem] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-white/30 dark:border-white/10 text-black dark:text-white transition-all duration-500 hover:shadow-indigo-500/5">
+        <div className="lg:col-span-3 glass-panel rounded-[2rem] p-8 shadow-[0_18px_50px_rgba(2,6,23,0.25)] border border-white/10 text-slate-100 transition-all duration-500 hover:shadow-indigo-500/10">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
                 <div>
                     <h3 className="font-black text-2xl tracking-tight font-headline">Revenue Trends</h3>
@@ -187,10 +186,9 @@ export function AnalyticsSection({
             </div>
         </div>
 
-        <div className="lg:col-span-2 bg-white/40 dark:bg-black/20 backdrop-blur-xl rounded-[2rem] p-8 shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-white/30 dark:border-white/10 text-black dark:text-white">
+        <div className="lg:col-span-2 glass-panel rounded-[2rem] p-8 shadow-[0_18px_50px_rgba(2,6,23,0.25)] border border-white/10 text-slate-100">
             <div className="flex justify-between items-center mb-6">
                 <h3 className="font-black text-xl font-headline">Platform Distribution</h3>
-                <Link href="/orders" className="text-xs font-black uppercase tracking-wider opacity-70 flex items-center gap-1 hover:opacity-100 transition-opacity">Full View <ArrowUpRight className="h-3 w-3" /></Link>
             </div>
             {loading ? <Skeleton className="h-[350px] w-full bg-black/5 dark:bg-white/5 mt-4 rounded-3xl" /> : (
                 <div className="flex flex-col items-center gap-4 mt-4">

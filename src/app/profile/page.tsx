@@ -36,7 +36,7 @@ export default async function ProfilePage() {
           </Link>
         </Button>
         
-        <Card className="shadow-2xl border-0 rounded-[2rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
+        <Card className="shadow-[0_18px_55px_rgba(2,6,23,0.22)] border border-white/10 rounded-[2rem] overflow-hidden glass-panel">
           {/* Decorative Header Gradient */}
           <div className="h-32 bg-gradient-to-r from-purple-600 via-indigo-600 to-blue-600"></div>
           

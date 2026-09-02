@@ -151,18 +151,22 @@ export default function DashboardPage() {
   const [topSellers, setTopSellers] = useState<any[]>([]);
   const [inventoryValue, setInventoryValue] = useState(0);
   const [returnStats, setReturnStats] = useState<any>(null);
+  const [netCashFlow, setNetCashFlow] = useState(0);
+  const [totalPaymentReceived, setTotalPaymentReceived] = useState(0);
 
   const fetchAllData = useCallback(async () => {
     if (!activeAccountId) return;
     setLoading(true);
     try {
-      const [dashRes, analyticsRes, vendorRes, trackRes, taskRes, returnRes] = await Promise.all([
+      const [dashRes, analyticsRes, vendorRes, trackRes, taskRes, returnRes, financeRes, paymentsRes] = await Promise.all([
         apiFetch('/api/dashboard'),
         apiFetch(`/api/analytics?range=${range}`),
         apiFetch('/api/vendors/summary'),
         apiFetch('/api/tasks/track-record'),
         apiFetch('/api/tasks?pageSize=1'),
-        apiFetch('/api/analytics/returns')
+        apiFetch('/api/analytics/returns'),
+        apiFetch('/api/finance-summary'),
+        apiFetch('/api/payments?pageSize=1')
       ]);
 
       if (dashRes.ok) {
@@ -195,6 +199,16 @@ export default function DashboardPage() {
       if (returnRes.ok) {
         const rs = await returnRes.json();
         setReturnStats(rs);
+      }
+
+      if (financeRes.ok) {
+        const fs = await financeRes.json();
+        setNetCashFlow(fs.net_cash_flow || 0);
+      }
+
+      if (paymentsRes.ok) {
+        const ps = await paymentsRes.json();
+        setTotalPaymentReceived(ps.totalPaymentReceived || 0);
       }
 
     } catch (error: any) {
@@ -281,22 +295,22 @@ export default function DashboardPage() {
           trend={12}
         />
         <KpiCard 
-          title="Return Rate" 
-          value={summary?.return_rate || 0} 
-          icon={Undo2} 
-          description="Operational Loss" 
-          gradient="from-rose-500 to-red-600" 
+          title="Net Cash Flow" 
+          value={netCashFlow} 
+          icon={TrendingUp} 
+          description="Cash Position" 
+          gradient="from-emerald-500 to-teal-600" 
           loading={loading} 
-          suffix="%"
-          trend={-2}
+          isCurrency 
         />
         <KpiCard 
-          title="Total Orders" 
-          value={summary?.total_orders || 0} 
-          icon={ShoppingBag} 
-          description="Total Dispatched" 
-          gradient="from-amber-500 to-orange-600" 
+          title="Total Payment Received" 
+          value={totalPaymentReceived} 
+          icon={Wallet} 
+          description="Received Payouts" 
+          gradient="from-blue-600 to-cyan-700" 
           loading={loading} 
+          isCurrency 
         />
         <KpiCard 
           title="Active Tasks" 
@@ -330,7 +344,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-start">
         
         {/* Row 1: Growth Analytics & Smart Insights */}
-        <Card className="lg:col-span-8 border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl h-full">
+        <Card className="lg:col-span-8 border border-white/10 shadow-[0_18px_55px_rgba(2,6,23,0.22)] rounded-[2.5rem] overflow-hidden glass-panel h-full">
           <CardHeader className="flex flex-col sm:flex-row items-start sm:items-center justify-between p-8 pb-0 gap-4">
             <div>
               <CardTitle className="font-headline text-2xl font-black tracking-tight">Growth Analytics</CardTitle>
@@ -607,7 +621,7 @@ export default function DashboardPage() {
         </Card>
 
         {/* Row 2: Top Sellers - Updated to top 7 */}
-        <Card className="md:col-span-12 lg:col-span-4 border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl h-full">
+        <Card className="md:col-span-12 lg:col-span-4 border border-white/10 shadow-[0_18px_55px_rgba(2,6,23,0.22)] rounded-[2.5rem] overflow-hidden glass-panel h-full">
           <CardHeader className="p-8 border-b border-border/50">
             <div className="flex items-center justify-between">
               <div>

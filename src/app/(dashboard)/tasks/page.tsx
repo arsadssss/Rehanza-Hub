@@ -654,7 +654,7 @@ export default function TasksPage() {
                 <ProgressCard title="Fashion Workflow" stats={progressStats.fashion} gradient="from-blue-600 to-cyan-700" icon={ShoppingBag} loading={loadingProgress} />
             </div>
 
-            <Card className="relative z-10 border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
+            <Card className="relative z-10 border border-white/10 shadow-[0_18px_55px_rgba(2,6,23,0.22)] rounded-[2.5rem] overflow-hidden glass-panel">
                 <CardHeader className="bg-muted/20 pb-8 border-b border-border/50 px-8 pt-8">
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
                         <div>

@@ -119,7 +119,7 @@ export default function InventoryPage() {
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input 
               placeholder="Search SKU, Product Name..." 
-              className="pl-10 bg-white/50 dark:bg-slate-900/50 backdrop-blur-sm border-border/50 focus-visible:ring-primary/20"
+              className="pl-10 bg-slate-900/20 border border-white/10 focus-visible:ring-primary/40 text-slate-100"
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
             />

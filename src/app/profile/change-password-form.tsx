@@ -61,7 +61,7 @@ export function ChangePasswordForm() {
   };
 
   return (
-    <Card className="shadow-2xl border-0 rounded-[2rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
+    <Card className="shadow-[0_18px_55px_rgba(2,6,23,0.22)] border border-white/10 rounded-[2rem] overflow-hidden glass-panel">
       <CardHeader className="pt-8 px-8">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-primary/10 rounded-xl">
