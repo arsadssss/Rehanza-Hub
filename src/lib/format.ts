@@ -12,3 +12,15 @@ export function formatINR(amount: number) {
     maximumFractionDigits: 0,
   }).format(amount || 0);
 }
+
+/**
+ * Format currency with 2 decimal places for financial reporting
+ */
+export function formatINRWithDecimals(amount: number) {
+  return new Intl.NumberFormat("en-IN", {
+    style: "currency",
+    currency: "INR",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(amount || 0);
+}

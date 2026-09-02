@@ -2,23 +2,18 @@
 "use client";
 
 import React, { createContext, useContext, useEffect, useState } from "react";
-import { apiFetch } from '@/lib/apiFetch';
 
 type Theme = "light" | "dark" | "system";
 
 interface ThemeContextType {
   theme: Theme;
   setTheme: (theme: Theme) => void;
-  backgroundImage: string;
-  setBackgroundImage: (backgroundImage: string) => void;
-  resetBackgroundImage: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setTheme] = useState<Theme>("dark");
-  const [backgroundImage, setBackgroundImageState] = useState<string>("");
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("app-theme") as Theme | null;
@@ -27,30 +22,6 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     } else {
       setTheme("dark");
     }
-
-    const savedBackground = localStorage.getItem("app-background-image") || "";
-    if (savedBackground) {
-      setBackgroundImageState(savedBackground);
-    }
-
-    const syncBackgroundFromSettings = async () => {
-      try {
-        const res = await apiFetch('/api/settings');
-        if (!res.ok) return;
-        const settings = await res.json();
-        const savedSetting = settings?.preferences?.backgroundImage || settings?.backgroundImage || "";
-        if (savedSetting) {
-          setBackgroundImageState(savedSetting);
-          localStorage.setItem("app-background-image", savedSetting);
-        } else if (!savedBackground) {
-          localStorage.removeItem("app-background-image");
-        }
-      } catch (error) {
-        console.error('Failed to sync background image setting:', error);
-      }
-    };
-
-    syncBackgroundFromSettings();
   }, []);
 
   useEffect(() => {
@@ -70,32 +41,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem("app-theme", theme);
   }, [theme]);
 
-  useEffect(() => {
-    const root = window.document.documentElement;
-    const safeBackground = backgroundImage && (backgroundImage.startsWith('data:') || backgroundImage.startsWith('http'))
-      ? backgroundImage
-      : "";
-
-    root.style.setProperty('--app-background-image', safeBackground ? `url("${safeBackground}")` : 'none');
-    root.style.setProperty('--app-background-opacity', safeBackground ? '1' : '0');
-
-    if (safeBackground) {
-      localStorage.setItem('app-background-image', safeBackground);
-    } else {
-      localStorage.removeItem('app-background-image');
-    }
-  }, [backgroundImage]);
-
-  const setBackgroundImage = (value: string) => {
-    setBackgroundImageState(value || "");
-  };
-
-  const resetBackgroundImage = () => {
-    setBackgroundImageState("");
-  };
-
   return (
-    <ThemeContext.Provider value={{ theme, setTheme, backgroundImage, setBackgroundImage, resetBackgroundImage }}>
+    <ThemeContext.Provider value={{ theme, setTheme }}>
       {children}
     </ThemeContext.Provider>
   );

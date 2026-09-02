@@ -75,7 +75,6 @@ const inventorySchema = z.object({
 const preferencesSchema = z.object({
   theme: z.enum(['light', 'dark', 'system']),
   notifications: z.boolean(),
-  backgroundImage: z.string().optional().default(''),
 });
 
 const sidebarConfigSchema = z.record(z.string(), z.boolean());
@@ -100,7 +99,7 @@ const DEFAULT_SETTINGS: Settings = {
     profit_rules: { defaultMargin: 50, packingCost: 15, promoAdsCost: 20 },
     return_rules: { restockableFixedLoss: 45 },
     inventory_settings: { defaultLowStockThreshold: 10 },
-    preferences: { theme: 'system', notifications: true, backgroundImage: '' },
+    preferences: { theme: 'system', notifications: true },
     sidebar_config: navItems.reduce((acc, item) => ({ ...acc, [item.href]: true }), {}),
 };
 
@@ -108,7 +107,7 @@ export default function SettingsPage() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
   const { toast } = useToast();
-  const { setTheme, setBackgroundImage } = useTheme();
+  const { setTheme } = useTheme();
 
   useEffect(() => {
     async function fetchSettings() {
@@ -147,9 +146,8 @@ export default function SettingsPage() {
             throw new Error(errorData.message);
         }
         
-        if (setting_key === 'preferences') {
-          if (setting_value.theme) setTheme(setting_value.theme);
-          setBackgroundImage(setting_value.backgroundImage || '');
+        if (setting_key === 'preferences' && setting_value.theme) {
+          setTheme(setting_value.theme);
         }
 
         toast({
@@ -538,81 +536,6 @@ export default function SettingsPage() {
                             <FormMessage />
                             </FormItem>
                         )}
-                    />
-
-                    <FormField
-                        control={form.control}
-                        name="backgroundImage"
-                        render={({ field }) => {
-                            const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-                                const selected = event.target.files?.[0];
-                                if (!selected) return;
-
-                                const reader = new FileReader();
-                                reader.onload = () => {
-                                    field.onChange(String(reader.result || ''));
-                                };
-                                reader.readAsDataURL(selected);
-                            };
-
-                            return (
-                                <FormItem className="space-y-4 rounded-[1.75rem] border border-border/60 bg-background/40 p-5">
-                                    <div className="flex items-center justify-between gap-4">
-                                        <div>
-                                            <FormLabel className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Background</FormLabel>
-                                            <FormDescription className="text-xs">Global CRM wallpaper applied across the app.</FormDescription>
-                                        </div>
-                                        <div className="flex gap-2">
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                className="rounded-xl"
-                                                onClick={() => field.onChange('')}
-                                            >
-                                                Default
-                                            </Button>
-                                            <Button
-                                                type="button"
-                                                variant="outline"
-                                                size="sm"
-                                                className="rounded-xl"
-                                                onClick={() => {
-                                                    const input = document.getElementById('crm-background-upload') as HTMLInputElement | null;
-                                                    input?.click();
-                                                }}
-                                            >
-                                                Upload
-                                            </Button>
-                                        </div>
-                                    </div>
-
-                                    <input
-                                        id="crm-background-upload"
-                                        type="file"
-                                        accept="image/*"
-                                        className="hidden"
-                                        onChange={handleFileChange}
-                                    />
-
-                                    <div className="flex items-center gap-4">
-                                        <div
-                                            className="h-20 w-28 overflow-hidden rounded-2xl border border-white/20 bg-slate-900/40 shadow-inner"
-                                            style={{
-                                                backgroundImage: field.value ? `url(${field.value})` : 'linear-gradient(135deg, rgba(99,102,241,0.25), rgba(15,23,42,0.9))',
-                                                backgroundSize: 'cover',
-                                                backgroundPosition: 'center',
-                                            }}
-                                        />
-                                        <div className="flex-1 text-xs text-muted-foreground">
-                                            {field.value ? 'Custom background is active across the full CRM.' : 'No custom background set. Using the default premium dark backdrop.'}
-                                        </div>
-                                    </div>
-
-                                    <FormMessage />
-                                </FormItem>
-                            );
-                        }}
                     />
 
                     <FormField

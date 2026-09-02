@@ -235,7 +235,7 @@ export default function ExpensesPage() {
   }
 
   return (
-    <div className="w-full px-6 py-6 space-y-8 bg-gray-50/50 dark:bg-black/50 min-h-screen">
+    <div className="w-full px-6 py-6 space-y-8 bg-transparent min-h-screen">
         <AddExpenseModal 
           isOpen={isAddExpenseOpen || !!expenseToEdit} 
           onClose={() => { setIsAddExpenseOpen(false); setExpenseToEdit(null); }} 

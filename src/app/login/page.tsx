@@ -28,9 +28,9 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="flex items-center justify-center min-h-screen bg-gray-100">
-      <div className="w-full max-w-sm p-6 bg-white rounded-lg shadow">
-        <h1 className="text-2xl font-bold mb-4 text-center">Login</h1>
+    <div className="flex items-center justify-center min-h-screen bg-transparent p-4">
+      <div className="w-full max-w-sm p-6 glass-panel bg-slate-950/70 border border-white/20 rounded-2xl shadow-2xl text-white">
+        <h1 className="text-2xl font-bold mb-4 text-center text-white">Login</h1>
 
         <input
           type="email"

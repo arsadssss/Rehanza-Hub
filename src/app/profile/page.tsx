@@ -26,7 +26,7 @@ export default async function ProfilePage() {
   const firstLetter = user?.name ? user.name.charAt(0).toUpperCase() : "U";
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50/50 dark:bg-black/50 p-4 font-body py-12">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-transparent p-4 font-body py-12">
       <div className="w-full max-w-md space-y-6">
         {/* Navigation back to dashboard */}
         <Button variant="ghost" asChild className="mb-2 text-muted-foreground hover:text-primary transition-colors">

@@ -31,6 +31,7 @@ import {
   ChevronLeft,
   ChevronRight,
   Zap,
+  Database,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -48,6 +49,7 @@ export const navItems = [
   { href: '/expenses', icon: CreditCard, label: 'Expenses', group: 'FINANCE' },
   { href: '/payments', icon: Wallet, label: 'Payments', group: 'FINANCE' },
   { href: '/wholesale-pricing', icon: Tag, label: 'Wholesale', group: 'FINANCE' },
+  { href: '/reconciliation', icon: Database, label: 'Reconciliation', group: 'FINANCE' },
   { href: '/analytics', icon: BarChart2, label: 'Report', group: 'INSIGHTS' },
   { href: '/profile', icon: User, label: 'Profile', group: 'SYSTEM' },
   { href: '/settings', icon: Settings, label: 'Settings', group: 'SYSTEM' },

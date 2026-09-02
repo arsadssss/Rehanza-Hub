@@ -1,0 +1,95 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { calculateSkuAnalytics } from '@/lib/reconciliation/sku-analytics-calculator';
+import { DateRangePreset, ReconciliationDateFilter } from '@/lib/reconciliation/types';
+
+export const revalidate = 0;
+
+/**
+ * GET /api/reconciliation/sku-analytics
+ * 
+ * Server-side SKU profitability & analytics endpoint (Phase 3).
+ * Authenticates request, enforces account isolation, applies date filters,
+ * and returns calculated SKU metrics, dynamic rankings, and loss concentration.
+ */
+export async function GET(request: NextRequest) {
+  try {
+    // 1. Session authentication & account extraction
+    const session = await getServerSession(authOptions);
+    const accountId = request.headers.get('x-account-id');
+
+    if (!accountId) {
+      return NextResponse.json(
+        { success: false, message: 'Account context missing. Please select an active account.' },
+        { status: 400 }
+      );
+    }
+
+    // 2. Parse query parameters
+    const { searchParams } = new URL(request.url);
+    const range = searchParams.get('range') as DateRangePreset | null;
+    const month = searchParams.get('month');
+    const yearStr = searchParams.get('year');
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
+
+    // 3. Validate date inputs if provided
+    if (startDate && isNaN(Date.parse(startDate))) {
+      return NextResponse.json(
+        { success: false, message: `Invalid startDate format: ${startDate}. Expected YYYY-MM-DD.` },
+        { status: 400 }
+      );
+    }
+
+    if (endDate && isNaN(Date.parse(endDate))) {
+      return NextResponse.json(
+        { success: false, message: `Invalid endDate format: ${endDate}. Expected YYYY-MM-DD.` },
+        { status: 400 }
+      );
+    }
+
+    if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
+      return NextResponse.json(
+        { success: false, message: 'startDate cannot be after endDate.' },
+        { status: 400 }
+      );
+    }
+
+    const filter: ReconciliationDateFilter = {
+      range: range || undefined,
+      month: month || undefined,
+      year: yearStr ? parseInt(yearStr, 10) : undefined,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+    };
+
+    // 4. Calculate SKU Analytics
+    const result = await calculateSkuAnalytics(accountId, filter);
+
+    return NextResponse.json(
+      {
+        success: true,
+        period: result.period,
+        skus: result.skus,
+        rankings: result.rankings,
+        lossConcentration: result.lossConcentration,
+        dailyTrends: result.dailyTrends,
+        topReturnsRto: result.topReturnsRto,
+        topPerformingProducts: result.topPerformingProducts,
+      },
+      { status: 200 }
+    );
+  } catch (error: any) {
+    console.error('SKU Analytics API Error:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        message: 'Failed to calculate SKU analytics',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      },
+      { status: 500 }
+    );
+  }
+}
+

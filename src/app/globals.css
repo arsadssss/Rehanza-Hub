@@ -3,51 +3,29 @@
 @tailwind components;
 @tailwind utilities;
 
+html {
+  min-height: 100%;
+  background-color: #070d18;
+}
+
 body {
   font-family: 'PT Sans', sans-serif;
-  background-color: #060b16;
-  background-image:
-    radial-gradient(circle at top left, rgba(99, 102, 241, 0.18), transparent 30%),
-    radial-gradient(circle at top right, rgba(56, 189, 248, 0.14), transparent 28%),
-    linear-gradient(135deg, #050b18 0%, #0b1220 28%, #0d1324 100%);
-  background-attachment: fixed;
-  background-size: cover;
-}
-
-html {
-  background: #060b16;
-}
-
-html::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  background-image: var(--app-background-image, none);
-  background-size: cover;
+  min-height: 100vh;
+  background-color: #070d18;
+  background-image: url('/images/bg1.jpg');
   background-position: center center;
+  background-size: cover;
   background-repeat: no-repeat;
-  filter: saturate(1.1) contrast(1.05) brightness(0.78);
-  opacity: var(--app-background-opacity, 0);
-  z-index: 0;
-  pointer-events: none;
-  transition: opacity 0.35s ease;
-}
-
-html::after {
-  content: "";
-  position: fixed;
-  inset: 0;
-  background: rgba(5, 11, 22, 0.32);
-  backdrop-filter: saturate(1.1) blur(2px);
-  z-index: 0;
-  pointer-events: none;
+  background-attachment: fixed;
 }
 
 .dark body {
-  background:
-    radial-gradient(circle at top left, rgba(129, 140, 248, 0.14), transparent 26%),
-    radial-gradient(circle at right center, rgba(59, 130, 246, 0.1), transparent 28%),
-    linear-gradient(135deg, #050b18 0%, #0b1220 35%, #0d1324 100%);
+  background-color: #070d18;
+  background-image: url('/images/bg1.jpg');
+  background-position: center center;
+  background-size: cover;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
 }
 
 body > * {
@@ -137,14 +115,18 @@ body > * {
     @apply border-border;
   }
   body {
-    @apply bg-background text-foreground;
+    @apply text-foreground;
   }
 }
 
 @layer components {
   .dashboard-shell {
     position: relative;
-    background: linear-gradient(180deg, rgba(7, 12, 23, 0.46), rgba(7, 12, 23, 0.62));
+    background: linear-gradient(180deg, rgba(7, 12, 23, 0.40), rgba(7, 12, 23, 0.55));
+  }
+
+  [data-sidebar="sidebar"] {
+    background-color: transparent !important;
   }
 
   .dashboard-shell::before,
