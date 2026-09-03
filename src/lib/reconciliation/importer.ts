@@ -121,6 +121,8 @@ export async function insertOrdersRaw(
           supplier_listed_price,
           supplier_discounted_price,
           packet_id,
+          credit_entry_reason,
+          status,
           raw_data,
           created_at
         )
@@ -139,12 +141,15 @@ export async function insertOrdersRaw(
           ${row.data.supplierListedPrice || null},
           ${row.data.supplierDiscountedPrice || null},
           ${row.data.packetId || null},
+          ${row.data.reasonForCredit || null},
+          ${row.data.reasonForCredit || null},
           ${JSON.stringify(row.raw)}::jsonb,
           NOW()
         )
       `;
       successCount++;
     } catch (error: any) {
+      console.error(`Failed to insert order row ${row.rowNumber}:`, error);
       errorIds.push(row.rowNumber);
     }
   }
@@ -161,7 +166,8 @@ export async function insertPaymentsRaw(
     rowNumber: number;
     data: Record<string, any>;
     raw: Record<string, any>;
-  }>
+  }>,
+  accountId?: string
 ): Promise<{ successCount: number; errorIds: number[] }> {
   const errorIds: number[] = [];
   let successCount = 0;
@@ -210,7 +216,8 @@ export async function insertPaymentsRaw(
           claims_reason,
           compensation_reason,
           recovery_reason,
-          created_at
+          created_at,
+          account_id
         )
         VALUES (
           ${uploadId},
@@ -222,7 +229,7 @@ export async function insertPaymentsRaw(
           ${row.data.paymentType || null},
           ${row.data.paymentStatus || null},
           ${row.data.paymentDate || null},
-          ${row.data.amount || null},
+          ${row.data.finalSettlementAmount || row.data.amount || null},
           ${row.data.tcs || null},
           ${row.data.tds || null},
           ${row.data.fixedFee || null},
@@ -253,11 +260,13 @@ export async function insertPaymentsRaw(
           ${row.data.claimsReason || null},
           ${row.data.compensationReason || null},
           ${row.data.recoveryReason || null},
-          NOW()
+          NOW(),
+          ${accountId || null}
         )
       `;
       successCount++;
     } catch (error: any) {
+      console.error(`Failed to insert payment row ${row.rowNumber}:`, error);
       errorIds.push(row.rowNumber);
     }
   }
@@ -274,7 +283,8 @@ export async function insertAdsRaw(
     rowNumber: number;
     data: Record<string, any>;
     raw: Record<string, any>;
-  }>
+  }>,
+  accountId?: string
 ): Promise<{ successCount: number; errorIds: number[] }> {
   const errorIds: number[] = [];
   let successCount = 0;
@@ -285,20 +295,23 @@ export async function insertAdsRaw(
         INSERT INTO reconciliation_rm_ads_raw (
           upload_id,
           row_number,
+          platform,
           deduction_duration,
           deduction_date,
           campaign_id,
           ad_cost,
-          credits_waivers,
+          credits_waivers_discounts,
           ad_cost_incl_credits,
           gst,
           total_ads_cost,
           raw_data,
+          account_id,
           created_at
         )
         VALUES (
           ${uploadId},
           ${row.rowNumber},
+          'Meesho',
           ${row.data.deductionDuration || null},
           ${row.data.deductionDate || null},
           ${row.data.campaignId || null},
@@ -308,11 +321,13 @@ export async function insertAdsRaw(
           ${row.data.gst || null},
           ${row.data.totalAdsCost || null},
           ${JSON.stringify(row.raw)}::jsonb,
+          ${accountId || null},
           NOW()
         )
       `;
       successCount++;
     } catch (error: any) {
+      console.error(`Failed to insert ads row ${row.rowNumber}:`, error);
       errorIds.push(row.rowNumber);
     }
   }

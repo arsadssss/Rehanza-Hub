@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
     // Parse CSV
     let csvData;
     try {
-      csvData = parseCSV(fileContent);
+      csvData = parseCSV(fileContent, sourceType as 'order' | 'payment' | 'ads');
     } catch (error: any) {
       return NextResponse.json(
         { success: false, message: `CSV parsing error: ${error.message}` },
@@ -89,10 +89,11 @@ export async function POST(request: NextRequest) {
     }
 
     if (!validationResult.isValid) {
+      const detailedMessage = formatValidationErrorMessage(validationResult.errors);
       return NextResponse.json(
         {
           success: false,
-          message: 'CSV validation failed',
+          message: detailedMessage,
           errors: validationResult.errors
         },
         { status: 400 }
@@ -128,9 +129,9 @@ export async function POST(request: NextRequest) {
     if (sourceType === 'order') {
       importResult = await insertOrdersRaw(uploadRecord.id, processedRows);
     } else if (sourceType === 'payment') {
-      importResult = await insertPaymentsRaw(uploadRecord.id, processedRows);
+      importResult = await insertPaymentsRaw(uploadRecord.id, processedRows, accountId);
     } else {
-      importResult = await insertAdsRaw(uploadRecord.id, processedRows);
+      importResult = await insertAdsRaw(uploadRecord.id, processedRows, accountId);
     }
 
     // Record any errors
@@ -227,6 +228,7 @@ function processRowData(
     data.supplierListedPrice = parseNumeric(row.values[headerMapping['supplierListedPrice']]);
     data.supplierDiscountedPrice = parseNumeric(row.values[headerMapping['supplierDiscountedPrice']]);
     data.packetId = getString(row.values, headerMapping['packetId']);
+    data.reasonForCredit = getString(row.values, headerMapping['reasonForCredit']);
   } else if (sourceType === 'payment') {
     data.subOrderNo = getString(row.values, headerMapping['subOrderNo']);
     data.orderNo = getString(row.values, headerMapping['orderNo']);
@@ -236,29 +238,36 @@ function processRowData(
     data.paymentDate = row.values[headerMapping['paymentDate']] || null;
     data.productName = getString(row.values, headerMapping['productName']);
     data.supplierSku = getString(row.values, headerMapping['supplierSku']);
+    data.catalogId = getString(row.values, headerMapping['catalogId']);
+    data.orderSource = getString(row.values, headerMapping['orderSource']);
+    data.liveOrderStatus = getString(row.values, headerMapping['liveOrderStatus']);
+    data.productGst = parseNumeric(row.values[headerMapping['productGstPercent']]);
+    data.listingPrice = parseNumeric(row.values[headerMapping['listingPrice']]);
     data.quantity = parseNumeric(row.values[headerMapping['quantity']]);
     data.finalSettlementAmount = parseNumeric(row.values[headerMapping['finalSettlementAmount']]);
+    data.priceType = getString(row.values, headerMapping['priceType']);
     data.totalSaleAmount = parseNumeric(row.values[headerMapping['totalSaleAmount']]);
     data.totalSaleReturnAmount = parseNumeric(row.values[headerMapping['totalSaleReturnAmount']]);
-    data.liveOrderStatus = getString(row.values, headerMapping['liveOrderStatus']);
-    data.shippingCharge = parseNumeric(row.values[headerMapping['shippingCharge']]);
-    data.returnShippingCharge = parseNumeric(row.values[headerMapping['returnShippingCharge']]);
-    data.tcs = parseNumeric(row.values[headerMapping['tcs']]);
-    data.tds = parseNumeric(row.values[headerMapping['tds']]);
-    data.tdsRate = parseNumeric(row.values[headerMapping['tdsRate']]);
     data.fixedFee = parseNumeric(row.values[headerMapping['fixedFee']]);
-    data.commission = parseNumeric(row.values[headerMapping['commission']]);
-    data.commissionPercentage = parseNumeric(row.values[headerMapping['commissionPercentage']]);
+    data.fixedFeeGst = parseNumeric(row.values[headerMapping['fixedFeeGst']]);
     data.warehousingFee = parseNumeric(row.values[headerMapping['warehousingFee']]);
-    data.goldPlatformFee = parseNumeric(row.values[headerMapping['goldPlatformFee']]);
-    data.mallPlatformFee = parseNumeric(row.values[headerMapping['mallPlatformFee']]);
+    data.warehousingFeeGst = parseNumeric(row.values[headerMapping['warehousingFeeGst']]);
     data.returnPremium = parseNumeric(row.values[headerMapping['returnPremium']]);
     data.returnPremiumOfReturn = parseNumeric(row.values[headerMapping['returnPremiumOfReturn']]);
+    data.commissionPercentage = parseNumeric(row.values[headerMapping['commissionPercentage']]);
+    data.commission = parseNumeric(row.values[headerMapping['commission']]);
+    data.goldPlatformFee = parseNumeric(row.values[headerMapping['goldPlatformFee']]);
+    data.mallPlatformFee = parseNumeric(row.values[headerMapping['mallPlatformFee']]);
+    data.returnShippingCharge = parseNumeric(row.values[headerMapping['returnShippingCharge']]);
     data.gstCompensation = parseNumeric(row.values[headerMapping['gstCompensation']]);
+    data.shippingCharge = parseNumeric(row.values[headerMapping['shippingCharge']]);
     data.otherSupportServiceCharges = parseNumeric(row.values[headerMapping['otherSupportServiceCharges']]);
     data.waivers = parseNumeric(row.values[headerMapping['waivers']]);
     data.netOtherSupportServiceCharges = parseNumeric(row.values[headerMapping['netOtherSupportServiceCharges']]);
     data.gstOnNetOtherSupportServiceCharges = parseNumeric(row.values[headerMapping['gstOnNetOtherSupportServiceCharges']]);
+    data.tcs = parseNumeric(row.values[headerMapping['tcs']]);
+    data.tdsRate = parseNumeric(row.values[headerMapping['tdsRate']]);
+    data.tds = parseNumeric(row.values[headerMapping['tds']]);
     data.compensation = parseNumeric(row.values[headerMapping['compensation']]);
     data.claims = parseNumeric(row.values[headerMapping['claims']]);
     data.recovery = parseNumeric(row.values[headerMapping['recovery']]);
@@ -280,10 +289,71 @@ function processRowData(
 }
 
 /**
+ * Format human-readable validation error summary
+ */
+function formatValidationErrorMessage(errors: Array<{ rowNumber?: number; field?: string; message: string }>): string {
+  if (!errors || errors.length === 0) {
+    return 'CSV validation failed';
+  }
+
+  // 1. Missing header errors
+  const missingHeaderErr = errors.find((e) =>
+    e.message.toLowerCase().includes('required header not found')
+  );
+  if (missingHeaderErr) {
+    const rawCol = missingHeaderErr.field || missingHeaderErr.message.replace(/.*:\s*/, '').trim();
+    const friendlyCols: Record<string, string> = {
+      subOrderNo: 'Sub Order No',
+      sku: 'SKU',
+      quantity: 'Quantity',
+      orderDate: 'Order Date',
+      transactionId: 'Transaction ID',
+      finalSettlementAmount: 'Final Settlement Amount',
+      campaignId: 'Campaign ID',
+      adCost: 'Ad Cost',
+      deductionDate: 'Deduction Date',
+    };
+    const colName = friendlyCols[rawCol] || rawCol;
+    return `CSV validation failed: Required column "${colName}" is missing`;
+  }
+
+  // 2. Count errors by field
+  const fieldCounts: Record<string, number> = {};
+  for (const err of errors) {
+    const key = err.field || 'General';
+    fieldCounts[key] = (fieldCounts[key] || 0) + 1;
+  }
+
+  const topField = Object.entries(fieldCounts).sort((a, b) => b[1] - a[1])[0];
+  if (topField) {
+    const [field, count] = topField;
+    const friendlyFieldNames: Record<string, string> = {
+      quantity: 'Quantity values',
+      subOrderNo: 'Sub Order No values',
+      sku: 'SKU values',
+      orderDate: 'Order Date values',
+      supplierListedPrice: 'Supplier Listed Price values',
+      supplierDiscountedPrice: 'Supplier Discounted Price values',
+      finalSettlementAmount: 'Final Settlement Amount values',
+      transactionId: 'Transaction ID values',
+      adCost: 'Ad Cost values',
+      campaignId: 'Campaign ID values',
+      deductionDate: 'Deduction Date values',
+    };
+    const fieldName = friendlyFieldNames[field] || `${field} values`;
+    return `CSV validation failed: ${count} ${count === 1 ? 'row has' : 'rows have'} invalid ${fieldName}`;
+  }
+
+  return `CSV validation failed: ${errors[0].message}`;
+}
+
+/**
  * Get string value safely
  */
 function getString(values: string[], index: number | undefined): string | null {
   if (index === undefined) return null;
-  const value = values[index]?.trim();
+  const raw = values[index];
+  if (raw === undefined || raw === null) return null;
+  const value = String(raw).replace(/^["']|["']$/g, '').trim();
   return value && value !== '' ? value : null;
 }

@@ -21,7 +21,8 @@ import {
   FileCheck2,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
-import { detectCsvFileType } from '@/lib/reconciliation/csv-parser';
+import Papa from 'papaparse';
+import { detectCsvFileType, detectCsvFileTypeFromRows } from '@/lib/reconciliation/csv-parser';
 
 interface UploadSectionProps {
   onUploadComplete?: (result: any) => void;
@@ -69,22 +70,27 @@ export function UploadSection({ onUploadComplete, accountId }: UploadSectionProp
     setSelectedFile(file);
     setUploadResult(null);
 
-    // Read first line to detect file type
+    // Read first chunk to detect file type across candidate rows
     try {
       const reader = new FileReader();
       reader.onload = (e) => {
         const text = e.target?.result as string;
         if (text) {
-          const firstLine = text.split('\n')[0];
-          const headers = firstLine.split(',').map((h) => h.trim());
-          const detected = detectCsvFileType(headers);
+          const cleanText = text.replace(/^\uFEFF/, '');
+          const parseResult = Papa.parse<string[]>(cleanText, { preview: 10, skipEmptyLines: true });
+          const candidateRows = (parseResult.data || []).map((row: any[]) =>
+            row.map((cell: any) =>
+              cell !== undefined && cell !== null ? String(cell).replace(/^["']|["']$/g, '').trim() : ''
+            )
+          );
+          const detected = detectCsvFileTypeFromRows(candidateRows);
           setDetectedType(detected);
           if (detected !== 'unknown') {
             setSelectedSourceType(detected);
           }
         }
       };
-      reader.readAsText(file.slice(0, 4096)); // read first 4KB
+      reader.readAsText(file.slice(0, 8192)); // read first 8KB
     } catch (err) {
       console.error('Error auto-detecting file type:', err);
     }
@@ -272,11 +278,28 @@ export function UploadSection({ onUploadComplete, accountId }: UploadSectionProp
             ) : (
               <div className="p-4 rounded-xl border border-rose-500/30 bg-rose-500/10 flex items-start gap-3.5">
                 <AlertCircle className="h-5 w-5 text-rose-400 flex-shrink-0 mt-0.5" />
-                <div className="space-y-1 text-left flex-1">
+                <div className="space-y-1.5 text-left flex-1">
                   <h4 className="font-bold text-sm text-white">Import Failed</h4>
-                  <p className="text-xs text-rose-200/90 leading-relaxed">
+                  <p className="text-xs text-rose-200/90 leading-relaxed font-semibold">
                     {uploadResult.message || 'Validation or parsing failed for this file.'}
                   </p>
+                  {uploadResult.errors && uploadResult.errors.length > 0 && (
+                    <div className="mt-2 text-[11px] text-rose-300/85 space-y-1 max-h-36 overflow-y-auto bg-slate-950/40 p-2.5 rounded-lg border border-rose-500/20">
+                      {uploadResult.errors.slice(0, 5).map((err, i) => (
+                        <div key={i} className="leading-tight">
+                          <span className="font-bold text-rose-400">
+                            {err.rowNumber ? `Row ${err.rowNumber}: ` : ''}
+                          </span>
+                          {err.message}
+                        </div>
+                      ))}
+                      {uploadResult.errors.length > 5 && (
+                        <div className="text-[10px] text-rose-400/70 font-semibold pt-1">
+                          +{uploadResult.errors.length - 5} more issues in this file
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               </div>
             )}

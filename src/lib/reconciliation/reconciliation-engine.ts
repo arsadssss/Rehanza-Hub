@@ -67,7 +67,7 @@ export async function processReconciliation(uploadId: number): Promise<void> {
   try {
     // Get upload info
     const uploadInfo = await sql`
-      SELECT id, source_type, platform FROM reconciliation_uploads WHERE id = ${uploadId}
+      SELECT id, source_type, platform, account_id FROM reconciliation_uploads WHERE id = ${uploadId}
     `;
 
     if (!uploadInfo || uploadInfo.length === 0) {
@@ -75,12 +75,13 @@ export async function processReconciliation(uploadId: number): Promise<void> {
     }
 
     const sourceType = uploadInfo[0].source_type;
+    const accountId = uploadInfo[0].account_id;
 
     // Process based on source type
     if (sourceType === 'order') {
-      await processOrderReconciliation(uploadId);
+      await processOrderReconciliation(uploadId, accountId);
     } else if (sourceType === 'payment') {
-      await processPaymentReconciliation(uploadId);
+      await processPaymentReconciliation(uploadId, accountId);
     } else if (sourceType === 'ads') {
       await processAdsReconciliation(uploadId);
     }
@@ -88,14 +89,14 @@ export async function processReconciliation(uploadId: number): Promise<void> {
     // Update upload status
     await sql`
       UPDATE reconciliation_uploads
-      SET status = 'completed', updated_at = NOW()
+      SET status = 'completed'
       WHERE id = ${uploadId}
     `;
   } catch (error: any) {
     console.error('Reconciliation processing error:', error);
     await sql`
       UPDATE reconciliation_uploads
-      SET status = 'failed', updated_at = NOW()
+      SET status = 'failed'
       WHERE id = ${uploadId}
     `;
     throw error;
@@ -105,7 +106,7 @@ export async function processReconciliation(uploadId: number): Promise<void> {
 /**
  * Process order reconciliation
  */
-async function processOrderReconciliation(uploadId: number): Promise<void> {
+async function processOrderReconciliation(uploadId: number, accountId?: string): Promise<void> {
   // Get all order raw data from this upload
   const orderRows = await sql`
     SELECT * FROM reconciliation_orders_raw 
@@ -116,7 +117,7 @@ async function processOrderReconciliation(uploadId: number): Promise<void> {
   for (const orderRow of orderRows) {
     // Look up SKU master
     const skuMaster = await sql`
-      SELECT id, cost_price, packaging_cost FROM reconciliation_sku_master
+      SELECT id, cost_price, packing as packaging_cost FROM reconciliation_sku_master
       WHERE sku = ${orderRow.sku}
       LIMIT 1
     `;
@@ -162,11 +163,13 @@ async function processOrderReconciliation(uploadId: number): Promise<void> {
       // For other statuses, leave profit as null
     }
 
-    // Determine reconciliation status
+    // Determine reconciliation status (allowed values: pending, matched, partial, unmatched, manual_review)
     let reconciliation_status = 'matched';
-    if (!payment) reconciliation_status = 'payment_missing';
-    if (!skuMaster || skuMaster.length === 0)
-      reconciliation_status = 'sku_missing';
+    if (!payment && (!skuMaster || skuMaster.length === 0)) {
+      reconciliation_status = 'unmatched';
+    } else if (!payment || !skuMaster || skuMaster.length === 0) {
+      reconciliation_status = 'partial';
+    }
 
     // Insert transaction record
     try {
@@ -222,7 +225,8 @@ async function processOrderReconciliation(uploadId: number): Promise<void> {
           compensation_reason,
           claims_reason,
           source_order_id,
-          source_payment_id
+          source_payment_id,
+          account_id
         )
         VALUES (
           'Meesho',
@@ -250,7 +254,7 @@ async function processOrderReconciliation(uploadId: number): Promise<void> {
           ${payment?.[0]?.recovery ? Number(payment[0].recovery) : null},
           ${payment?.[0]?.recovery_reason || null},
           ${reconciliation_status},
-          ${orderRow.packet_id || null},
+          ${orderRow.id},
           ${skuMaster?.[0]?.id || null},
           NOW(),
           NOW(),
@@ -275,8 +279,15 @@ async function processOrderReconciliation(uploadId: number): Promise<void> {
           ${payment?.[0]?.compensation_reason || null},
           ${payment?.[0]?.claims_reason || null},
           ${orderRow.id},
-          ${payment?.[0]?.id || null}
+          ${payment?.[0]?.id || null},
+          ${accountId || null}
         )
+        ON CONFLICT (platform, sub_order_no) DO UPDATE SET
+          sku = EXCLUDED.sku,
+          product_name = EXCLUDED.product_name,
+          quantity = EXCLUDED.quantity,
+          status = EXCLUDED.status,
+          updated_at = NOW()
       `;
     } catch (error) {
       console.error(`Failed to insert transaction for order ${orderRow.sub_order_no}:`, error);
@@ -288,7 +299,7 @@ async function processOrderReconciliation(uploadId: number): Promise<void> {
  * Process payment reconciliation
  * Payments upload should link to existing orders
  */
-async function processPaymentReconciliation(uploadId: number): Promise<void> {
+async function processPaymentReconciliation(uploadId: number, accountId?: string): Promise<void> {
   // Get all payment raw data
   const paymentRows = await sql`
     SELECT * FROM reconciliation_payments_raw 
@@ -297,6 +308,12 @@ async function processPaymentReconciliation(uploadId: number): Promise<void> {
   `;
 
   for (const paymentRow of paymentRows) {
+    if (!paymentRow.sub_order_no) continue;
+
+    const raw = (paymentRow.raw_data || {}) as Record<string, any>;
+    const claimsAmount = raw['Claims'] ? Number(String(raw['Claims']).replace(/['",₹$]/g, '').trim()) || null : null;
+    const recoveryAmount = raw['Recovery'] ? Number(String(raw['Recovery']).replace(/['",₹$]/g, '').trim()) || null : null;
+
     // Try to find existing transaction
     const existingTx = await sql`
       SELECT id, status, quantity_cost, packaging FROM reconciliation_transactions
@@ -331,14 +348,123 @@ async function processPaymentReconciliation(uploadId: number): Promise<void> {
           fixed_fee = ${paymentRow.fixed_fee || null},
           platform_commission = ${paymentRow.commission || null},
           warehousing_fee = ${paymentRow.warehousing_fee || null},
-          claim_amount = ${paymentRow.claims || null},
+          claim_amount = ${claimsAmount},
           claim_reason = ${paymentRow.claims_reason || null},
-          recovery_amount = ${paymentRow.recovery || null},
+          recovery_amount = ${recoveryAmount},
           recovery_reason = ${paymentRow.recovery_reason || null},
           live_order_status = ${paymentRow.live_order_status || null},
+          total_sale_amount = ${paymentRow.total_sale_amount || null},
+          total_sale_return_amount = ${paymentRow.total_sale_return_amount || null},
+          commission_percentage = ${paymentRow.commission_percentage || null},
+          gold_platform_fee = ${paymentRow.gold_platform_fee || null},
+          mall_platform_fee = ${paymentRow.mall_platform_fee || null},
+          return_premium = ${paymentRow.return_premium || null},
+          return_premium_of_return = ${paymentRow.return_premium_of_return || null},
+          gst_compensation = ${paymentRow.gst_compensation || null},
+          other_support_service_charges = ${paymentRow.other_support_service_charges || null},
+          waivers = ${paymentRow.waivers || null},
+          net_other_support_service_charges = ${paymentRow.net_other_support_service_charges || null},
+          gst_on_net_other_support_service_charges = ${paymentRow.gst_on_net_other_support_service_charges || null},
+          compensation = ${paymentRow.compensation || null},
+          compensation_reason = ${paymentRow.compensation_reason || null},
           source_payment_id = ${paymentRow.id},
+          reconciliation_status = ${tx.quantity_cost !== null ? 'matched' : 'partial'},
           updated_at = NOW()
         WHERE id = ${tx.id}
+      `;
+    } else {
+      // Payment arrived for an order not yet in transactions
+      const paymentAmount = paymentRow.final_settlement_amount !== null ? Number(paymentRow.final_settlement_amount) : 0;
+      await sql`
+        INSERT INTO reconciliation_transactions (
+          platform,
+          order_no,
+          sub_order_no,
+          sku,
+          product_name,
+          status,
+          quantity,
+          payment,
+          shipping_cost,
+          return_shipping_cost,
+          tcs,
+          tds,
+          fixed_fee,
+          platform_commission,
+          warehousing_fee,
+          profit,
+          claim_amount,
+          claim_reason,
+          recovery_amount,
+          recovery_reason,
+          reconciliation_status,
+          source_payment_id,
+          account_id,
+          live_order_status,
+          total_sale_amount,
+          total_sale_return_amount,
+          commission_percentage,
+          gold_platform_fee,
+          mall_platform_fee,
+          return_premium,
+          return_premium_of_return,
+          gst_compensation,
+          other_support_service_charges,
+          waivers,
+          net_other_support_service_charges,
+          gst_on_net_other_support_service_charges,
+          compensation,
+          compensation_reason,
+          created_at,
+          updated_at
+        )
+        VALUES (
+          'Meesho',
+          ${paymentRow.order_no || null},
+          ${paymentRow.sub_order_no},
+          ${raw['Supplier SKU'] || null},
+          ${raw['Product Name'] || null},
+          ${paymentRow.live_order_status || 'Unknown'},
+          ${raw['Quantity'] ? Number(raw['Quantity']) : 1},
+          ${paymentRow.final_settlement_amount || null},
+          ${paymentRow.shipping_charge || null},
+          ${paymentRow.return_shipping_charge || null},
+          ${paymentRow.tcs || null},
+          ${paymentRow.tds || null},
+          ${paymentRow.fixed_fee || null},
+          ${paymentRow.commission || null},
+          ${paymentRow.warehousing_fee || null},
+          ${paymentAmount},
+          ${claimsAmount},
+          ${paymentRow.claims_reason || null},
+          ${recoveryAmount},
+          ${paymentRow.recovery_reason || null},
+          'partial',
+          ${paymentRow.id},
+          ${accountId || null},
+          ${paymentRow.live_order_status || null},
+          ${paymentRow.total_sale_amount || null},
+          ${paymentRow.total_sale_return_amount || null},
+          ${paymentRow.commission_percentage || null},
+          ${paymentRow.gold_platform_fee || null},
+          ${paymentRow.mall_platform_fee || null},
+          ${paymentRow.return_premium || null},
+          ${paymentRow.return_premium_of_return || null},
+          ${paymentRow.gst_compensation || null},
+          ${paymentRow.other_support_service_charges || null},
+          ${paymentRow.waivers || null},
+          ${paymentRow.net_other_support_service_charges || null},
+          ${paymentRow.gst_on_net_other_support_service_charges || null},
+          ${paymentRow.compensation || null},
+          ${paymentRow.compensation_reason || null},
+          NOW(),
+          NOW()
+        )
+        ON CONFLICT (platform, sub_order_no) DO UPDATE
+        SET
+          payment = EXCLUDED.payment,
+          source_payment_id = EXCLUDED.source_payment_id,
+          updated_at = NOW();
       `;
     }
   }

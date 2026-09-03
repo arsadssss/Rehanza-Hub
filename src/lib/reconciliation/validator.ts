@@ -46,6 +46,7 @@ function validateHeadersExist(
   for (const field of required) {
     if (!(field in columnMapping)) {
       errors.push({
+        field,
         message: `Required header not found: ${field}`,
         severity: 'error'
       });
@@ -78,10 +79,17 @@ export function validateOrderCSV(
 
   // Validate each row
   for (const row of csvData.rows) {
-    // Validate quantity is numeric
+    // Validate quantity is required and numeric
     if (headerMapping['quantity'] !== undefined) {
       const qty = row.values[headerMapping['quantity']];
-      if (qty && parseNumeric(qty) === null) {
+      if (!qty || qty.trim() === '') {
+        errors.push({
+          rowNumber: row.rowNumber,
+          field: 'quantity',
+          message: 'Quantity is required',
+          severity: 'error'
+        });
+      } else if (parseNumeric(qty) === null) {
         errors.push({
           rowNumber: row.rowNumber,
           field: 'quantity',
@@ -91,15 +99,15 @@ export function validateOrderCSV(
       }
     }
 
-    // Validate date format
-    if (headerMapping['orderDate'] !== undefined) {
-      const date = row.values[headerMapping['orderDate']];
-      if (date && parseDate(date) === null) {
-        warnings.push({
+    // Validate SKU is required
+    if (headerMapping['sku'] !== undefined) {
+      const sku = row.values[headerMapping['sku']];
+      if (!sku || sku.trim() === '') {
+        errors.push({
           rowNumber: row.rowNumber,
-          field: 'orderDate',
-          message: `Invalid date format: "${date}"`,
-          severity: 'warning'
+          field: 'sku',
+          message: 'SKU is required',
+          severity: 'error'
         });
       }
     }
@@ -112,6 +120,44 @@ export function validateOrderCSV(
           rowNumber: row.rowNumber,
           field: 'subOrderNo',
           message: 'Sub Order No is required',
+          severity: 'error'
+        });
+      }
+    }
+
+    // Validate date format (warning so valid unstandardized strings don't abort upload)
+    if (headerMapping['orderDate'] !== undefined) {
+      const date = row.values[headerMapping['orderDate']];
+      if (date && parseDate(date) === null) {
+        warnings.push({
+          rowNumber: row.rowNumber,
+          field: 'orderDate',
+          message: `Invalid date format: "${date}"`,
+          severity: 'warning'
+        });
+      }
+    }
+
+    // Validate prices if present
+    if (headerMapping['supplierListedPrice'] !== undefined) {
+      const price = row.values[headerMapping['supplierListedPrice']];
+      if (price && price.trim() !== '' && parseNumeric(price) === null) {
+        errors.push({
+          rowNumber: row.rowNumber,
+          field: 'supplierListedPrice',
+          message: `Invalid supplier listed price: "${price}" is not a number`,
+          severity: 'error'
+        });
+      }
+    }
+
+    if (headerMapping['supplierDiscountedPrice'] !== undefined) {
+      const price = row.values[headerMapping['supplierDiscountedPrice']];
+      if (price && price.trim() !== '' && parseNumeric(price) === null) {
+        errors.push({
+          rowNumber: row.rowNumber,
+          field: 'supplierDiscountedPrice',
+          message: `Invalid supplier discounted price: "${price}" is not a number`,
           severity: 'error'
         });
       }
@@ -204,6 +250,39 @@ export function validatePaymentCSV(
         });
       }
     }
+
+    // Transaction ID should exist
+    if (headerMapping['transactionId'] !== undefined) {
+      const transactionId = row.values[headerMapping['transactionId']];
+      if (!transactionId || transactionId.trim() === '') {
+        errors.push({
+          rowNumber: row.rowNumber,
+          field: 'transactionId',
+          message: 'Transaction ID is required',
+          severity: 'error'
+        });
+      }
+    }
+
+    // Final settlement amount should exist and be numeric
+    if (headerMapping['finalSettlementAmount'] !== undefined) {
+      const settlement = row.values[headerMapping['finalSettlementAmount']];
+      if (!settlement || settlement.trim() === '') {
+        errors.push({
+          rowNumber: row.rowNumber,
+          field: 'finalSettlementAmount',
+          message: 'Final Settlement Amount is required',
+          severity: 'error'
+        });
+      } else if (parseNumeric(settlement) === null) {
+        errors.push({
+          rowNumber: row.rowNumber,
+          field: 'finalSettlementAmount',
+          message: `Invalid final settlement amount: "${settlement}" is not a number`,
+          severity: 'error'
+        });
+      }
+    }
   }
 
   return {
@@ -237,6 +316,32 @@ export function validateAdsCSV(
 
   // Validate each row
   for (const row of csvData.rows) {
+    // Campaign ID should exist
+    if (headerMapping['campaignId'] !== undefined) {
+      const campaignId = row.values[headerMapping['campaignId']];
+      if (!campaignId || campaignId.trim() === '') {
+        errors.push({
+          rowNumber: row.rowNumber,
+          field: 'campaignId',
+          message: 'Campaign ID is required',
+          severity: 'error'
+        });
+      }
+    }
+
+    // Ad Cost should exist and be numeric
+    if (headerMapping['adCost'] !== undefined) {
+      const adCost = row.values[headerMapping['adCost']];
+      if (!adCost || adCost.trim() === '') {
+        errors.push({
+          rowNumber: row.rowNumber,
+          field: 'adCost',
+          message: 'Ad Cost is required',
+          severity: 'error'
+        });
+      }
+    }
+
     // Validate numeric fields
     const numericFields = ['adCost', 'creditsWaivers', 'adCostInclCredits', 'gst', 'totalAdsCost'];
 
@@ -257,7 +362,14 @@ export function validateAdsCSV(
     // Validate date
     if (headerMapping['deductionDate'] !== undefined) {
       const date = row.values[headerMapping['deductionDate']];
-      if (date && date.trim() !== '' && parseDate(date) === null) {
+      if (!date || date.trim() === '') {
+        errors.push({
+          rowNumber: row.rowNumber,
+          field: 'deductionDate',
+          message: 'Deduction Date is required',
+          severity: 'error'
+        });
+      } else if (parseDate(date) === null) {
         warnings.push({
           rowNumber: row.rowNumber,
           field: 'deductionDate',

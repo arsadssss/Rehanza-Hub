@@ -12,7 +12,7 @@ body {
   font-family: 'PT Sans', sans-serif;
   min-height: 100vh;
   background-color: #070d18;
-  background-image: url('/images/bg6.webp');
+  background-image: url('/images/bg6.jpg');
   background-size: cover;
   background-repeat: no-repeat;
   background-attachment: fixed;
@@ -20,7 +20,7 @@ body {
 
 .dark body {
   background-color: #070d18;
-  background-image: url('/images/bg6.webp');
+  background-image: url('/images/bg6.jpg');
   background-position: center center;
   background-repeat: no-repeat;
   background-attachment: fixed;
