@@ -15,11 +15,14 @@ export const revalidate = 0;
  */
 export async function GET(request: NextRequest) {
   try {
-    // 1. Session authentication
-    const session = await getServerSession(authOptions);
-    // Allow if session exists, or if authenticated via standard headers in dev/apiFetch
-    // Account ID is strictly required for data isolation
-    const accountId = request.headers.get('x-account-id');
+    // 1. Session authentication & account context
+    let session = null;
+    try {
+      session = await getServerSession(authOptions);
+    } catch {
+      // Ignored if called outside NextAuth context
+    }
+    const accountId = request.headers.get('x-account-id') || (session?.user as any)?.accountId;
 
     if (!accountId) {
       return NextResponse.json(
@@ -74,6 +77,7 @@ export async function GET(request: NextRequest) {
         success: true,
         period: summary.period,
         summary,
+        data: summary,
       },
       { status: 200 }
     );

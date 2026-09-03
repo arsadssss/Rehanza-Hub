@@ -14,8 +14,13 @@ export const revalidate = 0;
  */
 export async function GET(request: NextRequest) {
   try {
-    const session = await getServerSession(authOptions);
-    const accountId = request.headers.get('x-account-id');
+    let session = null;
+    try {
+      session = await getServerSession(authOptions);
+    } catch {
+      // Ignored if called outside NextAuth context
+    }
+    const accountId = request.headers.get('x-account-id') || (session?.user as any)?.accountId;
 
     if (!accountId) {
       return NextResponse.json(

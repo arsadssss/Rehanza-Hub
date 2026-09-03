@@ -221,7 +221,15 @@ export async function calculateReconciliationFinancials(
           )
           AND (
             (t.order_date IS NOT NULL AND t.order_date >= ${startDate}::timestamp AND t.order_date <= ${endDate}::timestamp)
-            OR (t.order_date IS NULL AND t.created_at >= ${startDate}::timestamp AND t.created_at <= ${endDate}::timestamp)
+            OR (
+              t.order_date IS NULL AND (
+                (t.created_at >= ${startDate}::timestamp AND t.created_at <= ${endDate}::timestamp)
+                OR t.source_payment_id IN (
+                  SELECT p.id FROM reconciliation_payments_raw p 
+                  WHERE p.payment_date >= ${startDate}::date AND p.payment_date <= ${endDate}::date
+                )
+              )
+            )
           )
       `
     : sql`

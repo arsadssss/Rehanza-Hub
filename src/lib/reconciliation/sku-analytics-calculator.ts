@@ -79,6 +79,7 @@ export async function calculateSkuAnalytics(
           AVG(t.total_sale_amount) FILTER (WHERE t.total_sale_amount > 0 AND t.status IS NOT NULL AND t.status != '')::numeric AS aov
         FROM reconciliation_transactions t
         LEFT JOIN reconciliation_orders_raw o ON t.source_order_id = o.id
+        LEFT JOIN reconciliation_payments_raw p ON t.source_payment_id = p.id
         WHERE t.platform = 'Meesho'
           AND (
             t.account_id = ${accountId}
@@ -88,13 +89,13 @@ export async function calculateSkuAnalytics(
               WHERE u.account_id = ${accountId}
             )
             OR t.source_payment_id IN (
-              SELECT p.id FROM reconciliation_payments_raw p 
-              JOIN reconciliation_uploads u ON p.upload_id = u.id 
+              SELECT p2.id FROM reconciliation_payments_raw p2 
+              JOIN reconciliation_uploads u ON p2.upload_id = u.id 
               WHERE u.account_id = ${accountId}
             )
           )
-          AND COALESCE(t.order_date, o.order_date, t.created_at) >= ${startDate}::timestamp
-          AND COALESCE(t.order_date, o.order_date, t.created_at) <= ${endDate}::timestamp
+          AND COALESCE(t.order_date, o.order_date, p.payment_date, t.created_at) >= ${startDate}::timestamp
+          AND COALESCE(t.order_date, o.order_date, p.payment_date, t.created_at) <= ${endDate}::timestamp
         GROUP BY t.sku
         ORDER BY total_orders DESC
       `
@@ -155,7 +156,7 @@ export async function calculateSkuAnalytics(
   const dailyQuery = isDateFiltered
     ? sql`
         SELECT 
-          TO_CHAR(COALESCE(t.order_date, o.order_date, t.created_at), 'YYYY-MM-DD') AS day_date,
+          TO_CHAR(COALESCE(t.order_date, o.order_date, p.payment_date, t.created_at), 'YYYY-MM-DD') AS day_date,
           COALESCE(SUM(t.quantity), 0)::numeric AS orders,
           COALESCE(SUM(COALESCE(o.supplier_discounted_price, t.listing_price, t.total_sale_amount, 0)), 0)::numeric AS revenue,
           COALESCE(SUM(t.payment), 0)::numeric AS settlement,
@@ -165,6 +166,7 @@ export async function calculateSkuAnalytics(
           COALESCE(SUM(t.quantity) FILTER (WHERE LOWER(t.status) = 'delivered' OR LOWER(t.live_order_status) = 'delivered'), 0)::numeric AS delivered
         FROM reconciliation_transactions t
         LEFT JOIN reconciliation_orders_raw o ON t.source_order_id = o.id
+        LEFT JOIN reconciliation_payments_raw p ON t.source_payment_id = p.id
         WHERE t.platform = 'Meesho'
           AND (
             t.account_id = ${accountId}
@@ -174,14 +176,14 @@ export async function calculateSkuAnalytics(
               WHERE u.account_id = ${accountId}
             )
             OR t.source_payment_id IN (
-              SELECT p.id FROM reconciliation_payments_raw p 
-              JOIN reconciliation_uploads u ON p.upload_id = u.id 
+              SELECT p2.id FROM reconciliation_payments_raw p2 
+              JOIN reconciliation_uploads u ON p2.upload_id = u.id 
               WHERE u.account_id = ${accountId}
             )
           )
-          AND COALESCE(t.order_date, o.order_date, t.created_at) >= ${startDate}::timestamp
-          AND COALESCE(t.order_date, o.order_date, t.created_at) <= ${endDate}::timestamp
-        GROUP BY TO_CHAR(COALESCE(t.order_date, o.order_date, t.created_at), 'YYYY-MM-DD')
+          AND COALESCE(t.order_date, o.order_date, p.payment_date, t.created_at) >= ${startDate}::timestamp
+          AND COALESCE(t.order_date, o.order_date, p.payment_date, t.created_at) <= ${endDate}::timestamp
+        GROUP BY TO_CHAR(COALESCE(t.order_date, o.order_date, p.payment_date, t.created_at), 'YYYY-MM-DD')
         ORDER BY day_date ASC
       `
     : sql`

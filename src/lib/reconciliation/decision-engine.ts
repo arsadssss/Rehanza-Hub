@@ -15,6 +15,8 @@ import {
   DecisionEngineResult,
   ReconciliationDateFilter,
 } from './types';
+
+export type { DecisionEngineSummary, SkuDecisionRecommendation, DecisionEngineResult };
 import { calculateSkuAnalytics } from './sku-analytics-calculator';
 import { formatINRWithDecimals } from '@/lib/format';
 

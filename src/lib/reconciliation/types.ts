@@ -147,6 +147,8 @@ export interface DailyFinancialMetric {
   delivered: number;
 }
 
+export type DailyTrendMetric = DailyFinancialMetric;
+
 export interface LossConcentrationItem {
   name: string;
   amount: number;
