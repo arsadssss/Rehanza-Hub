@@ -29,6 +29,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { apiFetch } from '@/lib/apiFetch';
+import { resolveActiveAccount, getStoredAccountId, ACTIVE_ACCOUNT_CHANGED_EVENT } from '@/lib/account';
 import { TaskPerformanceCard, type TrackRecordEntry } from '@/components/TaskPerformanceCard';
 import { 
   AreaChart, 
@@ -88,38 +89,63 @@ const AnimatedValue = ({ value, prefix = "", suffix = "", isCurrency = false }: 
   return <span>{prefix}{Math.floor(displayValue).toLocaleString()}{suffix}</span>;
 };
 
-const KpiCard = ({ title, value, icon: Icon, description, gradient, loading, isCurrency = false, trend, suffix = "" }: any) => (
-  <Card className="glass-panel relative h-full overflow-hidden rounded-[1.5rem] border border-white/10 bg-slate-900/40 shadow-[0_20px_50px_rgba(2,6,23,0.35)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:border-indigo-400/30 hover:shadow-[0_20px_60px_rgba(79,70,229,0.18)] group">
-    <div className={cn("absolute inset-0 opacity-5 group-hover:opacity-10 transition-opacity bg-gradient-to-br", gradient)} />
-    <CardContent className="p-6 relative z-10">
-      <div className="flex justify-between items-start">
-        <div className="space-y-1">
-          <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">{title}</p>
-          {loading ? <Skeleton className="h-10 w-24 bg-muted/40" /> : (
-            <h2 className="text-3xl font-black font-headline tracking-tighter">
-              <AnimatedValue value={value} isCurrency={isCurrency} suffix={suffix} />
-            </h2>
-          )}
-        </div>
-        <div className={cn("p-3 rounded-2xl shadow-lg shadow-black/5", gradient.replace('from-', 'bg-').split(' ')[0], "text-white")}>
-          <Icon className="h-5 w-5" />
-        </div>
-      </div>
-      <div className="mt-4 flex items-center gap-2">
-        {trend && (
-          <div className={cn(
-            "flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold",
-            trend > 0 ? "bg-emerald-500/10 text-emerald-600" : "bg-rose-500/10 text-rose-600"
-          )}>
-            {trend > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-            {Math.abs(trend)}%
+interface KpiCardProps {
+  title: string;
+  value: number;
+  icon: React.ComponentType<{ className?: string }>;
+  description: string;
+  gradient: string;
+  loading?: boolean;
+  isCurrency?: boolean;
+  trend?: number;
+  suffix?: string;
+}
+
+const KpiCard = ({
+  title,
+  value,
+  icon: Icon,
+  description,
+  gradient,
+  loading = false,
+  isCurrency = false,
+  trend,
+  suffix = ""
+}: KpiCardProps) => {
+  const iconBgClass = gradient ? gradient.replace('from-', 'bg-').split(' ')[0] : 'bg-indigo-600';
+  return (
+    <Card className="glass-panel relative h-full overflow-hidden rounded-[1.5rem] border border-white/10 bg-slate-900/40 shadow-[0_20px_50px_rgba(2,6,23,0.35)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:border-indigo-400/30 hover:shadow-[0_20px_60px_rgba(79,70,229,0.18)] group">
+      <div className={cn("absolute inset-0 opacity-5 group-hover:opacity-10 transition-opacity bg-gradient-to-br", gradient)} />
+      <CardContent className="p-6 relative z-10">
+        <div className="flex justify-between items-start">
+          <div className="space-y-1">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">{title}</p>
+            {loading ? <Skeleton className="h-10 w-24 bg-muted/40" /> : (
+              <h2 className="text-3xl font-black font-headline tracking-tighter">
+                <AnimatedValue value={value} isCurrency={isCurrency} suffix={suffix} />
+              </h2>
+            )}
           </div>
-        )}
-        <p className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest">{description}</p>
-      </div>
-    </CardContent>
-  </Card>
-);
+          <div className={cn("p-3 rounded-2xl shadow-lg shadow-black/5", iconBgClass, "text-white")}>
+            <Icon className="h-5 w-5" />
+          </div>
+        </div>
+        <div className="mt-4 flex items-center gap-2">
+          {trend !== undefined && trend !== null && (
+            <div className={cn(
+              "flex items-center gap-0.5 px-2 py-0.5 rounded-full text-[10px] font-bold",
+              trend > 0 ? "bg-emerald-500/10 text-emerald-600" : "bg-rose-500/10 text-rose-600"
+            )}>
+              {trend > 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+              {Math.abs(trend)}%
+            </div>
+          )}
+          <p className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest">{description}</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
 
 const InsightCard = ({ title, subtitle, icon: Icon, colorClass }: any) => (
   <div className="flex items-center gap-4 p-4 rounded-2xl bg-white/10 dark:bg-white/5 border border-white/20 backdrop-blur-sm hover:bg-white/20 transition-all duration-300">
@@ -150,29 +176,45 @@ export default function DashboardPage() {
   const [taskProgress, setTaskProgress] = useState<any>(null);
   const [topSellers, setTopSellers] = useState<any[]>([]);
   const [inventoryValue, setInventoryValue] = useState(0);
-  const [returnStats, setReturnStats] = useState<any>(null);
-  const [netCashFlow, setNetCashFlow] = useState(0);
   const [totalPaymentReceived, setTotalPaymentReceived] = useState(0);
+  const [netCashFlow, setNetCashFlow] = useState(0);
 
-  const fetchAllData = useCallback(async () => {
-    if (!activeAccountId) return;
+  const [fetchError, setFetchError] = useState<string | null>(null);
+
+  const fetchAllData = useCallback(async (explicitAccountId?: string) => {
+    let targetAccountId = explicitAccountId || activeAccountId || getStoredAccountId();
+    if (!targetAccountId) {
+      const resolved = await resolveActiveAccount();
+      targetAccountId = resolved?.id || null;
+      if (resolved?.id && resolved.id !== activeAccountId) {
+        setActiveAccountId(resolved.id);
+      }
+    }
+
+    if (!targetAccountId) {
+      setLoading(false);
+      setFetchError("Unable to resolve Fashion account. Please refresh.");
+      return;
+    }
+
     setLoading(true);
+    setFetchError(null);
     try {
-      const [dashRes, analyticsRes, vendorRes, trackRes, taskRes, returnRes, financeRes, paymentsRes] = await Promise.all([
-        apiFetch('/api/dashboard'),
-        apiFetch(`/api/analytics?range=${range}`),
-        apiFetch('/api/vendors/summary'),
-        apiFetch('/api/tasks/track-record'),
-        apiFetch('/api/tasks?pageSize=1'),
-        apiFetch('/api/analytics/returns'),
-        apiFetch('/api/finance-summary'),
-        apiFetch('/api/payments?pageSize=1')
+      const headers = { 'x-account-id': targetAccountId };
+      const [dashRes, analyticsRes] = await Promise.all([
+        apiFetch('/api/dashboard', { headers }),
+        apiFetch(`/api/analytics?range=${range}`, { headers })
       ]);
 
       if (dashRes.ok) {
         const d = await dashRes.json();
         setSummary(d.summary);
         setTopSellers(d.topSellingProducts || []);
+        setTotalPaymentReceived(d.totalPaymentReceived || 0);
+        setNetCashFlow(d.netCashFlow || 0);
+        setInventoryValue(d.inventoryValue || 0);
+        setTaskProgress(d.taskProgress || null);
+        setTrackRecord(d.trackRecord || []);
       }
       
       if (analyticsRes.ok) {
@@ -181,37 +223,8 @@ export default function DashboardPage() {
         setPlatformStats(a.platformOrders?.breakdown || []);
       }
 
-      if (vendorRes.ok) {
-        const v = await vendorRes.json();
-        setInventoryValue(v.totalInventoryValue || 0);
-      }
-
-      if (trackRes.ok) {
-        const t = await trackRes.json();
-        setTrackRecord(t.data || []);
-      }
-
-      if (taskRes.ok) {
-        const tr = await taskRes.json();
-        setTaskProgress(tr.progress);
-      }
-
-      if (returnRes.ok) {
-        const rs = await returnRes.json();
-        setReturnStats(rs);
-      }
-
-      if (financeRes.ok) {
-        const fs = await financeRes.json();
-        setNetCashFlow(fs.net_cash_flow || 0);
-      }
-
-      if (paymentsRes.ok) {
-        const ps = await paymentsRes.json();
-        setTotalPaymentReceived(ps.totalPaymentReceived || 0);
-      }
-
     } catch (error: any) {
+      setFetchError(error.message || 'Failed to load dashboard data');
       toast({ variant: 'destructive', title: 'Intelligence Offline', description: error.message });
     } finally {
       setLoading(false);
@@ -220,21 +233,49 @@ export default function DashboardPage() {
 
   useEffect(() => {
     setIsMounted(true);
-    const id = sessionStorage.getItem("active_account");
-    if (id) setActiveAccountId(id);
 
-    const handleAccountInit = () => {
-      const freshId = sessionStorage.getItem("active_account");
-      if (freshId) setActiveAccountId(freshId);
+    async function init() {
+      const resolved = await resolveActiveAccount();
+      if (resolved?.id) {
+        setActiveAccountId(resolved.id);
+        fetchAllData(resolved.id);
+      } else {
+        setLoading(false);
+      }
+    }
+    init();
+
+    const handleAccountInit = (e: any) => {
+      const freshId = e?.detail?.id || getStoredAccountId();
+      if (freshId && freshId !== activeAccountId) {
+        setActiveAccountId(freshId);
+        fetchAllData(freshId);
+      }
     };
 
-    window.addEventListener('active-account-changed', handleAccountInit);
-    return () => window.removeEventListener('active-account-changed', handleAccountInit);
+    window.addEventListener(ACTIVE_ACCOUNT_CHANGED_EVENT, handleAccountInit);
+    return () => window.removeEventListener(ACTIVE_ACCOUNT_CHANGED_EVENT, handleAccountInit);
   }, []);
 
+  const prevRangeRef = React.useRef(range);
   useEffect(() => {
-    if (activeAccountId) fetchAllData();
-  }, [activeAccountId, fetchAllData]);
+    if (prevRangeRef.current === range) {
+      return;
+    }
+    prevRangeRef.current = range;
+    const targetAccountId = activeAccountId || getStoredAccountId();
+    if (targetAccountId) {
+      apiFetch(`/api/analytics?range=${range}`, { headers: { 'x-account-id': targetAccountId } })
+        .then(res => res.ok ? res.json() : null)
+        .then(a => {
+          if (a) {
+            setSalesTrend(a.salesTrend || []);
+            setPlatformStats(a.platformOrders?.breakdown || []);
+          }
+        })
+        .catch(err => console.error("Range update failed", err));
+    }
+  }, [range, activeAccountId]);
 
   const platformColors: Record<string, string> = {
     'Meesho': '#FF4FA3',
@@ -276,11 +317,24 @@ export default function DashboardPage() {
             <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
             Live Sync: Online
           </Badge>
-          <Button onClick={fetchAllData} variant="outline" size="icon" className="glass-button h-11 w-11 rounded-xl border border-white/10 bg-slate-900/35 text-slate-200 hover:bg-white/5 hover:text-white transition-all">
+          <Button onClick={() => fetchAllData()} variant="outline" size="icon" className="glass-button h-11 w-11 rounded-xl border border-white/10 bg-slate-900/35 text-slate-200 hover:bg-white/5 hover:text-white transition-all">
             <RefreshCw className={cn("h-4 w-4", loading && "animate-spin")} />
           </Button>
         </div>
       </div>
+
+      {fetchError && (
+        <div className="glass-panel p-4 rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-200 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <AlertCircle className="h-5 w-5 text-amber-400 shrink-0" />
+            <p className="text-sm font-bold">{fetchError}</p>
+          </div>
+          <Button size="sm" variant="outline" onClick={() => fetchAllData()} className="glass-button text-xs">
+            <RefreshCw className="h-3.5 w-3.5 mr-1.5" />
+            Retry
+          </Button>
+        </div>
+      )}
 
       {/* 2. Top KPI Layer - Responsive Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -388,12 +442,12 @@ export default function DashboardPage() {
                     <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="rgba(0,0,0,0.05)" />
                     <XAxis 
                       dataKey="date" 
-                      tick={{ fontSize: 10, fill: 'gray', fontBold: 700 }} 
+                      tick={{ fontSize: 10, fill: 'gray', fontWeight: 700 }} 
                       axisLine={false}
                       tickLine={false}
                       tickFormatter={(val) => new Date(val).toLocaleDateString('en-US', { day: 'numeric', month: 'short' })}
                     />
-                    <YAxis tick={{ fontSize: 10, fill: 'gray', fontBold: 700 }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 10, fill: 'gray', fontWeight: 700 }} axisLine={false} tickLine={false} />
                     <Tooltip 
                       contentStyle={{ borderRadius: '20px', border: 'none', boxShadow: '0 20px 50px rgba(0,0,0,0.1)', backdropFilter: 'blur(10px)', backgroundColor: 'rgba(255,255,255,0.8)' }}
                     />
@@ -409,13 +463,11 @@ export default function DashboardPage() {
         <Card className="lg:col-span-4 border-0 shadow-2xl rounded-[2.5rem] overflow-hidden bg-gradient-to-br from-[#4F46E5] to-[#6D28D9] text-white h-full">
           <CardHeader className="p-8">
             <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-white/10 rounded-xl">
                 <BarChart3 className="h-5 w-5 text-white" />
               </div>
               <div>
                 <CardTitle className="font-headline text-xl font-bold text-white">Smart Insights</CardTitle>
                 <CardDescription className="text-[10px] uppercase font-bold tracking-widest text-white/60">AI-Assisted Business Logic</CardDescription>
-              </div>
             </div>
           </CardHeader>
           <CardContent className="px-8 pb-8 space-y-4">

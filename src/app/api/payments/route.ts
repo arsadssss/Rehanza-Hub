@@ -16,12 +16,12 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, message: "Account context missing" }, { status: 400 });
     }
 
-    const page = parseInt(searchParams.get('page') || '1', 10);
-    const pageSize = parseInt(searchParams.get('pageSize') || '10', 10);
+    const page = Math.max(1, parseInt(searchParams.get('page') || '1', 10) || 1);
+    const pageSize = Math.min(100, Math.max(1, parseInt(searchParams.get('pageSize') || '10', 10) || 10));
     const platform = searchParams.get('platform');
     const fromDate = searchParams.get('fromDate');
     const toDate = searchParams.get('toDate');
-    const offset = (page - 1) * pageSize;
+    const offset = Math.max(0, (page - 1) * pageSize);
 
     // 1. Build Filtered Conditions (Common for Sum and Count)
     let whereClauses = ['is_deleted = false', 'account_id = $1'];

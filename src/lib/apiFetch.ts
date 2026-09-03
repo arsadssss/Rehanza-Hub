@@ -23,7 +23,7 @@ export async function apiFetch(
     delete headers["Content-Type"];
   }
 
-  if (accountId) {
+  if (accountId && !headers["x-account-id"]) {
     headers["x-account-id"] = accountId;
   }
 

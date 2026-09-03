@@ -9,7 +9,8 @@ import { FulfillmentRiskMatrix } from './fulfillment-risk-matrix';
 import { DecisionTable } from './decision-table';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, RotateCcw, Sparkles, Inbox, UploadCloud } from 'lucide-react';
+import { AlertCircle, RotateCcw, Sparkles, Inbox, UploadCloud, Download } from 'lucide-react';
+import { exportDecisionEngineToCSV } from '@/lib/reconciliation/export-utils';
 import {
   ReconciliationDateFilter,
   DecisionState,
@@ -84,6 +85,20 @@ export function BusinessIntelligence({
             Actionable recommendations from your reconciliation data
           </p>
         </div>
+
+        {decisions.length > 0 && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => exportDecisionEngineToCSV(decisions, filter.range || 'Custom')}
+            className="glass-button bg-indigo-950/40 border-indigo-400/30 hover:bg-indigo-900/50 text-indigo-200 h-8 px-3 rounded-xl font-bold text-xs"
+            title="Export Decision Engine Recommendations as CSV"
+          >
+            <Download className="h-3.5 w-3.5 mr-1.5 text-indigo-400" />
+            <span>Export Decisions CSV</span>
+          </Button>
+        )}
       </div>
 
       {/* Error State */}

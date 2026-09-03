@@ -30,23 +30,32 @@ export async function GET(request: Request) {
     }
 
     const [
-      salesRes,
-      ordersCountRes,
-      returnsRes,
+      orderAggsRes,
+      returnAggsRes,
       totalCostsRes,
-      returnLossRes,
       platformRes,
-      orderUnitsRes,
       salesTrendRes
     ] = await Promise.all([
-      // Total Sales
-      sql`SELECT COALESCE(SUM(total_amount), 0) as total FROM orders WHERE account_id = ${accountId} AND is_deleted = false AND (${isAllTime} = true OR order_date >= CURRENT_DATE - ${interval}::interval)`,
+      // Combined Total Sales, Total Orders Count, and Total Units
+      sql`
+        SELECT 
+          COALESCE(SUM(total_amount), 0)::numeric as total_sales,
+          COUNT(id)::int as total_orders,
+          COALESCE(SUM(quantity), 0)::int as total_units
+        FROM orders 
+        WHERE account_id = ${accountId} AND is_deleted = false 
+          AND (${isAllTime} = true OR order_date >= CURRENT_DATE - ${interval}::interval)
+      `,
       
-      // Total Orders Count
-      sql`SELECT COUNT(*)::int as count FROM orders WHERE account_id = ${accountId} AND is_deleted = false AND (${isAllTime} = true OR order_date >= CURRENT_DATE - ${interval}::interval)`,
-      
-      // Total Return Units
-      sql`SELECT COALESCE(SUM(quantity), 0)::int as total FROM returns WHERE account_id = ${accountId} AND is_deleted = false AND (${isAllTime} = true OR return_date >= CURRENT_DATE - ${interval}::interval)`,
+      // Combined Total Return Units and Total Return Loss
+      sql`
+        SELECT 
+          COALESCE(SUM(quantity), 0)::int as total_returns,
+          COALESCE(SUM(total_loss), 0)::numeric as return_loss
+        FROM returns 
+        WHERE account_id = ${accountId} AND is_deleted = false 
+          AND (${isAllTime} = true OR return_date >= CURRENT_DATE - ${interval}::interval)
+      `,
       
       // Advanced Cost calculation (COGS + Shipping + Fees + Packing + Ads + Tax Misc)
       sql`
@@ -61,15 +70,12 @@ export async function GET(request: Request) {
               (CASE WHEN o.platform = 'Flipkart' THEN COALESCE(ap.flipkart_ship, 0) ELSE 0 END) +
               (CASE WHEN o.platform != 'Meesho' THEN COALESCE(ap.platform_fee, 0) ELSE 0 END)
             )
-          ), 0) as total
+          ), 0)::numeric as total
         FROM orders o
         JOIN product_variants pv ON o.variant_id = pv.id
         JOIN allproducts ap ON pv.product_id = ap.id
         WHERE o.account_id = ${accountId} AND o.is_deleted = false AND (${isAllTime} = true OR o.order_date >= CURRENT_DATE - ${interval}::interval)
       `,
-      
-      // Total Return Loss
-      sql`SELECT COALESCE(SUM(total_loss), 0) as total FROM returns WHERE account_id = ${accountId} AND is_deleted = false AND (${isAllTime} = true OR return_date >= CURRENT_DATE - ${interval}::interval)`,
       
       // Platform Breakdown
       sql`
@@ -78,9 +84,6 @@ export async function GET(request: Request) {
         WHERE account_id = ${accountId} AND is_deleted = false AND (${isAllTime} = true OR order_date >= CURRENT_DATE - ${interval}::interval)
         GROUP BY platform
       `,
-
-      // Total Order Units
-      sql`SELECT COALESCE(SUM(quantity), 0)::int as total FROM orders WHERE account_id = ${accountId} AND is_deleted = false AND (${isAllTime} = true OR order_date >= CURRENT_DATE - ${interval}::interval)`,
 
       // Sales Trend
       sql`
@@ -96,12 +99,12 @@ export async function GET(request: Request) {
       `
     ]);
 
-    const totalSales = Number(salesRes[0]?.total || 0);
-    const totalOrders = Number(ordersCountRes[0]?.count || 0);
-    const totalReturnsUnits = Number(returnsRes[0]?.total || 0);
-    const totalOrderUnits = Number(orderUnitsRes[0]?.total || 0);
+    const totalSales = Number(orderAggsRes[0]?.total_sales || 0);
+    const totalOrders = Number(orderAggsRes[0]?.total_orders || 0);
+    const totalOrderUnits = Number(orderAggsRes[0]?.total_units || 0);
+    const totalReturnsUnits = Number(returnAggsRes[0]?.total_returns || 0);
+    const returnLoss = Number(returnAggsRes[0]?.return_loss || 0);
     const totalExpenses = Number(totalCostsRes[0]?.total || 0);
-    const returnLoss = Number(returnLossRes[0]?.total || 0);
     const netProfit = totalSales - totalExpenses - returnLoss;
 
     const returnRate = totalOrderUnits > 0 ? (totalReturnsUnits / totalOrderUnits) * 100 : 0;

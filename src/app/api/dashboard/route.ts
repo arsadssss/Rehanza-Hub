@@ -10,15 +10,17 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, message: "Account not selected" }, { status: 400 });
     }
 
-    // 1. Fetch all raw data in parallel using Promise.all for speed
+    // Parallel execution of all required dashboard datasets
     const [
       orderSummary,
       returnSummary,
       productCosts,
-      platformStats,
-      weeklyTrend,
-      recentOrdersRes,
       topSellingRes,
+      payoutRes,
+      inventoryRes,
+      taskProgressRes,
+      trackRecordRes,
+      expenseRes
     ] = await Promise.all([
       // Total Units and Gross Revenue
       sql`
@@ -39,48 +41,13 @@ export async function GET(request: Request) {
       `,
       // Total Cost of Goods Sold (for Net Profit)
       sql`
-        SELECT SUM(o.quantity * p.cost_price)::numeric as total_cost
+        SELECT COALESCE(SUM(o.quantity * p.cost_price), 0)::numeric as total_cost
         FROM orders o
         JOIN product_variants pv ON o.variant_id = pv.id
         JOIN allproducts p ON pv.product_id = p.id
         WHERE o.account_id = ${accountId} AND o.is_deleted = false
       `,
-      // Platform Performance Breakdown
-      sql`
-        SELECT 
-          platform,
-          COALESCE(SUM(quantity), 0)::int as total_units,
-          COALESCE(SUM(total_amount), 0)::numeric as total_revenue
-        FROM orders
-        WHERE account_id = ${accountId} AND is_deleted = false
-        GROUP BY platform
-      `,
-      // Weekly Trend (Last 7 Days)
-      sql`
-        SELECT 
-          TO_CHAR(d.date, 'Dy') as day_label,
-          COALESCE(COUNT(o.id), 0)::int as total_orders,
-          COALESCE(SUM(r.quantity), 0)::int as total_returns
-        FROM (
-          SELECT CURRENT_DATE - i as date 
-          FROM generate_series(0, 6) i
-        ) d
-        LEFT JOIN orders o ON DATE(o.order_date) = d.date AND o.account_id = ${accountId} AND o.is_deleted = false
-        LEFT JOIN returns r ON DATE(r.return_date) = d.date AND r.account_id = ${accountId} AND r.is_deleted = false
-        GROUP BY d.date
-        ORDER BY d.date ASC
-      `,
-      // Recent Orders (Latest 5)
-      sql`
-        SELECT o.id, o.created_at, o.platform, o.quantity, o.total_amount, pv.variant_sku, p.product_name, o.order_date
-        FROM orders o
-        LEFT JOIN product_variants pv ON o.variant_id = pv.id
-        LEFT JOIN allproducts p ON pv.product_id = p.id
-        WHERE o.account_id = ${accountId} AND o.is_deleted = false
-        ORDER BY o.order_date DESC, o.created_at DESC 
-        LIMIT 5
-      `,
-      // Top Selling Products - Increased to top 7
+      // Top Selling Products - Top 7
       sql`
         SELECT 
           p.product_name,
@@ -94,10 +61,49 @@ export async function GET(request: Request) {
         GROUP BY p.product_name, pv.variant_sku
         ORDER BY total_units_sold DESC
         LIMIT 7
+      `,
+      // Total Payment Received from platform settlements
+      sql`
+        SELECT COALESCE(SUM(amount), 0)::numeric as total
+        FROM platform_payouts
+        WHERE account_id = ${accountId} AND is_deleted = false
+      `,
+      // Total Inventory Value from vendor purchases
+      sql`
+        SELECT COALESCE(SUM(quantity * cost_per_unit), 0)::numeric as total
+        FROM vendor_purchases
+        WHERE account_id = ${accountId} AND is_deleted = false
+      `,
+      // Task progress counts for Fashion workflow
+      sql`
+        SELECT status, task_group
+        FROM tasks
+        WHERE is_deleted = false AND task_group = 'Fashion'
+      `,
+      // Team Performance Track Record
+      sql`
+        SELECT 
+          u.name AS user_name,
+          t.created_by,
+          COUNT(t.id)::int AS total_tasks,
+          COUNT(t.id) FILTER (WHERE t.status = 'Pending')::int AS pending,
+          COUNT(t.id) FILTER (WHERE t.status = 'In Progress')::int AS in_progress,
+          COUNT(t.id) FILTER (WHERE t.status = 'Completed')::int AS completed
+        FROM tasks t
+        JOIN users u ON t.created_by = u.id
+        WHERE t.is_deleted = false
+        GROUP BY u.name, t.created_by
+        ORDER BY total_tasks DESC
+      `,
+      // Total Business Expenses (for Net Cash Flow)
+      sql`
+        SELECT COALESCE(SUM(amount), 0)::numeric as total
+        FROM business_expenses
+        WHERE is_deleted = false
       `
     ]);
 
-    // 2. Perform Secondary Calculations
+    // Secondary Calculations
     const unitsSold = Number(orderSummary[0]?.total_units || 0);
     const revenue = Number(orderSummary[0]?.gross_revenue || 0);
     const returnUnits = Number(returnSummary[0]?.return_units || 0);
@@ -115,30 +121,49 @@ export async function GET(request: Request) {
       return_rate: returnRate,
     };
 
+    // Task progress calculation
+    const fashionTasks = taskProgressRes.filter((t: any) => t.task_group === 'Fashion');
+    const fashionTotal = fashionTasks.length;
+    const fashionCompleted = fashionTasks.filter((t: any) => t.status === 'Completed').length;
+    const taskProgress = {
+      fashion: {
+        total: fashionTotal,
+        completed: fashionCompleted,
+        percentage: fashionTotal > 0 ? (fashionCompleted / fashionTotal) * 100 : 0
+      },
+      overall: {
+        total: fashionTotal,
+        completed: fashionCompleted
+      }
+    };
+
+    const totalPaymentReceived = Number(payoutRes[0]?.total || 0);
+    const totalExpenses = Number(expenseRes[0]?.total || 0);
+    const netCashFlow = totalPaymentReceived - totalExpenses;
+
     return NextResponse.json({
       success: true,
       summary,
-      platformPerformance: platformStats.map((p: any) => ({
-        platform: p.platform,
-        total_units: Number(p.total_units),
-        total_revenue: Number(p.total_revenue)
-      })),
-      ordersReturnsData: weeklyTrend.map((d: any) => ({
-        day_label: d.day_label,
-        total_orders: Number(d.total_orders),
-        total_returns: Number(d.total_returns)
-      })),
-      recentOrders: recentOrdersRes.map((o: any) => ({
-        ...o,
-        quantity: Number(o.quantity),
-        total_amount: Number(o.total_amount),
-        created_at: o.order_date // Consistent with list display
+      netCashFlow,
+      totalPaymentReceived,
+      inventoryValue: Number(inventoryRes[0]?.total || 0),
+      taskProgress,
+      trackRecord: (trackRecordRes || []).map((t: any) => ({
+        user_name: t.user_name,
+        created_by: t.created_by,
+        total_tasks: Number(t.total_tasks),
+        pending: Number(t.pending),
+        in_progress: Number(t.in_progress),
+        completed: Number(t.completed)
       })),
       topSellingProducts: topSellingRes.map((p: any) => ({
         ...p,
         total_revenue: Number(p.total_revenue),
         total_units_sold: Number(p.total_units_sold)
       })),
+      platformPerformance: [],
+      ordersReturnsData: [],
+      recentOrders: []
     });
 
   } catch (error: any) {

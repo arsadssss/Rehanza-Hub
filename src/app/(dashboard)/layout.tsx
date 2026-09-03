@@ -3,6 +3,7 @@ import { SidebarProvider } from "@/components/ui/sidebar";
 import { SidebarNav } from "./_components/sidebar-nav";
 import { MobileHeader } from "./_components/mobile-header";
 import { MobileBottomNav } from "./_components/mobile-bottom-nav";
+import { AccountInitializer } from "@/components/account-initializer";
 import { cookies } from "next/headers";
 
 export default async function DashboardLayout({
@@ -17,6 +18,7 @@ export default async function DashboardLayout({
 
   return (
     <SidebarProvider defaultOpen={defaultOpen}>
+      <AccountInitializer />
       <div className="dashboard-shell flex min-h-screen w-full">
         <SidebarNav />
         <main className="relative flex min-w-0 flex-1 flex-col bg-transparent">

@@ -11,7 +11,8 @@ import { SkuTable } from './sku-table';
 import { TopTenTables } from './top-ten-tables';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { AlertCircle, RotateCcw, BarChart2, Inbox, UploadCloud } from 'lucide-react';
+import { AlertCircle, RotateCcw, BarChart2, Inbox, UploadCloud, Download } from 'lucide-react';
+import { exportSkuAnalyticsToCSV } from '@/lib/reconciliation/export-utils';
 import {
   ReconciliationDateFilter,
   SkuProfitabilityMetric,
@@ -102,6 +103,20 @@ export function SkuAnalyticsSection({
             Unit economics, catalog profit concentration, daily trends & loss drivers
           </p>
         </div>
+
+        {skus.length > 0 && (
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => exportSkuAnalyticsToCSV(skus, filter.range || 'Custom')}
+            className="glass-button bg-indigo-950/40 border-indigo-400/30 hover:bg-indigo-900/50 text-indigo-200 h-8 px-3 rounded-xl font-bold text-xs"
+            title="Export SKU Analytics as CSV"
+          >
+            <Download className="h-3.5 w-3.5 mr-1.5 text-indigo-400" />
+            <span>Export SKUs CSV</span>
+          </Button>
+        )}
       </div>
 
       {/* Error State */}

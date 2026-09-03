@@ -24,23 +24,41 @@ export async function createUploadRecord(
   rowCount: number,
   accountId: string
 ): Promise<{ id: number; status: string }> {
+  const uploadTypeMap: Record<string, string> = {
+    order: 'orders',
+    orders: 'orders',
+    payment: 'payments',
+    payments: 'payments',
+    ads: 'rm_ads',
+    rm_ads: 'rm_ads',
+  };
+  const dbUploadType = uploadTypeMap[sourceType] || 'orders';
+
   const result = await sql`
     INSERT INTO reconciliation_uploads (
       platform, 
       source_type, 
+      upload_type,
       filename, 
+      file_name,
       file_hash, 
       row_count, 
+      total_rows,
       status, 
+      processing_status,
       account_id,
-      created_at
+      uploaded_at
     )
     VALUES (
       ${platform},
       ${sourceType},
+      ${dbUploadType},
+      ${filename},
       ${filename},
       ${fileHash},
       ${rowCount},
+      ${rowCount},
+      'pending',
       'pending',
       ${accountId},
       NOW()
@@ -315,14 +333,14 @@ export async function recordImportErrors(
         INSERT INTO reconciliation_import_errors (
           upload_id,
           row_number,
-          field_name,
+          error_type,
           error_message,
           created_at
         )
         VALUES (
           ${uploadId},
           ${error.rowNumber},
-          ${error.field || null},
+          ${error.field || 'validation'},
           ${error.message},
           NOW()
         )
@@ -347,10 +365,10 @@ export async function updateUploadStatus(
     UPDATE reconciliation_uploads
     SET 
       status = ${status},
+      processing_status = ${status},
       successful_rows = ${successCount},
       failed_rows = ${errorCount},
-      metadata = ${JSON.stringify(metadata || {})}::jsonb,
-      updated_at = NOW()
+      metadata = ${JSON.stringify(metadata || {})}::jsonb
     WHERE id = ${uploadId}
   `;
 }

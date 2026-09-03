@@ -13,6 +13,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { AlertCircle, RotateCcw, Inbox, UploadCloud } from 'lucide-react';
 import { FinancialSummary, ReconciliationDateFilter } from '@/lib/reconciliation/types';
+import { exportFinancialSummaryToCSV } from '@/lib/reconciliation/export-utils';
 
 interface FinancialDashboardProps {
   accountId: string;
@@ -76,6 +77,7 @@ export function FinancialDashboard({ accountId, refreshTrigger }: FinancialDashb
         periodLabel={summary?.period?.label}
         onFilterChange={handleFilterChange}
         onRefresh={handleRefresh}
+        onExport={summary ? () => exportFinancialSummaryToCSV(summary, summary?.period?.label || 'All Time') : undefined}
         loading={loading}
       />
 

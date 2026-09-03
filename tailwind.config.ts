@@ -9,6 +9,9 @@ export default {
   ],
   theme: {
     extend: {
+      backdropBlur: {
+        xl: '4px',
+      },
       fontFamily: {
         body: ['PT Sans', 'sans-serif'],
         headline: ['Poppins', 'sans-serif'],

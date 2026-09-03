@@ -4,6 +4,7 @@ import React, { useEffect, useState, useCallback } from 'react';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { formatINR } from '@/lib/format';
+import { resolveActiveAccount, getStoredAccountId, ACTIVE_ACCOUNT_CHANGED_EVENT } from '@/lib/account';
 
 import {
   Card,
@@ -97,42 +98,27 @@ export default function PaymentsPage() {
 
   useEffect(() => {
     setIsMounted(true);
-    const id = sessionStorage.getItem("active_account");
-    if (id) setActiveAccountId(id);
 
-    const handleAccountInit = () => {
-      const freshId = sessionStorage.getItem("active_account");
+    async function initAccount() {
+      const acc = await resolveActiveAccount();
+      if (acc?.id) {
+        setActiveAccountId(acc.id);
+      }
+    }
+    initAccount();
+
+    const handleAccountInit = (e: any) => {
+      const freshId = e?.detail?.id || getStoredAccountId();
       if (freshId) setActiveAccountId(freshId);
     };
 
-    window.addEventListener('active-account-changed', handleAccountInit);
-    return () => window.removeEventListener('active-account-changed', handleAccountInit);
+    window.addEventListener(ACTIVE_ACCOUNT_CHANGED_EVENT, handleAccountInit);
+    return () => window.removeEventListener(ACTIVE_ACCOUNT_CHANGED_EVENT, handleAccountInit);
   }, []);
 
   useEffect(() => {
     if (activeAccountId) fetchData();
   }, [fetchData, activeAccountId]);
-
-  // Handle detecting the current account name for modal defaults
-  useEffect(() => {
-    async function getActiveAccountInfo() {
-      try {
-        const res = await apiFetch("/api/accounts");
-        const json = await res.json();
-        if (json.success && json.data.length > 0) {
-          // Get the first (only) account and set it as active
-          const firstAccountId = json.data[0].id;
-          setActiveAccountId(firstAccountId);
-          sessionStorage.setItem("active_account", firstAccountId);
-        }
-      } catch (e) {
-        console.error("Failed to detect active account info", e);
-      }
-    }
-    if (isMounted) {
-      getActiveAccountInfo();
-    }
-  }, [isMounted]);
 
   // Reset page when filters change
   useEffect(() => {

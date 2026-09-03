@@ -25,7 +25,7 @@ export async function GET(request: NextRequest) {
         id,
         upload_id,
         row_number,
-        field_name,
+        error_type,
         error_message,
         created_at
       FROM reconciliation_import_errors
@@ -41,7 +41,7 @@ export async function GET(request: NextRequest) {
         errorCount: errors.length,
         errors: errors.map((e: any) => ({
           rowNumber: e.row_number,
-          field: e.field_name,
+          field: e.error_type,
           message: e.error_message,
           timestamp: e.created_at
         }))

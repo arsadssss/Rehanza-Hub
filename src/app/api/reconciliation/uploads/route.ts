@@ -50,12 +50,12 @@ export async function GET(request: NextRequest) {
         row_count,
         successful_rows,
         failed_rows,
-        created_at,
-        updated_at,
+        uploaded_at as created_at,
+        uploaded_at as updated_at,
         metadata
       FROM reconciliation_uploads
       ${whereClause}
-      ORDER BY created_at DESC
+      ORDER BY uploaded_at DESC
       LIMIT $${paramIndex} OFFSET $${paramIndex + 1}`,
       [...params, limit, offset]
     );

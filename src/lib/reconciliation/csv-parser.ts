@@ -221,3 +221,48 @@ export function parseBoolean(value: any): boolean {
   }
   return Boolean(value);
 }
+
+/**
+ * Automatically detects the Meesho reconciliation file type based on CSV headers
+ */
+export function detectCsvFileType(headers: string[]): 'order' | 'payment' | 'ads' | 'unknown' {
+  const normalized = headers.map(normalizeHeader);
+
+  // Check for Payment headers (very distinct columns)
+  const paymentIndicators = [
+    'final settlement amount',
+    'live order status',
+    'total sale amount',
+    'total sale return amount',
+    'return premium',
+    'net other support service charges',
+    'payment date'
+  ];
+  const paymentMatches = paymentIndicators.filter(p => normalized.some(h => h.includes(p))).length;
+  if (paymentMatches >= 2) return 'payment';
+
+  // Check for Ads headers
+  const adsIndicators = [
+    'deduction duration',
+    'campaign id',
+    'total ads cost',
+    'credits / waivers / discounts',
+    'ad cost incl'
+  ];
+  const adsMatches = adsIndicators.filter(a => normalized.some(h => h.includes(a))).length;
+  if (adsMatches >= 2) return 'ads';
+
+  // Check for Order headers
+  const orderIndicators = [
+    'reason for credit entry',
+    'supplier listed price',
+    'supplier discounted price',
+    'packet id',
+    'customer state'
+  ];
+  const orderMatches = orderIndicators.filter(o => normalized.some(h => h.includes(o))).length;
+  if (orderMatches >= 2) return 'order';
+
+  return 'unknown';
+}
+

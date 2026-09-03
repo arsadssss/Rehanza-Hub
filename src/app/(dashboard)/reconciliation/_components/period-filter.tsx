@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, RotateCcw, ChevronDown } from 'lucide-react';
+import { Calendar, RotateCcw, ChevronDown, Download } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ReconciliationDateFilter } from '@/lib/reconciliation/types';
 
@@ -12,6 +12,7 @@ interface PeriodFilterProps {
   periodLabel?: string;
   onFilterChange: (filter: ReconciliationDateFilter) => void;
   onRefresh: () => void;
+  onExport?: () => void;
   loading: boolean;
 }
 
@@ -20,6 +21,7 @@ export function PeriodFilter({
   periodLabel,
   onFilterChange,
   onRefresh,
+  onExport,
   loading,
 }: PeriodFilterProps) {
   const [activeTab, setActiveTab] = useState<'all' | 'this_month' | 'prev_month' | 'custom'>('all');
@@ -161,6 +163,22 @@ export function PeriodFilter({
             <RotateCcw className={cn('h-3.5 w-3.5 mr-1.5', loading && 'animate-spin text-indigo-400')} />
             <span>Refresh</span>
           </Button>
+
+          {/* Export CSV Button */}
+          {onExport && (
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onClick={onExport}
+              disabled={loading}
+              className="glass-button bg-indigo-950/40 border-indigo-400/30 hover:bg-indigo-900/50 text-indigo-200 h-9 px-3.5 rounded-xl font-bold text-xs"
+              title="Export Financial Summary as CSV"
+            >
+              <Download className="h-3.5 w-3.5 mr-1.5 text-indigo-400" />
+              <span>Export CSV</span>
+            </Button>
+          )}
         </div>
       </div>
 
