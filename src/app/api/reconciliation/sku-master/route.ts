@@ -1,0 +1,112 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { getSkuMasterList, saveSkuCost } from '@/lib/reconciliation/sku-master-service';
+
+export const revalidate = 0;
+
+/**
+ * GET /api/reconciliation/sku-master
+ * Scoped to active account. Supports search, status filtering, and pagination.
+ */
+export async function GET(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions).catch(() => null);
+    const headerAccountId = request.headers.get('x-account-id');
+    const accountId = headerAccountId || (session?.user as any)?.accountId;
+
+    if (!accountId) {
+      return NextResponse.json(
+        { success: false, message: 'Account context missing' },
+        { status: 400 }
+      );
+    }
+
+    const { searchParams } = new URL(request.url);
+    const search = searchParams.get('search') || undefined;
+    const status = (searchParams.get('status') as 'all' | 'configured' | 'pending') || 'all';
+    const limit = parseInt(searchParams.get('limit') || '100', 10);
+    const offset = parseInt(searchParams.get('offset') || '0', 10);
+
+    const result = await getSkuMasterList(accountId, {
+      search,
+      status,
+      limit,
+      offset,
+    });
+
+    return NextResponse.json({
+      success: true,
+      ...result,
+    });
+  } catch (error: any) {
+    console.error('SKU Master GET Error:', error);
+    return NextResponse.json(
+      { success: false, message: error.message || 'Failed to fetch SKU master' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * POST /api/reconciliation/sku-master
+ * Save/configure SKU cost and packaging. Automatically triggers targeted recalculation.
+ */
+export async function POST(request: NextRequest) {
+  try {
+    const session = await getServerSession(authOptions).catch(() => null);
+    const headerAccountId = request.headers.get('x-account-id');
+    const accountId = headerAccountId || (session?.user as any)?.accountId;
+
+    if (!accountId) {
+      return NextResponse.json(
+        { success: false, message: 'Account context missing' },
+        { status: 400 }
+      );
+    }
+
+    const body = await request.json();
+    const { sku, productName, costPrice, packagingCost } = body;
+
+    if (!sku || typeof sku !== 'string' || !sku.trim()) {
+      return NextResponse.json(
+        { success: false, message: 'SKU is required' },
+        { status: 400 }
+      );
+    }
+
+    if (costPrice === undefined || costPrice === null || isNaN(Number(costPrice)) || Number(costPrice) < 0) {
+      return NextResponse.json(
+        { success: false, message: 'Valid non-negative Cost Price is required' },
+        { status: 400 }
+      );
+    }
+
+    if (packagingCost === undefined || packagingCost === null || isNaN(Number(packagingCost)) || Number(packagingCost) < 0) {
+      return NextResponse.json(
+        { success: false, message: 'Valid non-negative Packaging Cost is required' },
+        { status: 400 }
+      );
+    }
+
+    const result = await saveSkuCost(accountId, sku, {
+      costPrice: Number(costPrice),
+      packagingCost: Number(packagingCost),
+      productName: productName ? String(productName).trim() : null,
+    });
+
+    return NextResponse.json({
+      success: true,
+      sku: result.sku,
+      affectedTransactions: result.affectedTransactions,
+      message: `SKU ${sku} configured successfully. Recalculated ${result.affectedTransactions} transactions.`,
+    });
+  } catch (error: any) {
+    console.error('SKU Master POST Error:', error);
+    return NextResponse.json(
+      { success: false, message: error.message || 'Failed to save SKU cost' },
+      { status: 500 }
+    );
+  }
+}
+

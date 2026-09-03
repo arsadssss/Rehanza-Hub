@@ -244,12 +244,26 @@ export async function calculateSkuAnalytics(
           )
       `;
 
+  const masterQuery = sql`
+    SELECT LOWER(TRIM(sku)) as norm_sku, cost_status
+    FROM reconciliation_sku_master
+    WHERE account_id = ${accountId}
+  `;
+
   // Execute database queries in parallel
-  const [skuRows, dailyRows, adsRes] = await Promise.all([
+  const [skuRows, dailyRows, adsRes, masterRows] = await Promise.all([
     skuQuery,
     dailyQuery,
     adsQuery,
+    masterQuery,
   ]);
+
+  const masterMap = new Map<string, string>();
+  for (const m of masterRows) {
+    if (m.norm_sku) {
+      masterMap.set(m.norm_sku, m.cost_status);
+    }
+  }
 
   const rawAds = Number(adsRes[0]?.total_ads_cost || 0);
   const totalAdsCost = rawAds > 0 ? -rawAds : round2(rawAds);
@@ -258,6 +272,9 @@ export async function calculateSkuAnalytics(
   // Process SKU Metrics
   // --------------------------------------------------
   const skus: SkuProfitabilityMetric[] = skuRows.map((r: any) => {
+    const normKey = String(r.sku || '').trim().toLowerCase();
+    const costStatus: 'configured' | 'pending' =
+      masterMap.get(normKey) === 'configured' ? 'configured' : 'pending';
     const totalOrders = Math.round(Number(r.total_orders || 0));
     const deliveredOrders = Math.round(Number(r.delivered_orders || 0));
     const shippedOrders = Math.round(Number(r.shipped_orders || 0));
@@ -325,6 +342,7 @@ export async function calculateSkuAnalytics(
       returnRate,
       rtoRate,
       deliveredRate,
+      costStatus,
     };
   });
 

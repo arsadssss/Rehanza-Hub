@@ -5,6 +5,8 @@
  */
 
 import { sql } from '@/lib/db';
+import { normalizeReconciliationStatus } from './status-normalizer';
+import { normalizeSku } from './sku-master-service';
 
 export interface TransactionRow {
   platform: string;
@@ -114,13 +116,32 @@ async function processOrderReconciliation(uploadId: number, accountId?: string):
     ORDER BY row_number
   `;
 
+  // Bulk fetch SKU master for this account to avoid N+1 queries
+  const skuRecords = accountId
+    ? await sql`
+        SELECT id, sku, cost_price, packaging_cost, packing, cost_status
+        FROM reconciliation_sku_master
+        WHERE account_id = ${accountId}
+      `
+    : await sql`
+        SELECT id, sku, cost_price, packaging_cost, packing, cost_status
+        FROM reconciliation_sku_master
+      `;
+
+  const skuMap = new Map<string, any>();
+  for (const r of skuRecords) {
+    skuMap.set(normalizeSku(r.sku).toLowerCase(), r);
+  }
+
   for (const orderRow of orderRows) {
-    // Look up SKU master
-    const skuMaster = await sql`
-      SELECT id, cost_price, packing as packaging_cost FROM reconciliation_sku_master
-      WHERE sku = ${orderRow.sku}
-      LIMIT 1
-    `;
+    // Look up SKU master (case-insensitive & trimmed) from pre-fetched map
+    const normSkuKey = normalizeSku(orderRow.sku).toLowerCase();
+    const skuMaster = skuMap.get(normSkuKey);
+    const isConfigured = skuMaster && skuMaster.cost_status === 'configured';
+    const unitCost = isConfigured && skuMaster.cost_price !== null ? Number(skuMaster.cost_price) : null;
+    const unitPkg = isConfigured && (skuMaster.packaging_cost !== null || skuMaster.packing !== null)
+      ? Number(skuMaster.packaging_cost ?? skuMaster.packing)
+      : null;
 
     // Find matching payment
     const payment = await sql`
@@ -131,21 +152,25 @@ async function processOrderReconciliation(uploadId: number, accountId?: string):
 
     // Calculate quantity cost
     const quantity = orderRow.quantity ? Number(orderRow.quantity) : null;
-    const cost = skuMaster?.[0]?.cost_price ? Number(skuMaster[0].cost_price) : null;
-    const quantity_cost =
-      quantity && cost ? quantity * cost : null;
-
-    // Calculate profit based on status (Delivered, Exchange, Return, etc.)
-    const packaging = skuMaster?.[0]?.packaging_cost
-      ? Number(skuMaster[0].packaging_cost)
-      : null;
+    const cost = unitCost;
+    const quantity_cost = quantity && unitCost !== null ? quantity * unitCost : null;
+    const packaging = quantity && unitPkg !== null ? quantity * unitPkg : null;
     const payment_amount = payment?.[0]?.final_settlement_amount
       ? Number(payment[0].final_settlement_amount)
       : null;
 
-    let profit: number | null = null;
-    const status = payment?.[0]?.live_order_status || 'Unknown';
+    const paymentRaw = (payment?.[0]?.raw_data || {}) as Record<string, any>;
+    const paymentLiveStatus = paymentRaw['Live Order Status'] || payment?.[0]?.live_order_status;
+    const orderStatusRaw = orderRow.status || orderRow.credit_entry_reason;
+    const canonicalOrder = normalizeReconciliationStatus(orderStatusRaw);
+    const canonicalLive = (paymentLiveStatus && String(paymentLiveStatus).trim() !== '')
+      ? normalizeReconciliationStatus(paymentLiveStatus)
+      : null;
 
+    // Effective status: Live payment status takes precedence if valid, else order status
+    const status = (canonicalLive && canonicalLive !== 'Unknown') ? canonicalLive : canonicalOrder;
+
+    let profit: number | null = null;
     if (payment_amount !== null) {
       if (
         status === 'Delivered' ||
@@ -261,7 +286,7 @@ async function processOrderReconciliation(uploadId: number, accountId?: string):
           ${orderRow.order_date || null},
           null,
           ${orderRow.order_source || null},
-          ${status},
+          ${canonicalLive},
           ${payment?.[0]?.listing_price || null},
           ${payment?.[0]?.total_sale_amount || null},
           ${payment?.[0]?.total_sale_return_amount || null},
@@ -287,6 +312,10 @@ async function processOrderReconciliation(uploadId: number, accountId?: string):
           product_name = EXCLUDED.product_name,
           quantity = EXCLUDED.quantity,
           status = EXCLUDED.status,
+          live_order_status = EXCLUDED.live_order_status,
+          source_order_id = EXCLUDED.source_order_id,
+          order_date = EXCLUDED.order_date,
+          order_source = EXCLUDED.order_source,
           updated_at = NOW()
       `;
     } catch (error) {
@@ -314,6 +343,11 @@ async function processPaymentReconciliation(uploadId: number, accountId?: string
     const claimsAmount = raw['Claims'] ? Number(String(raw['Claims']).replace(/['",₹$]/g, '').trim()) || null : null;
     const recoveryAmount = raw['Recovery'] ? Number(String(raw['Recovery']).replace(/['",₹$]/g, '').trim()) || null : null;
 
+    const rawLiveStatus = raw['Live Order Status'] || paymentRow.live_order_status;
+    const canonicalLiveStatus = (rawLiveStatus && String(rawLiveStatus).trim() !== '')
+      ? normalizeReconciliationStatus(rawLiveStatus)
+      : null;
+
     // Try to find existing transaction
     const existingTx = await sql`
       SELECT id, status, quantity_cost, packaging FROM reconciliation_transactions
@@ -325,7 +359,10 @@ async function processPaymentReconciliation(uploadId: number, accountId?: string
       const tx = existingTx[0];
       const paymentAmount = paymentRow.final_settlement_amount !== null ? Number(paymentRow.final_settlement_amount) : 0;
       let calculatedProfit: number | null = null;
-      const effectiveStatus = paymentRow.live_order_status || tx.status;
+      const effectiveStatus = (canonicalLiveStatus && canonicalLiveStatus !== 'Unknown')
+        ? canonicalLiveStatus
+        : tx.status;
+
       if (effectiveStatus === 'Delivered' || effectiveStatus === 'Exchange') {
         calculatedProfit = paymentAmount;
         if (tx.quantity_cost !== null) calculatedProfit -= Number(tx.quantity_cost);
@@ -339,6 +376,7 @@ async function processPaymentReconciliation(uploadId: number, accountId?: string
       await sql`
         UPDATE reconciliation_transactions
         SET 
+          status = ${effectiveStatus},
           payment = ${paymentRow.final_settlement_amount || null},
           profit = ${calculatedProfit},
           shipping_cost = ${paymentRow.shipping_charge || null},
@@ -352,7 +390,7 @@ async function processPaymentReconciliation(uploadId: number, accountId?: string
           claim_reason = ${paymentRow.claims_reason || null},
           recovery_amount = ${recoveryAmount},
           recovery_reason = ${paymentRow.recovery_reason || null},
-          live_order_status = ${paymentRow.live_order_status || null},
+          live_order_status = ${canonicalLiveStatus},
           total_sale_amount = ${paymentRow.total_sale_amount || null},
           total_sale_return_amount = ${paymentRow.total_sale_return_amount || null},
           commission_percentage = ${paymentRow.commission_percentage || null},
@@ -375,6 +413,14 @@ async function processPaymentReconciliation(uploadId: number, accountId?: string
     } else {
       // Payment arrived for an order not yet in transactions
       const paymentAmount = paymentRow.final_settlement_amount !== null ? Number(paymentRow.final_settlement_amount) : 0;
+      const effectiveStatus = (canonicalLiveStatus && canonicalLiveStatus !== 'Unknown') ? canonicalLiveStatus : 'Unknown';
+      let calculatedProfit: number | null = null;
+      if (effectiveStatus === 'Delivered' || effectiveStatus === 'Exchange') {
+        calculatedProfit = paymentAmount;
+      } else if (effectiveStatus === 'Return') {
+        calculatedProfit = paymentAmount;
+      }
+
       await sql`
         INSERT INTO reconciliation_transactions (
           platform,
@@ -422,9 +468,9 @@ async function processPaymentReconciliation(uploadId: number, accountId?: string
           'Meesho',
           ${paymentRow.order_no || null},
           ${paymentRow.sub_order_no},
-          ${raw['Supplier SKU'] || null},
-          ${raw['Product Name'] || null},
-          ${paymentRow.live_order_status || 'Unknown'},
+          ${raw['Supplier SKU'] || paymentRow.supplier_sku || null},
+          ${raw['Product Name'] || paymentRow.product_name || null},
+          ${effectiveStatus},
           ${raw['Quantity'] ? Number(raw['Quantity']) : 1},
           ${paymentRow.final_settlement_amount || null},
           ${paymentRow.shipping_charge || null},
@@ -434,7 +480,7 @@ async function processPaymentReconciliation(uploadId: number, accountId?: string
           ${paymentRow.fixed_fee || null},
           ${paymentRow.commission || null},
           ${paymentRow.warehousing_fee || null},
-          ${paymentAmount},
+          ${calculatedProfit},
           ${claimsAmount},
           ${paymentRow.claims_reason || null},
           ${recoveryAmount},
@@ -442,7 +488,7 @@ async function processPaymentReconciliation(uploadId: number, accountId?: string
           'partial',
           ${paymentRow.id},
           ${accountId || null},
-          ${paymentRow.live_order_status || null},
+          ${canonicalLiveStatus},
           ${paymentRow.total_sale_amount || null},
           ${paymentRow.total_sale_return_amount || null},
           ${paymentRow.commission_percentage || null},
@@ -464,6 +510,9 @@ async function processPaymentReconciliation(uploadId: number, accountId?: string
         SET
           payment = EXCLUDED.payment,
           source_payment_id = EXCLUDED.source_payment_id,
+          status = EXCLUDED.status,
+          live_order_status = EXCLUDED.live_order_status,
+          profit = EXCLUDED.profit,
           updated_at = NOW();
       `;
     }
@@ -482,6 +531,103 @@ async function processAdsReconciliation(uploadId: number): Promise<void> {
   `;
 
   // Store ads data for Phase 2 processing
-  // For now, just mark ads as processed
-  // Phase 2 will implement ad cost allocation to transactions
+  // RM Ads data is saved in reconciliation_rm_ads_raw and consumed by financial calculators
+}
+
+/**
+ * Resync all existing transaction statuses, live statuses, and profit
+ * from raw orders and raw payments tables.
+ */
+export async function resyncAllTransactions(accountId?: string): Promise<{ updated: number }> {
+  const txs = accountId
+    ? await sql`
+        SELECT id, sub_order_no, quantity_cost, packaging, status
+        FROM reconciliation_transactions
+        WHERE platform = 'Meesho' AND account_id = ${accountId}
+      `
+    : await sql`
+        SELECT id, sub_order_no, quantity_cost, packaging, status
+        FROM reconciliation_transactions
+        WHERE platform = 'Meesho'
+      `;
+
+  const [orders, payments] = await Promise.all([
+    sql`
+      SELECT id, sub_order_no, status, credit_entry_reason, sku, product_name, quantity, order_date, order_source
+      FROM reconciliation_orders_raw
+      ORDER BY id ASC
+    `,
+    sql`
+      SELECT id, sub_order_no, final_settlement_amount, raw_data, shipping_charge, return_shipping_charge,
+             tcs, tds, fixed_fee, commission, warehousing_fee, claims_reason, recovery_reason
+      FROM reconciliation_payments_raw
+      ORDER BY id ASC
+    `
+  ]);
+
+  const orderMap = new Map<string, any>();
+  for (const o of orders) {
+    orderMap.set(o.sub_order_no, o);
+  }
+
+  const paymentMap = new Map<string, any>();
+  for (const p of payments) {
+    paymentMap.set(p.sub_order_no, p);
+  }
+
+  let updated = 0;
+  const chunkSize = 25;
+  for (let i = 0; i < txs.length; i += chunkSize) {
+    const chunk = txs.slice(i, i + chunkSize);
+    await Promise.all(
+      chunk.map(async (tx: any) => {
+        const ord = orderMap.get(tx.sub_order_no);
+        const pay = paymentMap.get(tx.sub_order_no);
+        const raw = (pay?.raw_data || {}) as Record<string, any>;
+        const rawLiveStatus = raw['Live Order Status'];
+        const normLive = (rawLiveStatus && String(rawLiveStatus).trim() !== '')
+          ? normalizeReconciliationStatus(rawLiveStatus)
+          : null;
+        const rawOrdStatus = ord?.status || ord?.credit_entry_reason;
+        const normOrd = rawOrdStatus ? normalizeReconciliationStatus(rawOrdStatus) : 'Unknown';
+
+        const effective = (normLive && normLive !== 'Unknown') ? normLive : normOrd;
+
+        let calcProfit: number | null = null;
+        const paymentAmt = pay?.final_settlement_amount !== null && pay?.final_settlement_amount !== undefined
+          ? Number(pay.final_settlement_amount)
+          : null;
+
+        if (paymentAmt !== null) {
+          if (effective === 'Delivered' || effective === 'Exchange') {
+            calcProfit = paymentAmt;
+            if (tx.quantity_cost !== null) calcProfit -= Number(tx.quantity_cost);
+            if (tx.packaging !== null) calcProfit -= Number(tx.packaging);
+          } else if (effective === 'Return') {
+            calcProfit = paymentAmt;
+            if (tx.packaging !== null) calcProfit -= Number(tx.packaging);
+          }
+        }
+
+        await sql`
+          UPDATE reconciliation_transactions
+          SET
+            status = ${effective},
+            live_order_status = ${normLive},
+            profit = ${calcProfit},
+            source_order_id = COALESCE(source_order_id, ${ord?.id || null}),
+            source_payment_id = COALESCE(source_payment_id, ${pay?.id || null}),
+            order_date = COALESCE(order_date, ${ord?.order_date || null}),
+            order_source = COALESCE(order_source, ${ord?.order_source || null}),
+            sku = COALESCE(sku, ${ord?.sku || raw['Supplier SKU'] || null}),
+            product_name = COALESCE(product_name, ${ord?.product_name || raw['Product Name'] || null}),
+            updated_at = NOW()
+          WHERE id = ${tx.id}
+        `;
+        updated++;
+      })
+    );
+  }
+
+  return { updated };
 }

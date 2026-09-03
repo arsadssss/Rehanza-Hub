@@ -154,6 +154,7 @@ export function SkuTable({ skus, loading }: SkuTableProps) {
                     Margin <ArrowUpDown className="h-3 w-3" />
                   </span>
                 </th>
+                <th className="text-center py-3 px-3 font-bold">Cost Status</th>
                 <th className="text-right py-3 px-3 font-bold">Returns</th>
                 <th
                   onClick={() => handleSort('returnRate')}
@@ -178,13 +179,14 @@ export function SkuTable({ skus, loading }: SkuTableProps) {
             <tbody className="divide-y divide-white/5 font-medium">
               {paginatedSkus.length === 0 ? (
                 <tr>
-                  <td colSpan={11} className="py-8 text-center text-slate-400 text-xs">
+                  <td colSpan={12} className="py-8 text-center text-slate-400 text-xs">
                     No matching SKUs found.
                   </td>
                 </tr>
               ) : (
                 paginatedSkus.map((item) => {
                   const isProfitPos = item.profit >= 0;
+                  const isConfigured = item.costStatus === 'configured';
                   return (
                     <tr key={item.sku} className="hover:bg-white/[0.04] transition-colors">
                       <td className="py-2.5 px-4 font-mono font-bold text-indigo-300">
@@ -200,12 +202,18 @@ export function SkuTable({ skus, loading }: SkuTableProps) {
                         {formatINRWithDecimals(item.revenue)}
                       </td>
                       <td className="py-2.5 px-3 text-right font-black">
-                        <span className={cn(isProfitPos ? 'text-emerald-400' : 'text-rose-400')}>
-                          {formatINRWithDecimals(item.profit)}
-                        </span>
+                        {isConfigured ? (
+                          <span className={cn(isProfitPos ? 'text-emerald-400' : 'text-rose-400')}>
+                            {formatINRWithDecimals(item.profit)}
+                          </span>
+                        ) : (
+                          <span className="text-amber-400/80 font-normal italic text-[11px]" title="Cost configuration pending in SKU Cost Master">
+                            Cost Pending
+                          </span>
+                        )}
                       </td>
                       <td className="py-2.5 px-3 text-right">
-                        {item.profitMargin !== null ? (
+                        {isConfigured && item.profitMargin !== null ? (
                           <Badge
                             variant="outline"
                             className={cn(
@@ -218,7 +226,24 @@ export function SkuTable({ skus, loading }: SkuTableProps) {
                             {item.profitMargin}%
                           </Badge>
                         ) : (
-                          <span className="text-slate-400">—</span>
+                          <span className="text-slate-500 text-[11px]">—</span>
+                        )}
+                      </td>
+                      <td className="py-2.5 px-3 text-center">
+                        {isConfigured ? (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] font-bold border px-1.5 py-0.5 bg-emerald-500/15 text-emerald-300 border-emerald-500/30"
+                          >
+                            Configured
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] font-bold border px-1.5 py-0.5 bg-amber-500/15 text-amber-300 border-amber-500/30"
+                          >
+                            Cost Pending
+                          </Badge>
                         )}
                       </td>
                       <td className="py-2.5 px-3 text-right text-slate-300 font-bold">

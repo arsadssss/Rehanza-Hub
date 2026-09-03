@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { UploadSection } from './_components/upload-section';
 import { ImportHistory, UploadRecord } from './_components/import-history';
+import { SkuCostMaster } from './_components/sku-cost-master';
 import { FinancialDashboard } from './_components/financial-dashboard';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/apiFetch';
@@ -28,6 +29,7 @@ export default function ReconciliationPage() {
   const [loadingUploads, setLoadingUploads] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [financialRefreshTrigger, setFinancialRefreshTrigger] = useState(0);
+  const [skuMasterRefreshTrigger, setSkuMasterRefreshTrigger] = useState(0);
 
   // Eager account detection & resolution
   useEffect(() => {
@@ -78,8 +80,12 @@ export default function ReconciliationPage() {
   }, [activeAccountId, fetchUploads]);
 
   const handleUploadComplete = () => {
-    // Refresh both the upload history and the financial dashboard
     fetchUploads();
+    setSkuMasterRefreshTrigger((prev) => prev + 1);
+    setFinancialRefreshTrigger((prev) => prev + 1);
+  };
+
+  const handleCostConfigured = () => {
     setFinancialRefreshTrigger((prev) => prev + 1);
   };
 
@@ -88,6 +94,7 @@ export default function ReconciliationPage() {
     Promise.all([
       fetchUploads(),
       new Promise((resolve) => {
+        setSkuMasterRefreshTrigger((prev) => prev + 1);
         setFinancialRefreshTrigger((prev) => prev + 1);
         setTimeout(resolve, 600);
       }),
@@ -95,7 +102,7 @@ export default function ReconciliationPage() {
       setRefreshing(false);
       toast({
         title: 'Reconciliation Refreshed',
-        description: 'Latest ingestion status and financial metrics updated.',
+        description: 'Latest ingestion status, SKU costs and financial metrics updated.',
       });
     });
   };
@@ -179,12 +186,32 @@ export default function ReconciliationPage() {
             />
           </section>
 
-          {/* 3. IMPORT HISTORY & ROW ERROR AUDIT */}
+          {/* 3. SKU COST MASTER (Persistent unit economics & packaging setup) */}
+          <section className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black uppercase tracking-wider text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+                  Step 2
+                </span>
+                <h3 className="text-base sm:text-lg font-black text-white">SKU Cost Master</h3>
+              </div>
+              <span className="text-xs text-slate-400 font-medium hidden sm:inline">
+                Configure unit purchase cost and packaging once to automate profit reconciliation
+              </span>
+            </div>
+            <SkuCostMaster
+              accountId={activeAccountId}
+              refreshTrigger={skuMasterRefreshTrigger}
+              onCostConfigured={handleCostConfigured}
+            />
+          </section>
+
+          {/* 4. IMPORT HISTORY & ROW ERROR AUDIT */}
           <section className="space-y-4">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-black uppercase tracking-wider text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/20">
-                  Step 2
+                  Step 3
                 </span>
                 <h3 className="text-base sm:text-lg font-black text-white">Ingestion Audit & Validation Log</h3>
               </div>
@@ -200,12 +227,12 @@ export default function ReconciliationPage() {
             />
           </section>
 
-          {/* 4. FINANCIAL OVERVIEW, PERFORMANCE, SKU & DECISION ENGINE */}
+          {/* 5. FINANCIAL OVERVIEW, PERFORMANCE, SKU & DECISION ENGINE */}
           <section className="space-y-4 pt-2">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-black uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
-                  Step 3
+                  Step 4
                 </span>
                 <h3 className="text-base sm:text-lg font-black text-white">Financial & SKU Intelligence</h3>
               </div>

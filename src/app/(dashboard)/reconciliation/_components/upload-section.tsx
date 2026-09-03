@@ -19,6 +19,7 @@ import {
   Sparkles,
   AlertTriangle,
   FileCheck2,
+  Package,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Papa from 'papaparse';
@@ -41,6 +42,12 @@ interface UploadResult {
     validationWarnings: number;
     sourceType?: string;
   };
+  skuCostStatus?: {
+    configuredCount: number;
+    pendingCount: number;
+    newCount: number;
+    requiresCostSetup: boolean;
+  } | null;
   errors?: Array<{ rowNumber?: number; field?: string; message: string }>;
   warnings?: Array<{ message: string }>;
 }
@@ -271,6 +278,49 @@ export function UploadSection({ onUploadComplete, accountId }: UploadSectionProp
                     <div className="p-2.5 rounded-lg bg-slate-900/60 border border-white/10 text-center">
                       <p className="text-[11px] text-slate-400 font-medium">Warnings</p>
                       <p className="font-black text-base text-amber-400">{uploadResult.stats.validationWarnings}</p>
+                    </div>
+                  </div>
+                )}
+
+                {uploadResult.skuCostStatus && (
+                  <div className="mt-3 p-3 rounded-xl bg-slate-900/90 border border-white/15 space-y-2">
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+                      <div className="space-y-0.5 text-left">
+                        <p className="text-xs font-bold text-white flex items-center gap-1.5">
+                          <Package className="h-3.5 w-3.5 text-indigo-400" />
+                          <span>SKU Cost Configuration Status</span>
+                        </p>
+                        <p className="text-[11px] text-slate-300">
+                          <span className="text-emerald-400 font-bold">
+                            {uploadResult.skuCostStatus.configuredCount} configured
+                          </span>
+                          {uploadResult.skuCostStatus.newCount > 0 && (
+                            <span>
+                              {' '}• <span className="text-indigo-300 font-bold">{uploadResult.skuCostStatus.newCount} new SKUs</span>
+                            </span>
+                          )}
+                          {uploadResult.skuCostStatus.pendingCount > 0 ? (
+                            <span>
+                              {' '}• <span className="text-amber-400 font-bold">{uploadResult.skuCostStatus.pendingCount} require cost setup</span>
+                            </span>
+                          ) : (
+                            <span> • <span className="text-emerald-300 font-semibold">All SKUs have cost configuration.</span></span>
+                          )}
+                        </p>
+                      </div>
+                      {uploadResult.skuCostStatus.pendingCount > 0 && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            const el = document.getElementById('sku-cost-master-section');
+                            el?.scrollIntoView({ behavior: 'smooth' });
+                          }}
+                          className="glass-button bg-amber-500/20 hover:bg-amber-500/30 border-amber-500/40 text-amber-200 text-xs h-7 px-3 rounded-lg flex-shrink-0"
+                        >
+                          Review SKU Costs →
+                        </Button>
+                      )}
                     </div>
                   </div>
                 )}

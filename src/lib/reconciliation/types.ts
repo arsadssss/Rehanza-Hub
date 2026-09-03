@@ -96,6 +96,7 @@ export interface SkuProfitabilityMetric {
   sku: string;
   productName: string;
   category?: string | null;
+  costStatus?: 'configured' | 'pending';
   totalOrders: number; // SUM(quantity)
   deliveredOrders: number;
   shippedOrders: number;

@@ -12,6 +12,7 @@ import {
   updateUploadStatus
 } from '@/lib/reconciliation/importer';
 import { processReconciliation } from '@/lib/reconciliation/reconciliation-engine';
+import { syncSkusFromOrders } from '@/lib/reconciliation/sku-master-service';
 
 export const revalidate = 0;
 
@@ -134,6 +135,20 @@ export async function POST(request: NextRequest) {
       importResult = await insertAdsRaw(uploadRecord.id, processedRows, accountId);
     }
 
+    // Auto-detect and sync SKUs into SKU Cost Master on order upload (without blocking)
+    let skuCostStatus = null;
+    if (sourceType === 'order') {
+      try {
+        const orderSkus = processedRows.map((r) => ({
+          sku: r.data.sku,
+          productName: r.data.productName,
+        }));
+        skuCostStatus = await syncSkusFromOrders(accountId, orderSkus);
+      } catch (skuErr) {
+        console.error('Error auto-syncing SKUs from orders upload:', skuErr);
+      }
+    }
+
     // Record any errors
     const errorRows = csvData.rows.filter((row, idx) =>
       validationResult.errors.some((err) => err.rowNumber === row.rowNumber)
@@ -182,6 +197,7 @@ export async function POST(request: NextRequest) {
           validationWarnings: validationResult.warnings.length,
           sourceType
         },
+        skuCostStatus,
         errors: validationResult.errors,
         warnings: validationResult.warnings
       },
