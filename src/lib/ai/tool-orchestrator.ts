@@ -216,13 +216,27 @@ export async function runToolOrchestrator(
   while (turn < maxTurns) {
     turn++;
 
-    const completion = await client.chat.completions.create({
-      model,
-      messages,
-      tools,
-      tool_choice: "auto",
-      temperature: 0.2,
-    });
+    console.log("[AI_CHAT] Calling AI provider");
+    let completion: any;
+    try {
+      completion = await client.chat.completions.create({
+        model,
+        messages,
+        tools,
+        tool_choice: "auto",
+        temperature: 0.2,
+      });
+      console.log("[AI_CHAT] AI provider response received");
+    } catch (apiErr: any) {
+      console.error(
+        "[AI_CHAT_ERROR]",
+        JSON.stringify({
+          stage: "ai_provider",
+          message: apiErr?.message || "AI provider request failed",
+        })
+      );
+      throw apiErr;
+    }
 
     const assistantMessage = completion.choices[0]?.message;
     if (!assistantMessage) {
@@ -265,6 +279,8 @@ export async function runToolOrchestrator(
 
     // If tool calls were detected, execute them server-side
     if (detectedCalls.length > 0) {
+      console.log("[AI_CHAT] Tool execution started");
+
       // Append formatted assistant message with tool_calls for API schema compliance
       messages.push({
         role: "assistant",
@@ -306,7 +322,13 @@ export async function runToolOrchestrator(
             content: JSON.stringify(result),
           });
         } catch (toolErr: any) {
-          console.error(`[AI Tool Error] Failed executing ${call.name}:`, toolErr);
+          console.error(
+            "[AI_CHAT_ERROR]",
+            JSON.stringify({
+              stage: "tool",
+              message: `Failed executing ${call.name}: ${toolErr?.message || "unknown error"}`,
+            })
+          );
           messages.push({
             role: "tool",
             tool_call_id: call.id,
@@ -325,12 +347,25 @@ export async function runToolOrchestrator(
 
   // Fallback: If loop reached max turns without a final textual answer, force synthesis
   if (!finalAnswer && turn >= maxTurns) {
-    const finalCompletion = await client.chat.completions.create({
-      model,
-      messages,
-      temperature: 0.2,
-    });
-    finalAnswer = sanitizeAssistantResponse(finalCompletion.choices[0]?.message?.content || "");
+    console.log("[AI_CHAT] Calling AI provider");
+    try {
+      const finalCompletion = await client.chat.completions.create({
+        model,
+        messages,
+        temperature: 0.2,
+      });
+      console.log("[AI_CHAT] AI provider response received");
+      finalAnswer = sanitizeAssistantResponse(finalCompletion.choices[0]?.message?.content || "");
+    } catch (finalErr: any) {
+      console.error(
+        "[AI_CHAT_ERROR]",
+        JSON.stringify({
+          stage: "ai_provider",
+          message: finalErr?.message || "Final AI synthesis failed",
+        })
+      );
+      throw finalErr;
+    }
   }
 
   // If answer is still empty or failed to sanitize, provide a safe fallback

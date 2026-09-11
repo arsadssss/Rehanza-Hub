@@ -37,7 +37,9 @@ async function runAiTests() {
   // TEST 2: Missing API Key Error Handling
   try {
     const originalKey = process.env.XKIRO_API_KEY;
+    const originalAiKey = process.env.AI_API_KEY;
     delete process.env.XKIRO_API_KEY;
+    delete process.env.AI_API_KEY;
     let caught = false;
     try {
       getAiClient();
@@ -45,6 +47,7 @@ async function runAiTests() {
       caught = true;
     }
     process.env.XKIRO_API_KEY = originalKey;
+    process.env.AI_API_KEY = originalAiKey;
     assert(caught, "2. Missing API key throws safe configuration error without exposing secrets");
   } catch (e: any) {
     assert(false, "2. Missing API key error handling", e.message);

@@ -199,6 +199,7 @@ export function AiCopilotModal({ isOpen, onClose, activeAccountId }: AiCopilotMo
 
       const res = await fetch("/api/ai/chat", {
         method: "POST",
+        credentials: "include",
         headers: {
           "Content-Type": "application/json",
           "x-account-id": accountId,
