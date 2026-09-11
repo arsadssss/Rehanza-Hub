@@ -29,6 +29,8 @@ import { ReconciliationSnapshot } from './components/reconciliation-snapshot';
 import { OrderDistribution } from './components/order-distribution';
 import { DailyFinancialTrends } from './components/daily-financial-trends';
 import { BusinessIntelligence } from './components/business-intelligence';
+import { AiAssistButton } from '@/components/ai/ai-assist-button';
+import { AiCopilotModal } from '@/components/ai/ai-copilot-modal';
 
 // Reconciliation Types
 import {
@@ -185,6 +187,7 @@ export default function DashboardPage() {
   const [worstProfitSku, setWorstProfitSku] = useState<SkuProfitabilityMetric | null>(null);
 
   const [financialsError, setFinancialsError] = useState<string | null>(null);
+  const [isAiCopilotOpen, setIsAiCopilotOpen] = useState(false);
 
   // Compute Last Month Range
   const { startDate, endDate, label: periodLabel } = useMemo(() => getLastMonthRange(), []);
@@ -354,6 +357,10 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex items-center gap-3">
+          <AiAssistButton
+            isOpen={isAiCopilotOpen}
+            onClick={() => setIsAiCopilotOpen((prev) => !prev)}
+          />
           <Badge
             variant="outline"
             className="glass-pill h-11 px-4 rounded-xl border border-white/10 bg-slate-900/35 font-bold text-xs uppercase tracking-widest flex items-center gap-2 text-slate-200"
@@ -532,6 +539,13 @@ export default function DashboardPage() {
         </div>
         <TaskPerformanceCard data={trackRecord} loading={loading} />
       </section>
+
+      {/* Rehanza AI Business Copilot Floating Assistant */}
+      <AiCopilotModal
+        isOpen={isAiCopilotOpen}
+        onClose={() => setIsAiCopilotOpen(false)}
+        activeAccountId={activeAccountId}
+      />
     </div>
   );
 }
