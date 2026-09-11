@@ -200,8 +200,72 @@ export function runValidationTests() {
     }
   }
 
-  // TEST 1: Reference July Sample Dataset from Workbook
-  console.log('--- TEST SUITE 1: Workbook July Reference Dataset ---');
+  // TEST 1: Authoritative August Dataset from Meesho Reconciliation.xlsx
+  console.log('--- TEST SUITE 1: Authoritative August Dataset ---');
+  const augSummary = computeFinancialSummaryPure({
+    totalSalesInvoice: 207353,
+    rawAdsCost: -4273.36,
+    returnFilingCharge: 111.11,
+    gstRate: 0.18,
+    periodLabel: 'August 2026',
+    txData: {
+      total_orders: 486,
+      delivered_orders: 150,
+      shipped_orders: 8,
+      exchange_orders: 0,
+      return_orders: 91,
+      rto_orders: 119,
+      cancel_orders: 117,
+      awaiting_payment: 0,
+      settlement_amount: 48277.17,
+      purchase_cost: 26110,
+      packaging_cost: 8620,
+      shipping_cost: -11179.77,
+      return_shipping_cost: -17069,
+      total_tcs: -319.84,
+      total_tds: -64.05,
+      total_claims: 1545.83,
+      total_recovery: 0,
+      total_fixed_fee: 0,
+      total_commission: 0,
+      total_warehousing_fee: 0,
+      average_order_value: 504.32,
+      working_sheet_profit_total: 17394.77,
+    },
+  });
+
+  assert(augSummary.totalSalesInvoice === 207353, 'August: Total Sales (Invoice) matches Final!A8', augSummary.totalSalesInvoice, 207353);
+  assert(augSummary.settlementAmount === 48277.17, 'August: Settlement Amount matches Final!B8', augSummary.settlementAmount, 48277.17);
+  assert(augSummary.orders.totalOrders === 486, 'August: Total Orders matches Final!D8', augSummary.orders.totalOrders, 486);
+  assert(augSummary.orders.deliveredOrders === 150, 'August: Delivered Orders matches Final!E8', augSummary.orders.deliveredOrders, 150);
+  assert(augSummary.orders.deliveredRate === 30.86, 'August: Delivered Rate matches Final!E9 (30.86%)', augSummary.orders.deliveredRate, 30.86);
+  assert(augSummary.orders.shippedOrders === 8, 'August: Shipped Orders matches Final!D11', augSummary.orders.shippedOrders, 8);
+  assert(augSummary.orders.shippedRate === 1.65, 'August: Shipped Rate matches Final!D12 (1.65%)', augSummary.orders.shippedRate, 1.65);
+  assert(augSummary.orders.exchangeOrders === 0, 'August: Exchange Orders matches Final!E11', augSummary.orders.exchangeOrders, 0);
+  assert(augSummary.orders.exchangeRate === 0, 'August: Exchange Rate matches Final!E12 (0%)', augSummary.orders.exchangeRate, 0);
+  assert(augSummary.orders.returnOrders === 91, 'August: Return Orders matches Final!D14', augSummary.orders.returnOrders, 91);
+  assert(augSummary.orders.returnRate === 18.72, 'August: Return Rate matches Final!D15 (18.72%)', augSummary.orders.returnRate, 18.72);
+  assert(augSummary.orders.rtoOrders === 119, 'August: RTO Orders matches Final!E14', augSummary.orders.rtoOrders, 119);
+  assert(augSummary.orders.rtoRate === 24.49, 'August: RTO Rate matches Final!E15 (24.49%)', augSummary.orders.rtoRate, 24.49);
+  assert(augSummary.orders.cancelOrders === 117, 'August: Cancel Orders matches Final!D17', augSummary.orders.cancelOrders, 117);
+  assert(augSummary.orders.cancelRate === 24.07, 'August: Cancel Rate matches Final!D18 (24.07%)', augSummary.orders.cancelRate, 24.07);
+  assert(augSummary.orders.netOrders === 241, 'August: Net Orders matches Final!D20 (241)', augSummary.orders.netOrders, 241);
+  assert(augSummary.averageOrderValue === 504.32, 'August: AOV matches Final!E20 (₹504.32)', augSummary.averageOrderValue, 504.32);
+  assert(augSummary.costs.purchaseCost === -26110, 'August: Purchase Cost negative sign matches Final!A11 (-₹26,110)', augSummary.costs.purchaseCost, -26110);
+  assert(augSummary.costs.packagingCost === -8620, 'August: Packaging Cost negative sign matches Final!B11 (-₹8,620)', augSummary.costs.packagingCost, -8620);
+  assert(augSummary.costs.shippingCost === -11179.77, 'August: Shipping Cost matches Final!A14 (-₹11,179.77)', augSummary.costs.shippingCost, -11179.77);
+  assert(augSummary.costs.returnShippingCost === -17069, 'August: Return Shipping Cost matches Final!B14 (-₹17,069)', augSummary.costs.returnShippingCost, -17069);
+  assert(augSummary.costs.tcs === -319.84, 'August: TCS matches Final!A17 (-₹319.84)', augSummary.costs.tcs, -319.84);
+  assert(augSummary.costs.tds === -64.05, 'August: TDS matches Final!B17 (-₹64.05)', augSummary.costs.tds, -64.05);
+  assert(augSummary.costs.claims === 1545.83, 'August: Claims matches Final!G9 (+₹1,545.83)', augSummary.costs.claims, 1545.83);
+  assert(augSummary.costs.recoveryFees === 0, 'August: Recovery Fees matches Final!H6 (0)', augSummary.costs.recoveryFees, 0);
+  assert(augSummary.costs.adsCost === -4273.36, 'August: Ads Cost matches Final!G6 (-₹4,273.36)', augSummary.costs.adsCost, -4273.36);
+  assert(augSummary.gstInputAmount === 37323.54, 'August: GST Input Amount matches Final!A21 (₹37,323.54)', augSummary.gstInputAmount, 37323.54);
+  assert(augSummary.a24NetCashflow === 9162.70, 'August: A24 Net Cashflow matches Final!A24 (₹9,162.70)', augSummary.a24NetCashflow, 9162.70);
+  assert(augSummary.finalPayoutNetProfit === 11092.42, 'August: Final Payout / Net Profit matches Final!B23/B3 (₹11,092.42)', augSummary.finalPayoutNetProfit, 11092.42);
+
+  // TEST 2: Reference July Sample Dataset from Workbook
+  console.log('\n--- TEST SUITE 2: Workbook July Reference Dataset ---');
   const julySummary = computeFinancialSummaryPure({
     totalSalesInvoice: 470878,
     rawAdsCost: -24295.04,

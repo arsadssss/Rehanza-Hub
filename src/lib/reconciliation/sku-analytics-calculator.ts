@@ -78,7 +78,7 @@ export async function calculateSkuAnalytics(
           -- AOV: Average positive total_sale_amount
           AVG(t.total_sale_amount) FILTER (WHERE t.total_sale_amount > 0 AND t.status IS NOT NULL AND t.status != '')::numeric AS aov
         FROM reconciliation_transactions t
-        LEFT JOIN reconciliation_orders_raw o ON t.source_order_id = o.id
+        LEFT JOIN reconciliation_orders_raw o ON (t.order_source_id = o.id OR t.source_order_id = o.id)
         LEFT JOIN reconciliation_payments_raw p ON t.source_payment_id = p.id
         WHERE t.platform = 'Meesho'
           AND (
@@ -133,7 +133,7 @@ export async function calculateSkuAnalytics(
           -- AOV: Average positive total_sale_amount
           AVG(t.total_sale_amount) FILTER (WHERE t.total_sale_amount > 0 AND t.status IS NOT NULL AND t.status != '')::numeric AS aov
         FROM reconciliation_transactions t
-        LEFT JOIN reconciliation_orders_raw o ON t.source_order_id = o.id
+        LEFT JOIN reconciliation_orders_raw o ON (t.order_source_id = o.id OR t.source_order_id = o.id)
         WHERE t.platform = 'Meesho'
           AND (
             t.account_id = ${accountId}
@@ -165,7 +165,7 @@ export async function calculateSkuAnalytics(
           COALESCE(SUM(t.quantity) FILTER (WHERE LOWER(t.status) = 'rto' OR LOWER(t.live_order_status) = 'rto'), 0)::numeric AS rto,
           COALESCE(SUM(t.quantity) FILTER (WHERE LOWER(t.status) = 'delivered' OR LOWER(t.live_order_status) = 'delivered'), 0)::numeric AS delivered
         FROM reconciliation_transactions t
-        LEFT JOIN reconciliation_orders_raw o ON t.source_order_id = o.id
+        LEFT JOIN reconciliation_orders_raw o ON (t.order_source_id = o.id OR t.source_order_id = o.id)
         LEFT JOIN reconciliation_payments_raw p ON t.source_payment_id = p.id
         WHERE t.platform = 'Meesho'
           AND (
@@ -197,7 +197,7 @@ export async function calculateSkuAnalytics(
           COALESCE(SUM(t.quantity) FILTER (WHERE LOWER(t.status) = 'rto' OR LOWER(t.live_order_status) = 'rto'), 0)::numeric AS rto,
           COALESCE(SUM(t.quantity) FILTER (WHERE LOWER(t.status) = 'delivered' OR LOWER(t.live_order_status) = 'delivered'), 0)::numeric AS delivered
         FROM reconciliation_transactions t
-        LEFT JOIN reconciliation_orders_raw o ON t.source_order_id = o.id
+        LEFT JOIN reconciliation_orders_raw o ON (t.order_source_id = o.id OR t.source_order_id = o.id)
         WHERE t.platform = 'Meesho'
           AND (
             t.account_id = ${accountId}
@@ -223,9 +223,17 @@ export async function calculateSkuAnalytics(
         FROM reconciliation_rm_ads_raw a
         WHERE a.platform = 'Meesho'
           AND (
-            a.account_id = ${accountId}
-            OR a.upload_id IN (
-              SELECT id FROM reconciliation_uploads WHERE account_id = ${accountId}
+            a.upload_id = (
+              SELECT id FROM reconciliation_uploads 
+              WHERE account_id = ${accountId} AND upload_type = 'rm_ads' AND status = 'completed'
+              ORDER BY id DESC LIMIT 1
+            )
+            OR (
+              a.account_id = ${accountId}
+              AND NOT EXISTS (
+                SELECT 1 FROM reconciliation_uploads 
+                WHERE account_id = ${accountId} AND upload_type = 'rm_ads' AND status = 'completed'
+              )
             )
           )
           AND (
@@ -239,9 +247,17 @@ export async function calculateSkuAnalytics(
         FROM reconciliation_rm_ads_raw a
         WHERE a.platform = 'Meesho'
           AND (
-            a.account_id = ${accountId}
-            OR a.upload_id IN (
-              SELECT id FROM reconciliation_uploads WHERE account_id = ${accountId}
+            a.upload_id = (
+              SELECT id FROM reconciliation_uploads 
+              WHERE account_id = ${accountId} AND upload_type = 'rm_ads' AND status = 'completed'
+              ORDER BY id DESC LIMIT 1
+            )
+            OR (
+              a.account_id = ${accountId}
+              AND NOT EXISTS (
+                SELECT 1 FROM reconciliation_uploads 
+                WHERE account_id = ${accountId} AND upload_type = 'rm_ads' AND status = 'completed'
+              )
             )
           )
       `;
@@ -305,6 +321,7 @@ export async function calculateSkuAnalytics(
     const deliveredRate = totalOrders > 0 ? round2((deliveredOrders / totalOrders) * 100) : 0;
     const returnRate = totalOrders > 0 ? round2((returnOrders / totalOrders) * 100) : 0;
     const rtoRate = totalOrders > 0 ? round2((rtoOrders / totalOrders) * 100) : 0;
+    const cancelRate = totalOrders > 0 ? round2((cancelOrders / totalOrders) * 100) : 0;
 
     // Margin = (profit / revenue) * 100 (preserves negative sign, null if revenue is 0)
     const profitMargin = revenue !== 0 ? round2((profit / revenue) * 100) : null;
@@ -344,6 +361,7 @@ export async function calculateSkuAnalytics(
       returnRate,
       rtoRate,
       deliveredRate,
+      cancelRate,
       costStatus,
     };
   });

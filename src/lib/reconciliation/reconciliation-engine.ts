@@ -1,99 +1,382 @@
 /**
- * Reconciliation Engine
- * Processes raw data and creates transaction records
- * Implements working sheet logic
+ * Authoritative Meesho Reconciliation Engine (Excel Parity)
+ *
+ * Implements the exact logic of the reference Meesho Reconciliation.xlsx workbook:
+ * 1. Upload Orders raw data -> Working Sheet order rows (preserves order-side rows without deduplication)
+ * 2. Upload Payments raw data -> Payment Pivot aggregation (by Sub Order No)
+ * 3. SKU Pivot Table -> SKU Cost Master (Cost & status-dependent Packaging)
+ * 4. Working Sheet -> Exact status, cost, packaging, payment, fee, and profit calculations
+ * 5. Final -> Dashboard metrics
  */
 
 import { sql } from '@/lib/db';
-import { normalizeReconciliationStatus } from './status-normalizer';
 import { normalizeSku } from './sku-master-service';
 
-export interface TransactionRow {
-  platform: string;
-  order_no: string | null;
+export interface PaymentPivotRecord {
   sub_order_no: string;
-  sku: string;
-  product_name: string;
+  payment: number;
   status: string;
-  quantity: number | null;
-  cost: number | null;
-  quantity_cost: number | null;
-  payment: number | null;
-  packaging: number | null;
-  shipping_cost: number | null;
-  return_shipping_cost: number | null;
-  tcs: number | null;
-  tds: number | null;
-  fixed_fee: number | null;
-  platform_commission: number | null;
-  warehousing_fee: number | null;
-  ad_cost: number | null;
-  profit: number | null;
-  claim_amount: number | null;
+  shipping_cost: number;
+  return_shipping_cost: number;
+  tcs: number;
+  tds: number;
+  claim_amount: number;
   claim_reason: string | null;
-  recovery_amount: number | null;
+  recovery_amount: number;
   recovery_reason: string | null;
-  reconciliation_status: string;
-  order_source_id: string | null;
-  sku_master_id: number | null;
-  order_date: string | null;
-  dispatch_date: string | null;
-  order_source: string | null;
-  live_order_status: string | null;
-  listing_price: number | null;
-  total_sale_amount: number | null;
-  total_sale_return_amount: number | null;
-  commission_percentage: number | null;
-  gold_platform_fee: number | null;
-  mall_platform_fee: number | null;
-  return_premium: number | null;
-  return_premium_of_return: number | null;
-  gst_compensation: number | null;
-  other_support_service_charges: number | null;
-  waivers: number | null;
-  net_other_support_service_charges: number | null;
-  gst_on_net_other_support_service_charges: number | null;
-  compensation: number | null;
-  compensation_reason: string | null;
-  claims_reason: string | null;
-  source_order_id: string | null;
-  source_payment_id: number | null;
-  source_ads_id: number | null;
+  fixed_fee: number;
+  commission: number;
+  warehousing_fee: number;
+  total_sale_amount: number;
+  listing_price: number;
 }
 
 /**
- * Process reconciliation for an upload
- * Matches orders, payments, and ads data
+ * Generate Payment Pivot Table aggregation from raw payments for an account.
+ * Groups by Sub Order No and aggregates exactly like Excel's 'Payment Pivot Table' tab.
+ */
+export async function generatePaymentPivot(accountId: string): Promise<Map<string, PaymentPivotRecord>> {
+  // Find latest completed payments upload for this account
+  const latestPayUpload = await sql`
+    SELECT id FROM reconciliation_uploads
+    WHERE account_id = ${accountId} AND upload_type = 'payments' AND status = 'completed'
+    ORDER BY id DESC LIMIT 1
+  `;
+
+  if (latestPayUpload.length === 0) {
+    return new Map();
+  }
+
+  const uploadId = latestPayUpload[0].id;
+  const rawPayments = await sql`
+    SELECT * FROM reconciliation_payments_raw
+    WHERE upload_id = ${uploadId}
+    ORDER BY row_number ASC
+  `;
+
+  const pivot = new Map<string, PaymentPivotRecord>();
+
+  for (const p of rawPayments) {
+    const subOrder = String(p.sub_order_no || '').trim();
+    if (!subOrder) continue;
+
+    const raw = (p.raw_data || {}) as Record<string, any>;
+    const finalAmt = p.final_settlement_amount !== null ? Number(p.final_settlement_amount) : 0;
+    
+    // Live Order Status in Excel
+    const rawLiveStatus = raw['Live Order Status'] || p.live_order_status;
+    const liveStatusStr = rawLiveStatus ? String(rawLiveStatus).trim() : '';
+
+    const shippingCharge = p.shipping_charge !== null ? Number(p.shipping_charge) : 0;
+    const returnShippingCharge = p.return_shipping_charge !== null ? Number(p.return_shipping_charge) : 0;
+    const tcs = p.tcs !== null ? Number(p.tcs) : 0;
+    const tds = p.tds !== null ? Number(p.tds) : 0;
+    const claims = raw['Claims']
+      ? Number(String(raw['Claims']).replace(/['",₹$]/g, '').trim()) || 0
+      : (p.claims ? Number(p.claims) : 0);
+    const recovery = raw['Recovery']
+      ? Number(String(raw['Recovery']).replace(/['",₹$]/g, '').trim()) || 0
+      : (p.recovery ? Number(p.recovery) : 0);
+    const fixedFee = p.fixed_fee !== null ? Number(p.fixed_fee) : 0;
+    const commission = p.commission !== null ? Number(p.commission) : 0;
+    const warehousingFee = p.warehousing_fee !== null ? Number(p.warehousing_fee) : 0;
+    const totalSaleAmount = p.total_sale_amount !== null ? Number(p.total_sale_amount) : 0;
+    const listingPrice = p.listing_price !== null ? Number(p.listing_price) : 0;
+
+    let existing = pivot.get(subOrder);
+    if (!existing) {
+      existing = {
+        sub_order_no: subOrder,
+        payment: 0,
+        status: '',
+        shipping_cost: 0,
+        return_shipping_cost: 0,
+        tcs: 0,
+        tds: 0,
+        claim_amount: 0,
+        claim_reason: null,
+        recovery_amount: 0,
+        recovery_reason: null,
+        fixed_fee: 0,
+        commission: 0,
+        warehousing_fee: 0,
+        total_sale_amount: 0,
+        listing_price: 0,
+      };
+      pivot.set(subOrder, existing);
+    }
+
+    existing.payment += finalAmt;
+    // Excel VLOOKUP returns the first non-empty Live Order Status
+    if (!existing.status && liveStatusStr) {
+      existing.status = liveStatusStr;
+    }
+    existing.shipping_cost += shippingCharge;
+    existing.return_shipping_cost += returnShippingCharge;
+    existing.tcs += tcs;
+    existing.tds += tds;
+    existing.claim_amount += claims;
+    if (!existing.claim_reason && p.claims_reason) {
+      existing.claim_reason = String(p.claims_reason).trim();
+    }
+    existing.recovery_amount += recovery;
+    if (!existing.recovery_reason && p.recovery_reason) {
+      existing.recovery_reason = String(p.recovery_reason).trim();
+    }
+    existing.fixed_fee += fixedFee;
+    existing.commission += commission;
+    existing.warehousing_fee += warehousingFee;
+    if (!existing.total_sale_amount && totalSaleAmount > 0) {
+      existing.total_sale_amount = totalSaleAmount;
+    }
+    if (!existing.listing_price && listingPrice > 0) {
+      existing.listing_price = listingPrice;
+    }
+  }
+
+  // If status is still blank after checking all rows, Excel Payment Pivot defaults to "Recovery"
+  for (const [, rec] of pivot.entries()) {
+    if (!rec.status) {
+      rec.status = 'Recovery';
+    }
+  }
+
+  return pivot;
+}
+
+/**
+ * Completely rebuilds the Working Sheet reconciliation transactions for an account
+ * to exactly mirror the Excel workbook's 'Working Sheet' tab.
+ */
+export async function rebuildAccountReconciliation(accountId: string): Promise<{ count: number }> {
+  // 1. Fetch SKU Master map for this account
+  const skuRecords = await sql`
+    SELECT id, sku, cost_price, packaging_cost, cost_status
+    FROM reconciliation_sku_master
+    WHERE account_id = ${accountId}
+  `;
+
+  const skuMap = new Map<string, { cost: number; packaging: number; isConfigured: boolean }>();
+  for (const r of skuRecords) {
+    const norm = normalizeSku(r.sku).toLowerCase();
+    const isConfigured = r.cost_status === 'configured';
+    skuMap.set(norm, {
+      cost: isConfigured && r.cost_price !== null ? Number(r.cost_price) : 0,
+      packaging: isConfigured && r.packaging_cost !== null ? Number(r.packaging_cost) : 0,
+      isConfigured,
+    });
+  }
+
+  // 2. Build Payment Pivot Table for this account
+  const paymentPivot = await generatePaymentPivot(accountId);
+
+  // 3. Fetch latest completed Orders upload for this account
+  const latestOrderUpload = await sql`
+    SELECT id FROM reconciliation_uploads
+    WHERE account_id = ${accountId} AND upload_type = 'orders' AND status = 'completed'
+    ORDER BY id DESC LIMIT 1
+  `;
+
+  if (latestOrderUpload.length === 0) {
+    return { count: 0 };
+  }
+
+  const orderUploadId = latestOrderUpload[0].id;
+  const rawOrders = await sql`
+    SELECT * FROM reconciliation_orders_raw
+    WHERE upload_id = ${orderUploadId}
+    ORDER BY row_number ASC
+  `;
+
+  // 4. Clean existing transactions for this account to guarantee 1-to-1 parity with Working Sheet
+  await sql`DELETE FROM reconciliation_transactions WHERE account_id = ${accountId};`;
+
+  if (rawOrders.length === 0) {
+    return { count: 0 };
+  }
+
+  // 5. Transform each order row into exact Working Sheet representation
+  const batchSize = 50;
+  let inserted = 0;
+
+  for (let i = 0; i < rawOrders.length; i += batchSize) {
+    const chunk = rawOrders.slice(i, i + batchSize);
+
+    await Promise.all(
+      chunk.map(async (order: any) => {
+        const subOrder = String(order.sub_order_no || '').trim();
+        const sku = String(order.sku || '').trim();
+        const normSku = normalizeSku(sku).toLowerCase();
+        const qty = order.quantity ? Number(order.quantity) : 1;
+        const skuConfig = skuMap.get(normSku) || { cost: 0, packaging: 0, isConfigured: false };
+
+        const pivot = paymentPivot.get(subOrder);
+        // Working Sheet Status formula:
+        // =IF(ISBLANK(A2), "", IFERROR(VLOOKUP(A2, 'Payment Pivot Table'!A:C, 3, FALSE), "Cancel"))
+        const status = pivot ? pivot.status : 'Cancel';
+
+        // Working Sheet Cost formula:
+        // =IF(B2="","",IF((E2="RTO")+(E2="Return")+(E2="Cancel")+(E2="Recovery"), "", VLOOKUP(B2, SKU_Pivot, 2, 0)))
+        let unitCost: number | null = null;
+        let quantityCost: number | null = null;
+        if (
+          status !== 'RTO' &&
+          status !== 'Return' &&
+          status !== 'Cancel' &&
+          status !== 'Cancelled' &&
+          status !== 'Recovery'
+        ) {
+          unitCost = skuConfig.cost;
+          quantityCost = unitCost * qty;
+        }
+
+        // Working Sheet Packaging formula:
+        // =IF(B2="","",IF((E2="Cancel")+(E2="Recovery"),"",basePkg*IF(E2="Exchange",2,1)+IF(F2>1,(F2-1)*5,0)-IF(E2="RTO",5,0)))
+        let packaging: number | null = null;
+        if (status !== 'Cancel' && status !== 'Cancelled' && status !== 'Recovery') {
+          const basePkg = skuConfig.packaging;
+          const mult = status === 'Exchange' ? 2 : 1;
+          const extraQty = qty > 1 ? (qty - 1) * 5 : 0;
+          const rtoSub = status === 'RTO' ? 5 : 0;
+          packaging = basePkg * mult + extraQty - rtoSub;
+        }
+
+        // Working Sheet Payment: lookup from Payment Pivot
+        const payment = pivot ? pivot.payment : null;
+
+        // Working Sheet Profit formula:
+        // =IF(OR(TRIM(E2)="Delivered", TRIM(E2)="Exchange"), D2-G2-H2, IF(TRIM(E2)="Return", D2-H2, ""))
+        let profit: number | null = null;
+        if (payment !== null) {
+          if (status === 'Delivered' || status === 'Exchange') {
+            profit = payment - (quantityCost || 0) - (packaging || 0);
+          } else if (status === 'Return') {
+            profit = payment - (packaging || 0);
+          }
+        }
+
+        const shippingCost = pivot && pivot.shipping_cost !== 0 ? pivot.shipping_cost : null;
+        const returnShippingCost = pivot && pivot.return_shipping_cost !== 0 ? pivot.return_shipping_cost : null;
+        const tcs = pivot && pivot.tcs !== 0 ? pivot.tcs : null;
+        const tds = pivot && pivot.tds !== 0 ? pivot.tds : null;
+        const claims = pivot && pivot.claim_amount !== 0 ? pivot.claim_amount : null;
+        const recovery = pivot && pivot.recovery_amount !== 0 ? pivot.recovery_amount : null;
+        const fixedFee = pivot && pivot.fixed_fee !== 0 ? pivot.fixed_fee : null;
+        const commission = pivot && pivot.commission !== 0 ? pivot.commission : null;
+        const warehousing = pivot && pivot.warehousing_fee !== 0 ? pivot.warehousing_fee : null;
+        const totalSaleAmount = pivot && pivot.total_sale_amount > 0 ? pivot.total_sale_amount : null;
+
+        await sql`
+          INSERT INTO reconciliation_transactions (
+            platform,
+            order_no,
+            sub_order_no,
+            sku,
+            product_name,
+            status,
+            quantity,
+            cost,
+            quantity_cost,
+            payment,
+            packaging,
+            shipping_cost,
+            return_shipping_cost,
+            tcs,
+            tds,
+            fixed_fee,
+            platform_commission,
+            warehousing_fee,
+            profit,
+            claim_amount,
+            claim_reason,
+            recovery_amount,
+            recovery_reason,
+            reconciliation_status,
+            order_source_id,
+            source_order_id,
+            created_at,
+            updated_at,
+            order_date,
+            order_source,
+            live_order_status,
+            listing_price,
+            total_sale_amount,
+            account_id
+          )
+          VALUES (
+            'Meesho',
+            ${order.order_no || null},
+            ${subOrder},
+            ${sku},
+            ${order.product_name || sku},
+            ${status},
+            ${qty},
+            ${unitCost},
+            ${quantityCost},
+            ${payment},
+            ${packaging},
+            ${shippingCost},
+            ${returnShippingCost},
+            ${tcs},
+            ${tds},
+            ${fixedFee},
+            ${commission},
+            ${warehousing},
+            ${profit},
+            ${claims},
+            ${pivot?.claim_reason || null},
+            ${recovery},
+            ${pivot?.recovery_reason || null},
+            'matched',
+            ${order.id},
+            ${order.id},
+            NOW(),
+            NOW(),
+            ${order.order_date || null},
+            ${order.order_source || null},
+            ${pivot?.status || null},
+            ${pivot?.listing_price || null},
+            ${totalSaleAmount},
+            ${accountId}
+          );
+        `;
+        inserted++;
+      })
+    );
+  }
+
+  return { count: inserted };
+}
+
+/**
+ * Process reconciliation for an upload.
+ * Any upload (order, payment, or ads) triggers an idempotent account reconciliation rebuild.
  */
 export async function processReconciliation(uploadId: number): Promise<void> {
   try {
-    // Get upload info
     const uploadInfo = await sql`
-      SELECT id, source_type, platform, account_id FROM reconciliation_uploads WHERE id = ${uploadId}
+      SELECT id, source_type, upload_type, platform, account_id 
+      FROM reconciliation_uploads 
+      WHERE id = ${uploadId}
     `;
 
     if (!uploadInfo || uploadInfo.length === 0) {
       throw new Error(`Upload ${uploadId} not found`);
     }
 
-    const sourceType = uploadInfo[0].source_type;
     const accountId = uploadInfo[0].account_id;
 
-    // Process based on source type
-    if (sourceType === 'order') {
-      await processOrderReconciliation(uploadId, accountId);
-    } else if (sourceType === 'payment') {
-      await processPaymentReconciliation(uploadId, accountId);
-    } else if (sourceType === 'ads') {
-      await processAdsReconciliation(uploadId);
-    }
-
-    // Update upload status
+    // Update upload status to completed
     await sql`
       UPDATE reconciliation_uploads
       SET status = 'completed'
       WHERE id = ${uploadId}
     `;
+
+    // Rebuild authoritative Working Sheet transactions for this account
+    if (accountId) {
+      await rebuildAccountReconciliation(accountId);
+    }
   } catch (error: any) {
     console.error('Reconciliation processing error:', error);
     await sql`
@@ -106,528 +389,21 @@ export async function processReconciliation(uploadId: number): Promise<void> {
 }
 
 /**
- * Process order reconciliation
- */
-async function processOrderReconciliation(uploadId: number, accountId?: string): Promise<void> {
-  // Get all order raw data from this upload
-  const orderRows = await sql`
-    SELECT * FROM reconciliation_orders_raw 
-    WHERE upload_id = ${uploadId}
-    ORDER BY row_number
-  `;
-
-  // Bulk fetch SKU master for this account to avoid N+1 queries
-  const skuRecords = accountId
-    ? await sql`
-        SELECT id, sku, cost_price, packaging_cost, packing, cost_status
-        FROM reconciliation_sku_master
-        WHERE account_id = ${accountId}
-      `
-    : await sql`
-        SELECT id, sku, cost_price, packaging_cost, packing, cost_status
-        FROM reconciliation_sku_master
-      `;
-
-  const skuMap = new Map<string, any>();
-  for (const r of skuRecords) {
-    skuMap.set(normalizeSku(r.sku).toLowerCase(), r);
-  }
-
-  for (const orderRow of orderRows) {
-    // Look up SKU master (case-insensitive & trimmed) from pre-fetched map
-    const normSkuKey = normalizeSku(orderRow.sku).toLowerCase();
-    const skuMaster = skuMap.get(normSkuKey);
-    const isConfigured = skuMaster && skuMaster.cost_status === 'configured';
-    const unitCost = isConfigured && skuMaster.cost_price !== null ? Number(skuMaster.cost_price) : null;
-    const unitPkg = isConfigured && (skuMaster.packaging_cost !== null || skuMaster.packing !== null)
-      ? Number(skuMaster.packaging_cost ?? skuMaster.packing)
-      : null;
-
-    // Find matching payment
-    const payment = await sql`
-      SELECT * FROM reconciliation_payments_raw
-      WHERE sub_order_no = ${orderRow.sub_order_no}
-      LIMIT 1
-    `;
-
-    // Calculate quantity cost
-    const quantity = orderRow.quantity ? Number(orderRow.quantity) : null;
-    const cost = unitCost;
-    const quantity_cost = quantity && unitCost !== null ? quantity * unitCost : null;
-    const packaging = quantity && unitPkg !== null ? quantity * unitPkg : null;
-    const payment_amount = payment?.[0]?.final_settlement_amount
-      ? Number(payment[0].final_settlement_amount)
-      : null;
-
-    const paymentRaw = (payment?.[0]?.raw_data || {}) as Record<string, any>;
-    const paymentLiveStatus = paymentRaw['Live Order Status'] || payment?.[0]?.live_order_status;
-    const orderStatusRaw = orderRow.status || orderRow.credit_entry_reason;
-    const canonicalOrder = normalizeReconciliationStatus(orderStatusRaw);
-    const canonicalLive = (paymentLiveStatus && String(paymentLiveStatus).trim() !== '')
-      ? normalizeReconciliationStatus(paymentLiveStatus)
-      : null;
-
-    // Effective status: Live payment status takes precedence if valid, else order status
-    const status = (canonicalLive && canonicalLive !== 'Unknown') ? canonicalLive : canonicalOrder;
-
-    let profit: number | null = null;
-    if (payment_amount !== null) {
-      if (
-        status === 'Delivered' ||
-        status === 'Exchange'
-      ) {
-        // Profit = Payment - Quantity Cost - Packaging
-        profit = payment_amount;
-        if (quantity_cost !== null) profit -= quantity_cost;
-        if (packaging !== null) profit -= packaging;
-      } else if (status === 'Return') {
-        // Profit = Payment - Packaging
-        profit = payment_amount;
-        if (packaging !== null) profit -= packaging;
-      }
-      // For other statuses, leave profit as null
-    }
-
-    // Determine reconciliation status (allowed values: pending, matched, partial, unmatched, manual_review)
-    let reconciliation_status = 'matched';
-    if (!payment && (!skuMaster || skuMaster.length === 0)) {
-      reconciliation_status = 'unmatched';
-    } else if (!payment || !skuMaster || skuMaster.length === 0) {
-      reconciliation_status = 'partial';
-    }
-
-    // Insert transaction record
-    try {
-      await sql`
-        INSERT INTO reconciliation_transactions (
-          platform,
-          order_no,
-          sub_order_no,
-          sku,
-          product_name,
-          status,
-          quantity,
-          cost,
-          quantity_cost,
-          payment,
-          packaging,
-          shipping_cost,
-          return_shipping_cost,
-          tcs,
-          tds,
-          fixed_fee,
-          platform_commission,
-          warehousing_fee,
-          ad_cost,
-          profit,
-          claim_amount,
-          claim_reason,
-          recovery_amount,
-          recovery_reason,
-          reconciliation_status,
-          order_source_id,
-          sku_master_id,
-          created_at,
-          updated_at,
-          order_date,
-          dispatch_date,
-          order_source,
-          live_order_status,
-          listing_price,
-          total_sale_amount,
-          total_sale_return_amount,
-          commission_percentage,
-          gold_platform_fee,
-          mall_platform_fee,
-          return_premium,
-          return_premium_of_return,
-          gst_compensation,
-          other_support_service_charges,
-          waivers,
-          net_other_support_service_charges,
-          gst_on_net_other_support_service_charges,
-          compensation,
-          compensation_reason,
-          claims_reason,
-          source_order_id,
-          source_payment_id,
-          account_id
-        )
-        VALUES (
-          'Meesho',
-          ${payment?.[0]?.order_no || null},
-          ${orderRow.sub_order_no},
-          ${orderRow.sku},
-          ${orderRow.product_name},
-          ${status},
-          ${quantity},
-          ${cost},
-          ${quantity_cost},
-          ${payment_amount},
-          ${packaging},
-          ${payment?.[0]?.shipping_charge || null},
-          ${payment?.[0]?.return_shipping_charge || null},
-          ${payment?.[0]?.tcs || null},
-          ${payment?.[0]?.tds || null},
-          ${payment?.[0]?.fixed_fee || null},
-          ${payment?.[0]?.commission || null},
-          ${payment?.[0]?.warehousing_fee || null},
-          null,
-          ${profit},
-          ${payment?.[0]?.claims ? Number(payment[0].claims) : null},
-          ${payment?.[0]?.claims_reason || null},
-          ${payment?.[0]?.recovery ? Number(payment[0].recovery) : null},
-          ${payment?.[0]?.recovery_reason || null},
-          ${reconciliation_status},
-          ${orderRow.id},
-          ${skuMaster?.[0]?.id || null},
-          NOW(),
-          NOW(),
-          ${orderRow.order_date || null},
-          null,
-          ${orderRow.order_source || null},
-          ${canonicalLive},
-          ${payment?.[0]?.listing_price || null},
-          ${payment?.[0]?.total_sale_amount || null},
-          ${payment?.[0]?.total_sale_return_amount || null},
-          ${payment?.[0]?.commission_percentage || null},
-          ${payment?.[0]?.gold_platform_fee || null},
-          ${payment?.[0]?.mall_platform_fee || null},
-          ${payment?.[0]?.return_premium || null},
-          ${payment?.[0]?.return_premium_of_return || null},
-          ${payment?.[0]?.gst_compensation || null},
-          ${payment?.[0]?.other_support_service_charges || null},
-          ${payment?.[0]?.waivers || null},
-          ${payment?.[0]?.net_other_support_service_charges || null},
-          ${payment?.[0]?.gst_on_net_other_support_service_charges || null},
-          ${payment?.[0]?.compensation || null},
-          ${payment?.[0]?.compensation_reason || null},
-          ${payment?.[0]?.claims_reason || null},
-          ${orderRow.id},
-          ${payment?.[0]?.id || null},
-          ${accountId || null}
-        )
-        ON CONFLICT (platform, sub_order_no) DO UPDATE SET
-          sku = EXCLUDED.sku,
-          product_name = EXCLUDED.product_name,
-          quantity = EXCLUDED.quantity,
-          status = EXCLUDED.status,
-          live_order_status = EXCLUDED.live_order_status,
-          source_order_id = EXCLUDED.source_order_id,
-          order_date = EXCLUDED.order_date,
-          order_source = EXCLUDED.order_source,
-          updated_at = NOW()
-      `;
-    } catch (error) {
-      console.error(`Failed to insert transaction for order ${orderRow.sub_order_no}:`, error);
-    }
-  }
-}
-
-/**
- * Process payment reconciliation
- * Payments upload should link to existing orders
- */
-async function processPaymentReconciliation(uploadId: number, accountId?: string): Promise<void> {
-  // Get all payment raw data
-  const paymentRows = await sql`
-    SELECT * FROM reconciliation_payments_raw 
-    WHERE upload_id = ${uploadId}
-    ORDER BY row_number
-  `;
-
-  for (const paymentRow of paymentRows) {
-    if (!paymentRow.sub_order_no) continue;
-
-    const raw = (paymentRow.raw_data || {}) as Record<string, any>;
-    const claimsAmount = raw['Claims'] ? Number(String(raw['Claims']).replace(/['",₹$]/g, '').trim()) || null : null;
-    const recoveryAmount = raw['Recovery'] ? Number(String(raw['Recovery']).replace(/['",₹$]/g, '').trim()) || null : null;
-
-    const rawLiveStatus = raw['Live Order Status'] || paymentRow.live_order_status;
-    const canonicalLiveStatus = (rawLiveStatus && String(rawLiveStatus).trim() !== '')
-      ? normalizeReconciliationStatus(rawLiveStatus)
-      : null;
-
-    // Try to find existing transaction
-    const existingTx = await sql`
-      SELECT id, status, quantity_cost, packaging FROM reconciliation_transactions
-      WHERE sub_order_no = ${paymentRow.sub_order_no}
-      LIMIT 1
-    `;
-
-    if (existingTx && existingTx.length > 0) {
-      const tx = existingTx[0];
-      const paymentAmount = paymentRow.final_settlement_amount !== null ? Number(paymentRow.final_settlement_amount) : 0;
-      let calculatedProfit: number | null = null;
-      const effectiveStatus = (canonicalLiveStatus && canonicalLiveStatus !== 'Unknown')
-        ? canonicalLiveStatus
-        : tx.status;
-
-      if (effectiveStatus === 'Delivered' || effectiveStatus === 'Exchange') {
-        calculatedProfit = paymentAmount;
-        if (tx.quantity_cost !== null) calculatedProfit -= Number(tx.quantity_cost);
-        if (tx.packaging !== null) calculatedProfit -= Number(tx.packaging);
-      } else if (effectiveStatus === 'Return') {
-        calculatedProfit = paymentAmount;
-        if (tx.packaging !== null) calculatedProfit -= Number(tx.packaging);
-      }
-
-      // Update existing transaction with payment data and recalculated profit
-      await sql`
-        UPDATE reconciliation_transactions
-        SET 
-          status = ${effectiveStatus},
-          payment = ${paymentRow.final_settlement_amount || null},
-          profit = ${calculatedProfit},
-          shipping_cost = ${paymentRow.shipping_charge || null},
-          return_shipping_cost = ${paymentRow.return_shipping_charge || null},
-          tcs = ${paymentRow.tcs || null},
-          tds = ${paymentRow.tds || null},
-          fixed_fee = ${paymentRow.fixed_fee || null},
-          platform_commission = ${paymentRow.commission || null},
-          warehousing_fee = ${paymentRow.warehousing_fee || null},
-          claim_amount = ${claimsAmount},
-          claim_reason = ${paymentRow.claims_reason || null},
-          recovery_amount = ${recoveryAmount},
-          recovery_reason = ${paymentRow.recovery_reason || null},
-          live_order_status = ${canonicalLiveStatus},
-          total_sale_amount = ${paymentRow.total_sale_amount || null},
-          total_sale_return_amount = ${paymentRow.total_sale_return_amount || null},
-          commission_percentage = ${paymentRow.commission_percentage || null},
-          gold_platform_fee = ${paymentRow.gold_platform_fee || null},
-          mall_platform_fee = ${paymentRow.mall_platform_fee || null},
-          return_premium = ${paymentRow.return_premium || null},
-          return_premium_of_return = ${paymentRow.return_premium_of_return || null},
-          gst_compensation = ${paymentRow.gst_compensation || null},
-          other_support_service_charges = ${paymentRow.other_support_service_charges || null},
-          waivers = ${paymentRow.waivers || null},
-          net_other_support_service_charges = ${paymentRow.net_other_support_service_charges || null},
-          gst_on_net_other_support_service_charges = ${paymentRow.gst_on_net_other_support_service_charges || null},
-          compensation = ${paymentRow.compensation || null},
-          compensation_reason = ${paymentRow.compensation_reason || null},
-          source_payment_id = ${paymentRow.id},
-          reconciliation_status = ${tx.quantity_cost !== null ? 'matched' : 'partial'},
-          updated_at = NOW()
-        WHERE id = ${tx.id}
-      `;
-    } else {
-      // Payment arrived for an order not yet in transactions
-      const paymentAmount = paymentRow.final_settlement_amount !== null ? Number(paymentRow.final_settlement_amount) : 0;
-      const effectiveStatus = (canonicalLiveStatus && canonicalLiveStatus !== 'Unknown') ? canonicalLiveStatus : 'Unknown';
-      let calculatedProfit: number | null = null;
-      if (effectiveStatus === 'Delivered' || effectiveStatus === 'Exchange') {
-        calculatedProfit = paymentAmount;
-      } else if (effectiveStatus === 'Return') {
-        calculatedProfit = paymentAmount;
-      }
-
-      await sql`
-        INSERT INTO reconciliation_transactions (
-          platform,
-          order_no,
-          sub_order_no,
-          sku,
-          product_name,
-          status,
-          quantity,
-          payment,
-          shipping_cost,
-          return_shipping_cost,
-          tcs,
-          tds,
-          fixed_fee,
-          platform_commission,
-          warehousing_fee,
-          profit,
-          claim_amount,
-          claim_reason,
-          recovery_amount,
-          recovery_reason,
-          reconciliation_status,
-          source_payment_id,
-          account_id,
-          live_order_status,
-          total_sale_amount,
-          total_sale_return_amount,
-          commission_percentage,
-          gold_platform_fee,
-          mall_platform_fee,
-          return_premium,
-          return_premium_of_return,
-          gst_compensation,
-          other_support_service_charges,
-          waivers,
-          net_other_support_service_charges,
-          gst_on_net_other_support_service_charges,
-          compensation,
-          compensation_reason,
-          created_at,
-          updated_at
-        )
-        VALUES (
-          'Meesho',
-          ${paymentRow.order_no || null},
-          ${paymentRow.sub_order_no},
-          ${raw['Supplier SKU'] || paymentRow.supplier_sku || null},
-          ${raw['Product Name'] || paymentRow.product_name || null},
-          ${effectiveStatus},
-          ${raw['Quantity'] ? Number(raw['Quantity']) : 1},
-          ${paymentRow.final_settlement_amount || null},
-          ${paymentRow.shipping_charge || null},
-          ${paymentRow.return_shipping_charge || null},
-          ${paymentRow.tcs || null},
-          ${paymentRow.tds || null},
-          ${paymentRow.fixed_fee || null},
-          ${paymentRow.commission || null},
-          ${paymentRow.warehousing_fee || null},
-          ${calculatedProfit},
-          ${claimsAmount},
-          ${paymentRow.claims_reason || null},
-          ${recoveryAmount},
-          ${paymentRow.recovery_reason || null},
-          'partial',
-          ${paymentRow.id},
-          ${accountId || null},
-          ${canonicalLiveStatus},
-          ${paymentRow.total_sale_amount || null},
-          ${paymentRow.total_sale_return_amount || null},
-          ${paymentRow.commission_percentage || null},
-          ${paymentRow.gold_platform_fee || null},
-          ${paymentRow.mall_platform_fee || null},
-          ${paymentRow.return_premium || null},
-          ${paymentRow.return_premium_of_return || null},
-          ${paymentRow.gst_compensation || null},
-          ${paymentRow.other_support_service_charges || null},
-          ${paymentRow.waivers || null},
-          ${paymentRow.net_other_support_service_charges || null},
-          ${paymentRow.gst_on_net_other_support_service_charges || null},
-          ${paymentRow.compensation || null},
-          ${paymentRow.compensation_reason || null},
-          NOW(),
-          NOW()
-        )
-        ON CONFLICT (platform, sub_order_no) DO UPDATE
-        SET
-          payment = EXCLUDED.payment,
-          source_payment_id = EXCLUDED.source_payment_id,
-          status = EXCLUDED.status,
-          live_order_status = EXCLUDED.live_order_status,
-          profit = EXCLUDED.profit,
-          updated_at = NOW();
-      `;
-    }
-  }
-}
-
-/**
- * Process ads reconciliation
- */
-async function processAdsReconciliation(uploadId: number): Promise<void> {
-  // Get all ads raw data
-  const adsRows = await sql`
-    SELECT * FROM reconciliation_rm_ads_raw 
-    WHERE upload_id = ${uploadId}
-    ORDER BY row_number
-  `;
-
-  // Store ads data for Phase 2 processing
-  // RM Ads data is saved in reconciliation_rm_ads_raw and consumed by financial calculators
-}
-
-/**
- * Resync all existing transaction statuses, live statuses, and profit
- * from raw orders and raw payments tables.
+ * Resync all existing transactions for an account using authoritative Excel logic.
  */
 export async function resyncAllTransactions(accountId?: string): Promise<{ updated: number }> {
-  const txs = accountId
-    ? await sql`
-        SELECT id, sub_order_no, quantity_cost, packaging, status
-        FROM reconciliation_transactions
-        WHERE platform = 'Meesho' AND account_id = ${accountId}
-      `
-    : await sql`
-        SELECT id, sub_order_no, quantity_cost, packaging, status
-        FROM reconciliation_transactions
-        WHERE platform = 'Meesho'
-      `;
-
-  const [orders, payments] = await Promise.all([
-    sql`
-      SELECT id, sub_order_no, status, credit_entry_reason, sku, product_name, quantity, order_date, order_source
-      FROM reconciliation_orders_raw
-      ORDER BY id ASC
-    `,
-    sql`
-      SELECT id, sub_order_no, final_settlement_amount, raw_data, shipping_charge, return_shipping_charge,
-             tcs, tds, fixed_fee, commission, warehousing_fee, claims_reason, recovery_reason
-      FROM reconciliation_payments_raw
-      ORDER BY id ASC
-    `
-  ]);
-
-  const orderMap = new Map<string, any>();
-  for (const o of orders) {
-    orderMap.set(o.sub_order_no, o);
+  if (!accountId) {
+    // Get all accounts
+    const accounts = await sql`SELECT DISTINCT account_id FROM reconciliation_uploads WHERE account_id IS NOT NULL`;
+    let total = 0;
+    for (const acc of accounts) {
+      const res = await rebuildAccountReconciliation(acc.account_id);
+      total += res.count;
+    }
+    return { updated: total };
   }
 
-  const paymentMap = new Map<string, any>();
-  for (const p of payments) {
-    paymentMap.set(p.sub_order_no, p);
-  }
-
-  let updated = 0;
-  const chunkSize = 25;
-  for (let i = 0; i < txs.length; i += chunkSize) {
-    const chunk = txs.slice(i, i + chunkSize);
-    await Promise.all(
-      chunk.map(async (tx: any) => {
-        const ord = orderMap.get(tx.sub_order_no);
-        const pay = paymentMap.get(tx.sub_order_no);
-        const raw = (pay?.raw_data || {}) as Record<string, any>;
-        const rawLiveStatus = raw['Live Order Status'];
-        const normLive = (rawLiveStatus && String(rawLiveStatus).trim() !== '')
-          ? normalizeReconciliationStatus(rawLiveStatus)
-          : null;
-        const rawOrdStatus = ord?.status || ord?.credit_entry_reason;
-        const normOrd = rawOrdStatus ? normalizeReconciliationStatus(rawOrdStatus) : 'Unknown';
-
-        const effective = (normLive && normLive !== 'Unknown') ? normLive : normOrd;
-
-        let calcProfit: number | null = null;
-        const paymentAmt = pay?.final_settlement_amount !== null && pay?.final_settlement_amount !== undefined
-          ? Number(pay.final_settlement_amount)
-          : null;
-
-        if (paymentAmt !== null) {
-          if (effective === 'Delivered' || effective === 'Exchange') {
-            calcProfit = paymentAmt;
-            if (tx.quantity_cost !== null) calcProfit -= Number(tx.quantity_cost);
-            if (tx.packaging !== null) calcProfit -= Number(tx.packaging);
-          } else if (effective === 'Return') {
-            calcProfit = paymentAmt;
-            if (tx.packaging !== null) calcProfit -= Number(tx.packaging);
-          }
-        }
-
-        await sql`
-          UPDATE reconciliation_transactions
-          SET
-            status = ${effective},
-            live_order_status = ${normLive},
-            profit = ${calcProfit},
-            source_order_id = COALESCE(source_order_id, ${ord?.id || null}),
-            source_payment_id = COALESCE(source_payment_id, ${pay?.id || null}),
-            order_date = COALESCE(order_date, ${ord?.order_date || null}),
-            order_source = COALESCE(order_source, ${ord?.order_source || null}),
-            sku = COALESCE(sku, ${ord?.sku || raw['Supplier SKU'] || null}),
-            product_name = COALESCE(product_name, ${ord?.product_name || raw['Product Name'] || null}),
-            updated_at = NOW()
-          WHERE id = ${tx.id}
-        `;
-        updated++;
-      })
-    );
-  }
-
-  return { updated };
+  const res = await rebuildAccountReconciliation(accountId);
+  return { updated: res.count };
 }
+

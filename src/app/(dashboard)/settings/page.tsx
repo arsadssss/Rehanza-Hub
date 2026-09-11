@@ -45,6 +45,8 @@ import { apiFetch } from '@/lib/apiFetch';
 import { navItems } from '@/app/(dashboard)/_components/sidebar-nav';
 import { Moon, Sun, Monitor } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { MeeshoConnectionCard } from './_components/meesho-connection-card';
+import { NotificationSettingsCard } from './_components/notification-settings-card';
 
 const businessConfigSchema = z.object({
   businessName: z.string().min(1, 'Business name is required.'),
@@ -196,14 +198,16 @@ export default function SettingsPage() {
         <p className="text-muted-foreground">Manage your entire e-commerce operation from one place.</p>
       </div>
       <Tabs defaultValue="business_config" className="w-full">
-        <TabsList className="grid w-full grid-cols-2 md:grid-cols-7 mb-6 bg-muted/50 p-1 rounded-2xl h-auto">
-          <TabsTrigger value="business_config" className="rounded-xl px-4 py-2 font-bold text-xs">Business</TabsTrigger>
-          <TabsTrigger value="platform_charges" className="rounded-xl px-4 py-2 font-bold text-xs">Platforms</TabsTrigger>
-          <TabsTrigger value="profit_rules" className="rounded-xl px-4 py-2 font-bold text-xs">Profit Rules</TabsTrigger>
-          <TabsTrigger value="return_rules" className="rounded-xl px-4 py-2 font-bold text-xs">Returns</TabsTrigger>
-          <TabsTrigger value="inventory_settings" className="rounded-xl px-4 py-2 font-bold text-xs">Inventory</TabsTrigger>
-          <TabsTrigger value="sidebar_config" className="rounded-xl px-4 py-2 font-bold text-xs">Menus</TabsTrigger>
-          <TabsTrigger value="preferences" className="rounded-xl px-4 py-2 font-bold text-xs">Preferences</TabsTrigger>
+        <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-9 mb-6 bg-muted/50 p-1 rounded-2xl h-auto gap-1">
+          <TabsTrigger value="business_config" className="rounded-xl px-3 py-2 font-bold text-xs">Business</TabsTrigger>
+          <TabsTrigger value="marketplaces" className="rounded-xl px-3 py-2 font-bold text-xs">Marketplaces</TabsTrigger>
+          <TabsTrigger value="platform_charges" className="rounded-xl px-3 py-2 font-bold text-xs">Platforms</TabsTrigger>
+          <TabsTrigger value="profit_rules" className="rounded-xl px-3 py-2 font-bold text-xs">Profit Rules</TabsTrigger>
+          <TabsTrigger value="return_rules" className="rounded-xl px-3 py-2 font-bold text-xs">Returns</TabsTrigger>
+          <TabsTrigger value="inventory_settings" className="rounded-xl px-3 py-2 font-bold text-xs">Inventory</TabsTrigger>
+          <TabsTrigger value="sidebar_config" className="rounded-xl px-3 py-2 font-bold text-xs">Menus</TabsTrigger>
+          <TabsTrigger value="preferences" className="rounded-xl px-3 py-2 font-bold text-xs">Preferences</TabsTrigger>
+          <TabsTrigger value="notifications" className="rounded-xl px-3 py-2 font-bold text-xs">Notifications</TabsTrigger>
         </TabsList>
         
         <TabsContent value="business_config">
@@ -252,6 +256,12 @@ export default function SettingsPage() {
               </>
             )}
           />
+        </TabsContent>
+ 
+        <TabsContent value="marketplaces" className="space-y-6">
+          <div className="space-y-6">
+            <MeeshoConnectionCard />
+          </div>
         </TabsContent>
 
         <TabsContent value="platform_charges">
@@ -559,6 +569,10 @@ export default function SettingsPage() {
                 </div>
                 )}
             />
+        </TabsContent>
+
+        <TabsContent value="notifications" className="space-y-6">
+          <NotificationSettingsCard />
         </TabsContent>
 
       </Tabs>

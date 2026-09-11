@@ -43,3 +43,11 @@ next-env.d.ts
 .env.local
 .env*.local
 .env*
+
+*.xlsx
+
+# Meesho Worker Sessions & Automation State
+worker/meesho/.sessions/
+worker/meesho/logs/
+worker/meesho/screenshots/
+*.storageState.json

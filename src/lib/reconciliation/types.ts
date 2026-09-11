@@ -125,6 +125,7 @@ export interface SkuProfitabilityMetric {
   returnRate: number; // (returnOrders / totalOrders) * 100
   rtoRate: number; // (rtoOrders / totalOrders) * 100
   deliveredRate: number; // (deliveredOrders / totalOrders) * 100
+  cancelRate: number; // (cancelOrders / totalOrders) * 100
 }
 
 export interface SkuRankings {

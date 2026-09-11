@@ -20,7 +20,8 @@ export async function GET(request: Request) {
       inventoryRes,
       taskProgressRes,
       trackRecordRes,
-      expenseRes
+      expenseRes,
+      liveOrdersRes
     ] = await Promise.all([
       // Total Units and Gross Revenue
       sql`
@@ -100,7 +101,15 @@ export async function GET(request: Request) {
         SELECT COALESCE(SUM(amount), 0)::numeric as total
         FROM business_expenses
         WHERE is_deleted = false
-      `
+      `,
+      // Live Meesho Orders (Pending & Ready to Ship)
+      sql`
+        SELECT 
+          COUNT(*) FILTER (WHERE status = 'pending')::int as pending,
+          COUNT(*) FILTER (WHERE status = 'ready_to_ship')::int as ready_to_ship
+        FROM meesho_orders
+        WHERE account_id = ${accountId} AND marketplace = 'meesho'
+      `.catch(() => [{ pending: 0, ready_to_ship: 0 }])
     ]);
 
     // Secondary Calculations
@@ -161,6 +170,10 @@ export async function GET(request: Request) {
         total_revenue: Number(p.total_revenue),
         total_units_sold: Number(p.total_units_sold)
       })),
+      liveOrders: {
+        pending: Number(liveOrdersRes[0]?.pending || 0),
+        readyToShip: Number(liveOrdersRes[0]?.ready_to_ship || 0),
+      },
       platformPerformance: [],
       ordersReturnsData: [],
       recentOrders: []

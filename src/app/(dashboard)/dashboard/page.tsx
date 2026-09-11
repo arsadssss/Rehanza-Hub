@@ -162,6 +162,68 @@ const KpiCard = ({
   );
 };
 
+interface LiveOrdersKpiCardProps {
+  pending: number;
+  readyToShip: number;
+  loading?: boolean;
+}
+
+const LiveOrdersKpiCard = ({
+  pending,
+  readyToShip,
+  loading = false,
+}: LiveOrdersKpiCardProps) => {
+  return (
+    <Card className="glass-panel relative h-full overflow-hidden rounded-[1.5rem] border border-white/10 bg-slate-900/40 shadow-[0_20px_50px_rgba(2,6,23,0.35)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:border-amber-400/30 hover:shadow-[0_20px_60px_rgba(245,158,11,0.18)] group">
+      <div className="absolute inset-0 opacity-5 group-hover:opacity-10 transition-opacity bg-gradient-to-br from-amber-500 to-orange-600" />
+      <CardContent className="p-6 relative z-10 flex flex-col justify-between h-full">
+        <div className="flex justify-between items-start">
+          <div className="space-y-1">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">LIVE ORDERS</p>
+            {loading ? (
+              <Skeleton className="h-10 w-36 bg-muted/40 mt-1" />
+            ) : (
+              <div className="flex items-baseline gap-3.5 mt-1">
+                <div>
+                  <span className="text-3xl font-black font-headline tracking-tighter text-amber-400">
+                    <AnimatedValue value={pending} />
+                  </span>
+                  <span className="text-[10px] font-bold text-muted-foreground ml-1 uppercase tracking-wider">
+                    Pending
+                  </span>
+                </div>
+                <span className="text-white/20 font-light text-2xl select-none">/</span>
+                <div>
+                  <span className="text-3xl font-black font-headline tracking-tighter text-emerald-400">
+                    <AnimatedValue value={readyToShip} />
+                  </span>
+                  <span className="text-[10px] font-bold text-muted-foreground ml-1 uppercase tracking-wider">
+                    Ready to Ship
+                  </span>
+                </div>
+              </div>
+            )}
+          </div>
+          <div className="p-3 rounded-2xl shadow-lg shadow-black/5 bg-amber-600 text-white">
+            <Package className="h-5 w-5" />
+          </div>
+        </div>
+
+        <div className="mt-4 flex items-center justify-between">
+          <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-[10px] font-bold text-emerald-400">
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
+            </span>
+            ● Live from Meesho
+          </div>
+          <p className="text-[10px] font-bold text-muted-foreground/60 uppercase tracking-widest">Real-Time Sync</p>
+        </div>
+      </CardContent>
+    </Card>
+  );
+};
+
 // --- Main Dashboard Page ---
 
 export default function DashboardPage() {
@@ -172,6 +234,7 @@ export default function DashboardPage() {
 
   // Operational Data States
   const [summary, setSummary] = useState<any>(null);
+  const [liveOrders, setLiveOrders] = useState<{ pending: number; readyToShip: number }>({ pending: 0, readyToShip: 0 });
   const [trackRecord, setTrackRecord] = useState<TrackRecordEntry[]>([]);
   const [taskProgress, setTaskProgress] = useState<any>(null);
   const [inventoryValue, setInventoryValue] = useState(0);
@@ -229,6 +292,12 @@ export default function DashboardPage() {
         try {
           const d = await dashRes.value.json();
           setSummary(d.summary);
+          if (d.liveOrders) {
+            setLiveOrders({
+              pending: Number(d.liveOrders.pending || 0),
+              readyToShip: Number(d.liveOrders.readyToShip || 0),
+            });
+          }
           setTotalPaymentReceived(d.totalPaymentReceived || 0);
           setNetCashFlow(d.netCashFlow || 0);
           setInventoryValue(d.inventoryValue || 0);
@@ -407,15 +476,10 @@ export default function DashboardPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <KpiCard 
-            title="Revenue" 
-            value={summary?.gross_revenue || 0} 
-            icon={ShoppingCart} 
-            description="30D Performance" 
-            gradient="from-indigo-600 to-violet-700" 
+          <LiveOrdersKpiCard 
+            pending={liveOrders.pending} 
+            readyToShip={liveOrders.readyToShip} 
             loading={loading} 
-            isCurrency 
-            trend={12}
           />
           <KpiCard 
             title="Net Cash Flow" 

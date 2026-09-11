@@ -447,29 +447,54 @@ export async function recalculateTransactionsForSku(
     await Promise.all(
       chunk.map(async (tx: any) => {
         const qty = Number(tx.quantity) || 1;
-        const newQuantityCost = costPrice * qty;
-        const newPackaging = packagingCost * qty;
+        const status = tx.status || 'Cancel';
 
-        const effectiveStatus = tx.status || 'Unknown';
+        // Working Sheet Cost formula:
+        // =IF(B2="","",IF((E2="RTO")+(E2="Return")+(E2="Cancel")+(E2="Cancelled")+(E2="Recovery"), "", VLOOKUP(B2, SKU_Pivot, 2, 0)))
+        let unitCost: number | null = null;
+        let quantityCost: number | null = null;
+        if (
+          status !== 'RTO' &&
+          status !== 'Return' &&
+          status !== 'Cancel' &&
+          status !== 'Cancelled' &&
+          status !== 'Recovery'
+        ) {
+          unitCost = costPrice;
+          quantityCost = unitCost * qty;
+        }
+
+        // Working Sheet Packaging formula:
+        // =IF(B2="","",IF((E2="Cancel")+(E2="Cancelled")+(E2="Recovery"),"",basePkg*IF(E2="Exchange",2,1)+IF(F2>1,(F2-1)*5,0)-IF(E2="RTO",5,0)))
+        let packaging: number | null = null;
+        if (status !== 'Cancel' && status !== 'Cancelled' && status !== 'Recovery') {
+          const mult = status === 'Exchange' ? 2 : 1;
+          const extraQty = qty > 1 ? (qty - 1) * 5 : 0;
+          const rtoSub = status === 'RTO' ? 5 : 0;
+          packaging = packagingCost * mult + extraQty - rtoSub;
+        }
+
         const paymentAmt = tx.payment !== null && tx.payment !== undefined
           ? Number(tx.payment)
           : null;
 
+        // Working Sheet Profit formula:
+        // =IF(OR(TRIM(E2)="Delivered", TRIM(E2)="Exchange"), D2-G2-H2, IF(TRIM(E2)="Return", D2-H2, ""))
         let newProfit: number | null = null;
         if (paymentAmt !== null) {
-          if (effectiveStatus === 'Delivered' || effectiveStatus === 'Exchange') {
-            newProfit = paymentAmt - newQuantityCost - newPackaging;
-          } else if (effectiveStatus === 'Return') {
-            newProfit = paymentAmt - newPackaging;
+          if (status === 'Delivered' || status === 'Exchange') {
+            newProfit = paymentAmt - (quantityCost || 0) - (packaging || 0);
+          } else if (status === 'Return') {
+            newProfit = paymentAmt - (packaging || 0);
           }
         }
 
         await sql`
           UPDATE reconciliation_transactions
           SET
-            cost = ${costPrice},
-            quantity_cost = ${newQuantityCost},
-            packaging = ${newPackaging},
+            cost = ${unitCost},
+            quantity_cost = ${quantityCost},
+            packaging = ${packaging},
             profit = ${newProfit},
             updated_at = NOW()
           WHERE id = ${tx.id};

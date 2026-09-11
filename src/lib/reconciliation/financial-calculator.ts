@@ -176,7 +176,7 @@ export async function calculateReconciliationFinancials(
           COALESCE(SUM(quantity) FILTER (WHERE LOWER(status) = 'exchange' OR LOWER(live_order_status) = 'exchange'), 0)::numeric AS exchange_orders,
           COALESCE(SUM(quantity) FILTER (WHERE LOWER(status) = 'return' OR LOWER(live_order_status) = 'return'), 0)::numeric AS return_orders,
           COALESCE(SUM(quantity) FILTER (WHERE LOWER(status) = 'rto' OR LOWER(live_order_status) = 'rto'), 0)::numeric AS rto_orders,
-          COALESCE(SUM(quantity) FILTER (WHERE LOWER(status) IN ('cancel', 'cancelled') OR LOWER(live_order_status) IN ('cancel', 'cancelled')), 0)::numeric AS cancel_orders,
+          COALESCE(SUM(quantity) FILTER (WHERE LOWER(status) = 'cancel'), 0)::numeric AS cancel_orders,
 
           -- Awaiting Payment: Delivered orders where payment is 0 or null
           COALESCE(COUNT(*) FILTER (
@@ -240,7 +240,7 @@ export async function calculateReconciliationFinancials(
           COALESCE(SUM(quantity) FILTER (WHERE LOWER(status) = 'exchange' OR LOWER(live_order_status) = 'exchange'), 0)::numeric AS exchange_orders,
           COALESCE(SUM(quantity) FILTER (WHERE LOWER(status) = 'return' OR LOWER(live_order_status) = 'return'), 0)::numeric AS return_orders,
           COALESCE(SUM(quantity) FILTER (WHERE LOWER(status) = 'rto' OR LOWER(live_order_status) = 'rto'), 0)::numeric AS rto_orders,
-          COALESCE(SUM(quantity) FILTER (WHERE LOWER(status) IN ('cancel', 'cancelled') OR LOWER(live_order_status) IN ('cancel', 'cancelled')), 0)::numeric AS cancel_orders,
+          COALESCE(SUM(quantity) FILTER (WHERE LOWER(status) = 'cancel'), 0)::numeric AS cancel_orders,
 
           -- Awaiting Payment: Delivered orders where payment is 0 or null
           COALESCE(COUNT(*) FILTER (
@@ -287,45 +287,47 @@ export async function calculateReconciliationFinancials(
 
   // 2. Total Sales (Invoice) from Upload Orders Raw
   // Column L: Supplier Discounted Price (Incl GST and Commission)
+  // Strictly joined to active reconciliation transactions to mirror Working Sheet 1-to-1 parity
   const salesQuery = isDateFiltered
     ? sql`
-        SELECT COALESCE(SUM(supplier_discounted_price), 0)::numeric AS total_sales_invoice
+        SELECT COALESCE(SUM(o.supplier_discounted_price), 0)::numeric AS total_sales_invoice
         FROM reconciliation_orders_raw o
-        WHERE o.platform = 'Meesho'
+        JOIN reconciliation_transactions t ON (t.order_source_id = o.id OR t.source_order_id = o.id)
+        WHERE t.platform = 'Meesho'
+          AND t.account_id = ${accountId}
           AND (
-            o.account_id = ${accountId}
-            OR o.upload_id IN (
-              SELECT id FROM reconciliation_uploads WHERE account_id = ${accountId}
-            )
-          )
-          AND (
-            (o.order_date IS NOT NULL AND o.order_date >= ${startDate}::timestamp AND o.order_date <= ${endDate}::timestamp)
-            OR (o.order_date IS NULL AND o.created_at >= ${startDate}::timestamp AND o.created_at <= ${endDate}::timestamp)
+            (t.order_date IS NOT NULL AND t.order_date >= ${startDate}::timestamp AND t.order_date <= ${endDate}::timestamp)
+            OR (t.order_date IS NULL AND t.created_at >= ${startDate}::timestamp AND t.created_at <= ${endDate}::timestamp)
           )
       `
     : sql`
-        SELECT COALESCE(SUM(supplier_discounted_price), 0)::numeric AS total_sales_invoice
+        SELECT COALESCE(SUM(o.supplier_discounted_price), 0)::numeric AS total_sales_invoice
         FROM reconciliation_orders_raw o
-        WHERE o.platform = 'Meesho'
-          AND (
-            o.account_id = ${accountId}
-            OR o.upload_id IN (
-              SELECT id FROM reconciliation_uploads WHERE account_id = ${accountId}
-            )
-          )
+        JOIN reconciliation_transactions t ON (t.order_source_id = o.id OR t.source_order_id = o.id)
+        WHERE t.platform = 'Meesho'
+          AND t.account_id = ${accountId}
       `;
 
   // 3. Total Ads Cost from RM Ads Raw
   // Column H: Total Ads Cost
+  // Scoped to latest completed RM Ads upload for this account
   const adsQuery = isDateFiltered
     ? sql`
-        SELECT COALESCE(SUM(total_ads_cost), 0)::numeric AS total_ads_cost
+        SELECT COALESCE(SUM(a.total_ads_cost), 0)::numeric AS total_ads_cost
         FROM reconciliation_rm_ads_raw a
         WHERE a.platform = 'Meesho'
           AND (
-            a.account_id = ${accountId}
-            OR a.upload_id IN (
-              SELECT id FROM reconciliation_uploads WHERE account_id = ${accountId}
+            a.upload_id = (
+              SELECT id FROM reconciliation_uploads 
+              WHERE account_id = ${accountId} AND upload_type = 'rm_ads' AND status = 'completed'
+              ORDER BY id DESC LIMIT 1
+            )
+            OR (
+              a.account_id = ${accountId}
+              AND NOT EXISTS (
+                SELECT 1 FROM reconciliation_uploads 
+                WHERE account_id = ${accountId} AND upload_type = 'rm_ads' AND status = 'completed'
+              )
             )
           )
           AND (
@@ -335,13 +337,21 @@ export async function calculateReconciliationFinancials(
           )
       `
     : sql`
-        SELECT COALESCE(SUM(total_ads_cost), 0)::numeric AS total_ads_cost
+        SELECT COALESCE(SUM(a.total_ads_cost), 0)::numeric AS total_ads_cost
         FROM reconciliation_rm_ads_raw a
         WHERE a.platform = 'Meesho'
           AND (
-            a.account_id = ${accountId}
-            OR a.upload_id IN (
-              SELECT id FROM reconciliation_uploads WHERE account_id = ${accountId}
+            a.upload_id = (
+              SELECT id FROM reconciliation_uploads 
+              WHERE account_id = ${accountId} AND upload_type = 'rm_ads' AND status = 'completed'
+              ORDER BY id DESC LIMIT 1
+            )
+            OR (
+              a.account_id = ${accountId}
+              AND NOT EXISTS (
+                SELECT 1 FROM reconciliation_uploads 
+                WHERE account_id = ${accountId} AND upload_type = 'rm_ads' AND status = 'completed'
+              )
             )
           )
       `;

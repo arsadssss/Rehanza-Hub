@@ -166,15 +166,15 @@ async function runSkuCostMasterTests() {
       WHERE sub_order_no = ${TEST_SUB_ORDER};
     `;
     assert(Number(updatedTx1.quantity_cost) === 350, '11. Existing transactions receive configured quantity cost (175 * 2 = 350)', Number(updatedTx1.quantity_cost), 350);
-    assert(Number(updatedTx1.packaging) === 50, '12a. Existing transactions receive configured packaging (25 * 2 = 50)', Number(updatedTx1.packaging), 50);
-    // Profit = 600 - 350 - 50 = 200
-    assert(Number(updatedTx1.profit) === 200, '12b. Existing transactions recalculate profit correctly (600 - 350 - 50 = 200)', Number(updatedTx1.profit), 200);
+    assert(Number(updatedTx1.packaging) === 30, '12a. Existing transactions receive configured packaging per Excel formula (25 + (2-1)*5 = 30)', Number(updatedTx1.packaging), 30);
+    // Profit = 600 - 350 - 30 = 220
+    assert(Number(updatedTx1.profit) === 220, '12b. Existing transactions recalculate profit correctly (600 - 350 - 30 = 220)', Number(updatedTx1.profit), 220);
 
     // ----------------------------------------------------
     // Test 13 & 14: Editing cost & packaging recalculates affected transactions
     // ----------------------------------------------------
     // Change cost to 180 and packaging to 30
-    // Expected quantity_cost = 180 * 2 = 360, packaging = 30 * 2 = 60, profit = 600 - 360 - 60 = 180
+    // Expected quantity_cost = 180 * 2 = 360, packaging = 30 + (2-1)*5 = 35, profit = 600 - 360 - 35 = 205
     await saveSkuCost(FASHION_ACCOUNT, TEST_SKU_1, {
       costPrice: 180,
       packagingCost: 30,
@@ -185,8 +185,8 @@ async function runSkuCostMasterTests() {
       WHERE sub_order_no = ${TEST_SUB_ORDER};
     `;
     assert(Number(updatedTx2.quantity_cost) === 360, '13. Editing cost updates quantity cost (180 * 2 = 360)', Number(updatedTx2.quantity_cost), 360);
-    assert(Number(updatedTx2.packaging) === 60, '14a. Editing packaging updates packaging cost (30 * 2 = 60)', Number(updatedTx2.packaging), 60);
-    assert(Number(updatedTx2.profit) === 180, '14b. Profit recalculates after cost/packaging edit (600 - 360 - 60 = 180)', Number(updatedTx2.profit), 180);
+    assert(Number(updatedTx2.packaging) === 35, '14a. Editing packaging updates packaging cost per Excel formula (30 + (2-1)*5 = 35)', Number(updatedTx2.packaging), 35);
+    assert(Number(updatedTx2.profit) === 205, '14b. Profit recalculates after cost/packaging edit (600 - 360 - 35 = 205)', Number(updatedTx2.profit), 205);
 
     // ----------------------------------------------------
     // Test 15: Unrelated SKU transactions remain unchanged
