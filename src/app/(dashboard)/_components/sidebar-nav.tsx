@@ -32,6 +32,7 @@ import {
   ChevronRight,
   Zap,
   Database,
+  Store,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -42,6 +43,7 @@ import { Button } from '@/components/ui/button';
 
 export const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', group: 'MAIN' },
+  { href: '/marketplace', icon: Store, label: 'Marketplace', group: 'OPERATIONS' },
   { href: '/tasks', icon: ListTodo, label: 'Tasks', group: 'OPERATIONS' },
   { href: '/products', icon: Package, label: 'Products', group: 'CATALOG' },
   { href: '/inventory', icon: Warehouse, label: 'Inventory', group: 'CATALOG' },
@@ -90,7 +92,7 @@ export function SidebarNav() {
   const firstLetter = userName.charAt(0).toUpperCase();
 
   const visibleNavItems = navItems.filter(item => {
-    if (item.href === '/dashboard' || item.href === '/settings' || item.href === '/profile') return true;
+    if (item.href === '/dashboard' || item.href === '/marketplace' || item.href === '/settings' || item.href === '/profile') return true;
     return sidebarConfig[item.href] !== false;
   });
 

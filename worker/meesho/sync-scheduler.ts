@@ -336,6 +336,27 @@ export class MeeshoSyncScheduler {
       const resultData = ingestJson.data || {};
       const durationMs = Date.now() - startTime;
 
+      // 5.1 Also extract and ingest live payments
+      try {
+        console.log(`[Sync Scheduler] [${accountId.slice(0, 8)}...] Extracting payments...`);
+        const payments = await this.browserManager.extractPayments(accountId);
+        await fetch(`${this.hubUrl}/api/marketplace/meesho/payments/ingest`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-worker-secret': this.workerSecret,
+          },
+          body: JSON.stringify({
+            accountId,
+            payments,
+          }),
+        }).catch((pErr) => {
+          console.warn(`[Sync Scheduler] Payment ingest warning:`, pErr.message);
+        });
+      } catch (payErr: any) {
+        console.warn(`[Sync Scheduler] [${accountId.slice(0, 8)}...] Payment extraction warning:`, payErr.message);
+      }
+
       // 6. Update Account Schedule & Metrics
       if (account) {
         account.lastSuccessfulSync = new Date().toISOString();

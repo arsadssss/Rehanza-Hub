@@ -315,3 +315,104 @@ export interface LiveOrdersMetricDTO {
   readyToShip: number;
   lastUpdated?: string;
 }
+
+/**
+ * Real Meesho Payment Types
+ */
+export interface MeeshoUpcomingDayPayment {
+  date: string;
+  headerAmount: string;
+  netAmount: number;
+  netOrderAmount: number;
+  netPlatformRecovery: {
+    adsCost: number;
+    programCosts: number;
+    loanSettlementAmount?: number;
+    loanSettlementStatus?: string;
+  };
+  netPlatformCompensation: {
+    referralAmount: number;
+    programBenefits: number;
+  };
+  platformCompensation: number;
+  platformRecovery: number;
+  date_iso?: string;
+}
+
+export interface MeeshoUnscheduledOrderItem {
+  subOrderNum: string;
+  orderNum: string;
+  dispatchDate: string;
+  liveOrderStatus: string;
+  amount: number;
+  penalty: number;
+  waiver: number;
+  recovery: number;
+  compensation: number;
+  claim: number;
+  penaltiesAndRecovery: number;
+  waiversAndCompensation: number;
+  netAmount: number;
+  supplierSKU: string;
+  wccBreakUpList?: any[];
+  recoveryPenaltyBreakUpList?: any[];
+}
+
+export interface MeeshoPaymentsDTO {
+  accountId: string;
+  marketplace: 'meesho';
+  upcoming: {
+    header: {
+      headerAmount: string;
+      netAmount: number;
+      netOrderAmount: number;
+      netPlatformRecovery: Record<string, any>;
+      netPlatformCompensation: Record<string, any>;
+    };
+    totalAmount7Days?: {
+      headerAmount: string;
+      netAmount: number;
+    };
+    daywisePayments: MeeshoUpcomingDayPayment[];
+    count: number;
+  };
+  unscheduled: {
+    count: number;
+    total: number;
+    aggregated_data: {
+      totalOrderAmt: number;
+      adsCost: number;
+      referralAmt: number;
+      totalNetOrderAmt: number;
+    };
+    payoutUIList: MeeshoUnscheduledOrderItem[];
+  };
+  completed: {
+    count: number;
+    daywisePayments: any[];
+    header: {
+      headerAmount: string;
+      netAmount: number;
+      netOrderAmount: number;
+      netPlatformRecovery: Record<string, any>;
+      netPlatformCompensation: Record<string, any>;
+    };
+    totalAmount30Days?: {
+      headerAmount: string;
+      netAmount: number;
+    };
+  };
+  graph?: {
+    payouts: Array<{
+      payment_date: string;
+      net_amount: number | null;
+      payout_status: string;
+      payout_breakup: {
+        total_net_order: number | null;
+        ads_cost: number | null;
+        referral: number | null;
+      };
+    }>;
+  };
+  lastSyncedAt: string | null;
+}

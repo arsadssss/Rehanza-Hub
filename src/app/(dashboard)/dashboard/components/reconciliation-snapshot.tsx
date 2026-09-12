@@ -183,208 +183,221 @@ export function ReconciliationSnapshot({
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {/* CARD 1: RETURNS & RTO */}
-        <Card className="glass-panel relative overflow-hidden rounded-[2rem] border border-white/10 bg-slate-900/40 p-6 shadow-[0_20px_50px_rgba(2,6,23,0.35)] backdrop-blur-xl transition-all duration-300 hover:border-amber-400/30 hover:shadow-[0_20px_60px_rgba(245,158,11,0.12)] group">
-          <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
-            <Undo2 className="h-24 w-24 text-amber-400" />
-          </div>
+        <Link href="/reconciliation#returns-rto" className="block focus:outline-none">
+          <Card className="glass-panel relative overflow-hidden rounded-[2rem] border border-white/10 bg-slate-900/40 p-6 shadow-[0_20px_50px_rgba(2,6,23,0.35)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-amber-400/50 hover:shadow-[0_20px_60px_rgba(245,158,11,0.2)] cursor-pointer group">
+            <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
+              <Undo2 className="h-24 w-24 text-amber-400" />
+            </div>
 
-          <div className="relative z-10 space-y-4">
-            <div className="flex justify-between items-start">
+            <div className="relative z-10 space-y-4">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-300/80">
+                    Returns & RTO
+                  </p>
+                  <p className="text-xs text-slate-400 font-medium">{periodLabel}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge
+                    variant="outline"
+                    className="glass-pill px-2.5 py-0.5 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-300 font-bold text-[10px]"
+                  >
+                    {totalReturnAndRto} Units
+                  </Badge>
+                  <div className="text-amber-400 group-hover:text-amber-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">
+                    <ArrowUpRight className="h-4 w-4" />
+                  </div>
+                </div>
+              </div>
+
               <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-amber-300/80">
-                  Returns & RTO
-                </p>
-                <p className="text-xs text-slate-400 font-medium">{periodLabel}</p>
-              </div>
-              <Badge
-                variant="outline"
-                className="glass-pill px-2.5 py-0.5 rounded-full border border-amber-500/30 bg-amber-500/10 text-amber-300 font-bold text-[10px]"
-              >
-                {totalReturnAndRto} Units
-              </Badge>
-            </div>
-
-            <div>
-              <div className="flex items-baseline gap-2">
-                <span className="text-4xl font-black font-headline tracking-tighter text-amber-300">
-                  {combinedReturnRtoRate}%
-                </span>
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                  Total Return + RTO
-                </span>
-              </div>
-              <div className="w-full bg-slate-800/80 h-2 rounded-full mt-2 overflow-hidden flex">
-                <div
-                  style={{ width: `${Math.min(orders.returnRate, 100)}%` }}
-                  className="bg-amber-400 h-full"
-                  title={`Customer Return: ${orders.returnRate}%`}
-                />
-                <div
-                  style={{ width: `${Math.min(orders.rtoRate, 100)}%` }}
-                  className="bg-rose-500 h-full"
-                  title={`RTO: ${orders.rtoRate}%`}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3 pt-1">
-              <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  Customer Return
-                </p>
-                <p className="text-lg font-black text-white mt-0.5">{orders.returnRate}%</p>
-                <p className="text-[11px] font-semibold text-slate-400">
-                  {orders.returnOrders} units
-                </p>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-4xl font-black font-headline tracking-tighter text-amber-300">
+                    {combinedReturnRtoRate}%
+                  </span>
+                  <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Total Return + RTO
+                  </span>
+                </div>
+                <div className="w-full bg-slate-800/80 h-2 rounded-full mt-2 overflow-hidden flex">
+                  <div
+                    style={{ width: `${Math.min(orders.returnRate, 100)}%` }}
+                    className="bg-amber-400 h-full"
+                    title={`Customer Return: ${orders.returnRate}%`}
+                  />
+                  <div
+                    style={{ width: `${Math.min(orders.rtoRate, 100)}%` }}
+                    className="bg-rose-500 h-full"
+                    title={`RTO: ${orders.rtoRate}%`}
+                  />
+                </div>
               </div>
 
-              <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  RTO (Undelivered)
-                </p>
-                <p className="text-lg font-black text-rose-300 mt-0.5">{orders.rtoRate}%</p>
-                <p className="text-[11px] font-semibold text-slate-400">
-                  {orders.rtoOrders} units
-                </p>
+              <div className="grid grid-cols-2 gap-3 pt-1">
+                <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Customer Return
+                  </p>
+                  <p className="text-lg font-black text-white mt-0.5">{orders.returnRate}%</p>
+                  <p className="text-[11px] font-semibold text-slate-400">
+                    {orders.returnOrders} units
+                  </p>
+                </div>
+
+                <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    RTO (Undelivered)
+                  </p>
+                  <p className="text-lg font-black text-rose-300 mt-0.5">{orders.rtoRate}%</p>
+                  <p className="text-[11px] font-semibold text-slate-400">
+                    {orders.rtoOrders} units
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
-        </Card>
+          </Card>
+        </Link>
 
         {/* CARD 2: ORDER PERFORMANCE */}
-        <Card className="glass-panel relative overflow-hidden rounded-[2rem] border border-white/10 bg-slate-900/40 p-6 shadow-[0_20px_50px_rgba(2,6,23,0.35)] backdrop-blur-xl transition-all duration-300 hover:border-indigo-400/30 hover:shadow-[0_20px_60px_rgba(99,102,241,0.12)] group">
-          <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
-            <Truck className="h-24 w-24 text-indigo-400" />
-          </div>
-
-          <div className="relative z-10 space-y-4">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-300/80">
-                  Order Performance
-                </p>
-                <p className="text-xs text-slate-400 font-medium">{periodLabel}</p>
-              </div>
-              <Badge
-                variant="outline"
-                className="glass-pill px-2.5 py-0.5 rounded-full border border-indigo-500/30 bg-indigo-500/10 text-indigo-300 font-bold text-[10px]"
-              >
-                Vol: {orders.totalOrders}
-              </Badge>
+        <Link href="/reconciliation#order-performance" className="block focus:outline-none">
+          <Card className="glass-panel relative overflow-hidden rounded-[2rem] border border-white/10 bg-slate-900/40 p-6 shadow-[0_20px_50px_rgba(2,6,23,0.35)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-indigo-400/50 hover:shadow-[0_20px_60px_rgba(99,102,241,0.2)] cursor-pointer group">
+            <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
+              <Truck className="h-24 w-24 text-indigo-400" />
             </div>
 
-            <div className="grid grid-cols-3 gap-2">
-              <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10 text-center">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">
-                  Delivered
-                </p>
-                <p className="text-xl font-black text-white mt-1">{orders.deliveredOrders}</p>
-                <p className="text-[11px] font-bold text-emerald-400 mt-0.5">
-                  {orders.deliveredRate}%
-                </p>
+            <div className="relative z-10 space-y-4">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-indigo-300/80">
+                    Order Performance
+                  </p>
+                  <p className="text-xs text-slate-400 font-medium">{periodLabel}</p>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Badge
+                    variant="outline"
+                    className="glass-pill px-2.5 py-0.5 rounded-full border border-indigo-500/30 bg-indigo-500/10 text-indigo-300 font-bold text-[10px]"
+                  >
+                    Vol: {orders.totalOrders}
+                  </Badge>
+                  <div className="text-indigo-400 group-hover:text-indigo-300 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all">
+                    <ArrowUpRight className="h-4 w-4" />
+                  </div>
+                </div>
               </div>
 
-              <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10 text-center">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">
-                  Net Orders
-                </p>
-                <p className="text-xl font-black text-white mt-1">{orders.netOrders}</p>
-                <p className="text-[11px] font-bold text-indigo-300 mt-0.5">{netOrdersRate}%</p>
+              <div className="grid grid-cols-3 gap-2">
+                <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10 text-center">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-emerald-400">
+                    Delivered
+                  </p>
+                  <p className="text-xl font-black text-white mt-1">{orders.deliveredOrders}</p>
+                  <p className="text-[11px] font-bold text-emerald-400 mt-0.5">
+                    {orders.deliveredRate}%
+                  </p>
+                </div>
+
+                <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10 text-center">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-indigo-400">
+                    Net Orders
+                  </p>
+                  <p className="text-xl font-black text-white mt-1">{orders.netOrders}</p>
+                  <p className="text-[11px] font-bold text-indigo-300 mt-0.5">{netOrdersRate}%</p>
+                </div>
+
+                <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10 text-center">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-rose-400">
+                    Cancelled
+                  </p>
+                  <p className="text-xl font-black text-white mt-1">{orders.cancelOrders}</p>
+                  <p className="text-[11px] font-bold text-rose-400 mt-0.5">{orders.cancelRate}%</p>
+                </div>
               </div>
 
-              <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10 text-center">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-rose-400">
-                  Cancelled
-                </p>
-                <p className="text-xl font-black text-white mt-1">{orders.cancelOrders}</p>
-                <p className="text-[11px] font-bold text-rose-400 mt-0.5">{orders.cancelRate}%</p>
+              <div className="p-2.5 rounded-xl bg-slate-800/40 border border-white/5 flex items-center justify-between text-[11px] text-slate-300 font-medium">
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                  <span>Net Realized Orders:</span>
+                </span>
+                <span className="font-bold text-white">
+                  {orders.netOrders} of {orders.totalOrders} units
+                </span>
               </div>
             </div>
-
-            <div className="p-2.5 rounded-xl bg-slate-800/40 border border-white/5 flex items-center justify-between text-[11px] text-slate-300 font-medium">
-              <span className="flex items-center gap-1.5">
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
-                <span>Net Realized Orders:</span>
-              </span>
-              <span className="font-bold text-white">
-                {orders.netOrders} of {orders.totalOrders} units
-              </span>
-            </div>
-          </div>
-        </Card>
+          </Card>
+        </Link>
 
         {/* CARD 3: SETTLEMENT & PROFIT */}
-        <Card className="glass-panel relative overflow-hidden rounded-[2rem] border border-white/10 bg-slate-900/40 p-6 shadow-[0_20px_50px_rgba(2,6,23,0.35)] backdrop-blur-xl transition-all duration-300 hover:border-emerald-400/30 hover:shadow-[0_20px_60px_rgba(16,185,129,0.12)] group">
-          <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
-            <Wallet className="h-24 w-24 text-emerald-400" />
-          </div>
-
-          <div className="relative z-10 space-y-4">
-            <div className="flex justify-between items-start">
-              <div>
-                <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-300/80">
-                  Settlement & Profit
-                </p>
-                <p className="text-xs text-slate-400 font-medium">{periodLabel}</p>
-              </div>
-              <Link
-                href="/reconciliation"
-                className="text-xs text-indigo-400 hover:text-white font-bold flex items-center gap-1 transition-colors"
-              >
-                <span>Recon Center</span>
-                <ArrowUpRight className="h-3.5 w-3.5" />
-              </Link>
+        <Link href="/reconciliation#settlement-profit" className="block focus:outline-none">
+          <Card className="glass-panel relative overflow-hidden rounded-[2rem] border border-white/10 bg-slate-900/40 p-6 shadow-[0_20px_50px_rgba(2,6,23,0.35)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-1 hover:border-emerald-400/50 hover:shadow-[0_20px_60px_rgba(16,185,129,0.2)] cursor-pointer group">
+            <div className="absolute top-0 right-0 p-6 opacity-5 group-hover:opacity-10 transition-opacity">
+              <Wallet className="h-24 w-24 text-emerald-400" />
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
-                  Bank Settlement
-                </p>
-                <p className="text-lg font-black text-white mt-1">
-                  {formatINRWithDecimals(summary.settlementAmount)}
-                </p>
-                <p className="text-[10px] font-semibold text-slate-400 mt-0.5">Realized Cash</p>
+            <div className="relative z-10 space-y-4">
+              <div className="flex justify-between items-start">
+                <div>
+                  <p className="text-[10px] font-black uppercase tracking-[0.2em] text-emerald-300/80">
+                    Settlement & Profit
+                  </p>
+                  <p className="text-xs text-slate-400 font-medium">{periodLabel}</p>
+                </div>
+                <div className="text-xs text-emerald-400 font-bold flex items-center gap-1 group-hover:text-emerald-300 transition-colors">
+                  <span>Recon Center</span>
+                  <ArrowUpRight className="h-3.5 w-3.5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />
+                </div>
               </div>
 
-              <div
-                className={cn(
-                  'p-3 rounded-2xl border',
-                  isLoss
-                    ? 'bg-rose-500/10 border-rose-500/20'
-                    : 'bg-emerald-500/10 border-emerald-500/20'
-                )}
-              >
-                <p
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 rounded-2xl bg-white/[0.03] border border-white/10">
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">
+                    Bank Settlement
+                  </p>
+                  <p className="text-lg font-black text-white mt-1">
+                    {formatINRWithDecimals(summary.settlementAmount)}
+                  </p>
+                  <p className="text-[10px] font-semibold text-slate-400 mt-0.5">Realized Cash</p>
+                </div>
+
+                <div
                   className={cn(
-                    'text-[10px] font-bold uppercase tracking-wider',
-                    isLoss ? 'text-rose-300' : 'text-emerald-300'
+                    'p-3 rounded-2xl border',
+                    isLoss
+                      ? 'bg-rose-500/10 border-rose-500/20'
+                      : 'bg-emerald-500/10 border-emerald-500/20'
                   )}
                 >
-                  {isLoss ? 'Net Loss' : 'Net Profit'}
-                </p>
-                <p
-                  className={cn(
-                    'text-lg font-black mt-1',
-                    isLoss ? 'text-rose-400' : 'text-emerald-400'
-                  )}
-                >
-                  {formatINRWithDecimals(netProfit)}
-                </p>
-                <p className="text-[10px] font-semibold text-slate-400 mt-0.5">
-                  Workbook Parity
-                </p>
+                  <p
+                    className={cn(
+                      'text-[10px] font-bold uppercase tracking-wider',
+                      isLoss ? 'text-rose-300' : 'text-emerald-300'
+                    )}
+                  >
+                    {isLoss ? 'Net Loss' : 'Net Profit'}
+                  </p>
+                  <p
+                    className={cn(
+                      'text-lg font-black mt-1',
+                      isLoss ? 'text-rose-400' : 'text-emerald-400'
+                    )}
+                  >
+                    {formatINRWithDecimals(netProfit)}
+                  </p>
+                  <p className="text-[10px] font-semibold text-slate-400 mt-0.5">
+                    Workbook Parity
+                  </p>
+                </div>
+              </div>
+
+              <div className="p-2.5 rounded-xl bg-slate-800/40 border border-white/5 flex items-center justify-between text-[11px]">
+                <span className="text-slate-400 font-medium">Gross Invoice Volume:</span>
+                <span className="font-bold text-white">
+                  {formatINRWithDecimals(summary.totalSalesInvoice)}
+                </span>
               </div>
             </div>
-
-            <div className="p-2.5 rounded-xl bg-slate-800/40 border border-white/5 flex items-center justify-between text-[11px]">
-              <span className="text-slate-400 font-medium">Gross Invoice Volume:</span>
-              <span className="font-bold text-white">
-                {formatINRWithDecimals(summary.totalSalesInvoice)}
-              </span>
-            </div>
-          </div>
-        </Card>
+          </Card>
+        </Link>
       </div>
     </div>
   );

@@ -32,10 +32,12 @@ export interface WorkerSession {
   page?: Page;
   startedAt: number;
   lastActivityAt: number;
-  error?: string;
   storageStatePath: string;
+  error?: string;
   supplierId?: string;
   supplierName?: string;
+  identifier?: string;
+  supplierNumericId?: number;
 }
 
 export interface StartSessionRequest {

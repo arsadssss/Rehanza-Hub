@@ -1,70 +1,53 @@
+import { NextRequest, NextResponse } from 'next/server';
+import { getInventoryDataset } from '@/lib/inventory/inventory-service';
 import { sql } from '@/lib/db';
-import { NextResponse } from 'next/server';
 
 export const revalidate = 0;
 
-export async function GET(request: Request) {
+/**
+ * GET /api/inventory
+ * Authoritative SKU-level Inventory Dataset & Analytics
+ * - Summary KPI cards (Total Value, Total Units, Low Stock, Out of Stock, Reserved)
+ * - SKU Items linked to Products Master by Main SKU
+ * - Category filters & Vendor list for suppliers
+ */
+export async function GET(request: NextRequest) {
   try {
-    const accountId = request.headers.get("x-account-id");
+    const accountId = request.headers.get('x-account-id');
     if (!accountId) {
-      return NextResponse.json({ success: false, message: "Account not selected" }, { status: 400 });
+      return NextResponse.json({ success: false, message: 'Account context missing' }, { status: 400 });
     }
 
-    // 1. Calculate Inventory Investment Value Dynamically
-    // Sum of (Variant Stock * Product Cost Price)
-    // CRITICAL: We must exclude soft-deleted variants and products
-    const investmentRes = await sql`
-      SELECT COALESCE(SUM(pv.stock * ap.cost_price), 0)::numeric as investment
-      FROM product_variants pv
-      JOIN allproducts ap ON pv.product_id = ap.id
-      WHERE pv.account_id = ${accountId}
-      AND pv.is_deleted = false
-      AND ap.is_deleted = false
-    `;
-    const inventoryInvestment = Number(investmentRes[0]?.investment || 0);
+    const { searchParams } = new URL(request.url);
+    const search = searchParams.get('search') || undefined;
+    const category = searchParams.get('category') || undefined;
+    const status = searchParams.get('status') || undefined;
 
-    // 2. SKU List with Dynamic Performance Stats
-    // Aggregates orders and returns on-the-fly per variant
-    const items = await sql`
-      SELECT 
-        pv.id,
-        pv.variant_sku as sku,
-        ap.product_name as "productName",
-        pv.stock,
-        COALESCE(pv.low_stock_threshold, 5)::int as "lowStockThreshold",
-        COALESCE(ord.total_orders, 0)::int as "totalOrders",
-        COALESCE(ret.total_returns, 0)::int as "totalReturns",
-        COALESCE(ord.total_revenue, 0)::numeric as "revenue"
-      FROM product_variants pv
-      JOIN allproducts ap ON pv.product_id = ap.id
-      LEFT JOIN (
-        SELECT variant_id, SUM(quantity) as total_orders, SUM(total_amount) as total_revenue
-        FROM orders
-        WHERE is_deleted = false AND account_id = ${accountId}
-        GROUP BY variant_id
-      ) ord ON pv.id = ord.variant_id
-      LEFT JOIN (
-        SELECT variant_id, SUM(quantity) as total_returns
-        FROM returns
-        WHERE is_deleted = false AND account_id = ${accountId}
-        GROUP BY variant_id
-      ) ret ON pv.id = ret.variant_id
-      WHERE pv.account_id = ${accountId}
-      AND pv.is_deleted = false
-      AND ap.is_deleted = false
-      ORDER BY ap.product_name ASC, pv.variant_sku ASC
-    `;
+    const [dataset, vendors] = await Promise.all([
+      getInventoryDataset(accountId, { search, category, status }),
+      sql`
+        SELECT id, vendor_name
+        FROM vendors
+        WHERE account_id::text = ${accountId}
+        ORDER BY vendor_name ASC;
+      `.catch(() => []),
+    ]);
 
     return NextResponse.json({
       success: true,
-      inventoryInvestment,
-      items: (items || []).map((item: any) => ({
-        ...item,
-        revenue: Number(item.revenue || 0)
-      }))
+      summary: dataset.summary,
+      items: dataset.items,
+      categories: dataset.categories,
+      vendors: vendors.map((v: any) => ({
+        id: v.id,
+        name: v.vendor_name,
+      })),
     });
   } catch (error: any) {
-    console.error("API Inventory Error:", error);
-    return NextResponse.json({ success: false, message: "Failed to fetch inventory data", error: error.message }, { status: 500 });
+    console.error('API Inventory GET Error:', error);
+    return NextResponse.json(
+      { success: false, message: error.message || 'Failed to fetch inventory dataset' },
+      { status: 500 }
+    );
   }
 }

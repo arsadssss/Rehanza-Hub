@@ -1,5 +1,6 @@
 import { sql } from '@/lib/db';
 import { NextResponse } from 'next/server';
+import { getInventoryDataset } from '@/lib/inventory/inventory-service';
 
 export const revalidate = 0;
 
@@ -21,7 +22,7 @@ export async function GET(request: Request) {
       productCosts,
       topSellingRes,
       payoutRes,
-      inventoryRes,
+      inventoryDataset,
       taskProgressRes,
       trackRecordRes,
       expenseRes,
@@ -73,12 +74,11 @@ export async function GET(request: Request) {
         FROM platform_payouts
         WHERE account_id = ${accountId} AND is_deleted = false
       `,
-      // Total Inventory Value from vendor purchases
-      sql`
-        SELECT COALESCE(SUM(quantity * cost_per_unit), 0)::numeric as total
-        FROM vendor_purchases
-        WHERE account_id = ${accountId} AND is_deleted = false
-      `,
+      // Total Inventory Value using authoritative Inventory dataset (identical to Inventory page)
+      getInventoryDataset(accountId).catch((err) => {
+        console.error("Dashboard inventory dataset error:", err);
+        return { summary: { totalInventoryValue: 0 } } as any;
+      }),
       // Active Task progress counts matching the current account workflow
       sql`
         SELECT status, task_group
@@ -169,7 +169,7 @@ export async function GET(request: Request) {
       netCashFlow,
       totalPaymentReceived,
       totalExpenses,
-      inventoryValue: Number(inventoryRes[0]?.total || 0),
+      inventoryValue: Number(inventoryDataset?.summary?.totalInventoryValue || 0),
       activeTasks: activeTasksCount,
       taskProgress,
       trackRecord: (trackRecordRes || []).map((t: any) => ({

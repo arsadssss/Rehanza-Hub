@@ -1,9 +1,10 @@
 "use client";
 
 import Image from 'next/image';
+import Link from 'next/link';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
-import { format, subMonths } from 'date-fns';
+import { format } from 'date-fns';
 import { formatINR } from '@/lib/format';
 import { Skeleton } from '@/components/ui/skeleton';
 import { 
@@ -16,6 +17,7 @@ import {
   AlertCircle,
   Package,
   RefreshCw,
+  ArrowUpRight,
 } from 'lucide-react';
 import { apiFetch } from '@/lib/apiFetch';
 import { resolveActiveAccount, getStoredAccountId, ACTIVE_ACCOUNT_CHANGED_EVENT } from '@/lib/account';
@@ -41,15 +43,6 @@ import {
   ReconciliationDateFilter,
 } from '@/lib/reconciliation/types';
 import { DecisionEngineSummary } from '@/lib/reconciliation/decision-engine';
-
-// Helper: Calculate previous calendar month in YYYY-MM format
-function getPrevMonthStr(): string {
-  const d = new Date();
-  d.setMonth(d.getMonth() - 1);
-  const y = d.getFullYear();
-  const m = String(d.getMonth() + 1).padStart(2, '0');
-  return `${y}-${m}`;
-}
 
 // --- Sub-components ---
 
@@ -106,6 +99,7 @@ interface KpiCardProps {
   trend?: number;
   suffix?: string;
   periodLabel?: string;
+  href?: string;
 }
 
 const KpiCard = ({
@@ -119,15 +113,24 @@ const KpiCard = ({
   trend,
   suffix = "",
   periodLabel,
+  href,
 }: KpiCardProps) => {
   const iconBgClass = gradient ? gradient.replace('from-', 'bg-').split(' ')[0] : 'bg-indigo-600';
-  return (
-    <Card className="glass-panel relative h-full overflow-hidden rounded-[1.5rem] border border-white/10 bg-slate-900/40 shadow-[0_20px_50px_rgba(2,6,23,0.35)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:border-indigo-400/30 hover:shadow-[0_20px_60px_rgba(79,70,229,0.18)] group">
+  const cardContent = (
+    <Card className={cn(
+      "glass-panel relative h-full overflow-hidden rounded-[1.5rem] border border-white/10 bg-slate-900/40 shadow-[0_20px_50px_rgba(2,6,23,0.35)] backdrop-blur-xl transition-all duration-300 group",
+      href && "cursor-pointer hover:-translate-y-1 hover:border-indigo-400/40 hover:shadow-[0_20px_60px_rgba(79,70,229,0.22)]"
+    )}>
       <div className={cn("absolute inset-0 opacity-5 group-hover:opacity-10 transition-opacity bg-gradient-to-br", gradient)} />
-      <CardContent className="p-6 relative z-10">
+      <CardContent className="p-6 relative z-10 flex flex-col justify-between h-full">
         <div className="flex justify-between items-start">
           <div className="space-y-1">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">{title}</p>
+            <div className="flex items-center gap-1.5">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">{title}</p>
+              {href && (
+                <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-white group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
+              )}
+            </div>
             {loading ? <Skeleton className="h-10 w-24 bg-muted/40" /> : (
               <div>
                 <h2 className="text-3xl font-black font-headline tracking-tighter text-white">
@@ -141,7 +144,7 @@ const KpiCard = ({
               </div>
             )}
           </div>
-          <div className={cn("p-3 rounded-2xl shadow-lg shadow-black/5", iconBgClass, "text-white")}>
+          <div className={cn("p-3 rounded-2xl shadow-lg shadow-black/5 transition-transform group-hover:scale-105", iconBgClass, "text-white")}>
             <Icon className="h-5 w-5" />
           </div>
         </div>
@@ -160,26 +163,46 @@ const KpiCard = ({
       </CardContent>
     </Card>
   );
+
+  if (href) {
+    return (
+      <Link href={href} className="block h-full focus:outline-none">
+        {cardContent}
+      </Link>
+    );
+  }
+
+  return cardContent;
 };
 
 interface LiveOrdersKpiCardProps {
   pending: number;
   readyToShip: number;
   loading?: boolean;
+  href?: string;
 }
 
 const LiveOrdersKpiCard = ({
   pending,
   readyToShip,
   loading = false,
+  href,
 }: LiveOrdersKpiCardProps) => {
-  return (
-    <Card className="glass-panel relative h-full overflow-hidden rounded-[1.5rem] border border-white/10 bg-slate-900/40 shadow-[0_20px_50px_rgba(2,6,23,0.35)] backdrop-blur-xl transition-all duration-300 hover:-translate-y-0.5 hover:border-amber-400/30 hover:shadow-[0_20px_60px_rgba(245,158,11,0.18)] group">
+  const cardContent = (
+    <Card className={cn(
+      "glass-panel relative h-full overflow-hidden rounded-[1.5rem] border border-white/10 bg-slate-900/40 shadow-[0_20px_50px_rgba(2,6,23,0.35)] backdrop-blur-xl transition-all duration-300 group",
+      href && "cursor-pointer hover:-translate-y-1 hover:border-amber-400/50 hover:shadow-[0_20px_60px_rgba(245,158,11,0.22)]"
+    )}>
       <div className="absolute inset-0 opacity-5 group-hover:opacity-10 transition-opacity bg-gradient-to-br from-amber-500 to-orange-600" />
       <CardContent className="p-6 relative z-10 flex flex-col justify-between h-full">
         <div className="flex justify-between items-start">
           <div className="space-y-1">
-            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">LIVE ORDERS</p>
+            <div className="flex items-center gap-1.5">
+              <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">LIVE ORDERS</p>
+              {href && (
+                <ArrowUpRight className="h-3.5 w-3.5 text-muted-foreground/40 group-hover:text-amber-400 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-all" />
+              )}
+            </div>
             {loading ? (
               <Skeleton className="h-10 w-36 bg-muted/40 mt-1" />
             ) : (
@@ -204,7 +227,7 @@ const LiveOrdersKpiCard = ({
               </div>
             )}
           </div>
-          <div className="p-3 rounded-2xl shadow-lg shadow-black/5 bg-amber-600 text-white">
+          <div className="p-3 rounded-2xl shadow-lg shadow-black/5 bg-amber-600 text-white transition-transform group-hover:scale-105">
             <Package className="h-5 w-5" />
           </div>
         </div>
@@ -222,6 +245,16 @@ const LiveOrdersKpiCard = ({
       </CardContent>
     </Card>
   );
+
+  if (href) {
+    return (
+      <Link href={href} className="block h-full focus:outline-none">
+        {cardContent}
+      </Link>
+    );
+  }
+
+  return cardContent;
 };
 
 // --- Main Dashboard Page ---
@@ -256,22 +289,15 @@ export default function DashboardPage() {
   const [isAiCopilotOpen, setIsAiCopilotOpen] = useState(false);
 
   // Reconciliation Period Filter State - defaults to 'all' for 100% exact parity with Reconciliation page source-of-truth
-  const [filter, setFilter] = useState<ReconciliationDateFilter>({ range: 'all' });
-  const [activePreset, setActivePreset] = useState<'all' | 'this_month' | 'prev_month'>('all');
+  const [filter] = useState<ReconciliationDateFilter>({ range: 'all' });
   const [periodLabel, setPeriodLabel] = useState<string>('All Available Data');
 
   const netProfitPeriodLabel = useMemo(() => {
-    if (activePreset === 'prev_month') {
-      return format(subMonths(new Date(), 1), 'MMMM yyyy');
-    }
-    if (activePreset === 'this_month') {
-      return format(new Date(), 'MMMM yyyy');
-    }
     if (periodLabel && periodLabel !== 'All Available Data') {
       return periodLabel;
     }
     return format(new Date(), 'MMMM yyyy');
-  }, [activePreset, periodLabel]);
+  }, [periodLabel]);
 
   const fetchAllData = useCallback(async (explicitAccountId?: string, overrideFilter?: ReconciliationDateFilter) => {
     let targetAccountId = explicitAccountId || activeAccountId || getStoredAccountId();
@@ -413,18 +439,6 @@ export default function DashboardPage() {
     }
   }, [activeAccountId, toast, filter]);
 
-  const handlePresetChange = (preset: 'all' | 'this_month' | 'prev_month') => {
-    setActivePreset(preset);
-    let newFilter: ReconciliationDateFilter = { range: 'all' };
-    if (preset === 'this_month') {
-      newFilter = { range: 'month' };
-    } else if (preset === 'prev_month') {
-      newFilter = { month: getPrevMonthStr() };
-    }
-    setFilter(newFilter);
-    fetchAllData(undefined, newFilter);
-  };
-
   useEffect(() => {
     setIsMounted(true);
 
@@ -476,52 +490,6 @@ export default function DashboardPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
-          {/* Period Filter Presets */}
-          <div className="inline-flex rounded-xl p-1 bg-slate-900/60 border border-white/10 backdrop-blur-md shadow-inner">
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => handlePresetChange('all')}
-              className={cn(
-                'h-9 px-3 text-xs font-bold rounded-lg transition-all',
-                activePreset === 'all'
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'text-slate-300 hover:text-white hover:bg-white/5'
-              )}
-            >
-              All Time
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => handlePresetChange('this_month')}
-              className={cn(
-                'h-9 px-3 text-xs font-bold rounded-lg transition-all',
-                activePreset === 'this_month'
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'text-slate-300 hover:text-white hover:bg-white/5'
-              )}
-            >
-              This Month
-            </Button>
-            <Button
-              type="button"
-              variant="ghost"
-              size="sm"
-              onClick={() => handlePresetChange('prev_month')}
-              className={cn(
-                'h-9 px-3 text-xs font-bold rounded-lg transition-all',
-                activePreset === 'prev_month'
-                  ? 'bg-indigo-600 text-white shadow-md'
-                  : 'text-slate-300 hover:text-white hover:bg-white/5'
-              )}
-            >
-              Last Month
-            </Button>
-          </div>
-
           <AiAssistButton
             isOpen={isAiCopilotOpen}
             onClick={() => setIsAiCopilotOpen((prev) => !prev)}
@@ -576,6 +544,7 @@ export default function DashboardPage() {
             pending={liveOrders.pending} 
             readyToShip={liveOrders.readyToShip} 
             loading={loading} 
+            href="/marketplace#live-orders"
           />
           <KpiCard 
             title="Net Cash Flow" 
@@ -585,6 +554,7 @@ export default function DashboardPage() {
             gradient="from-emerald-500 to-teal-600" 
             loading={loading} 
             isCurrency 
+            href="/expenses"
           />
           <KpiCard 
             title="Total Payment Received" 
@@ -594,6 +564,7 @@ export default function DashboardPage() {
             gradient="from-blue-600 to-cyan-700" 
             loading={loading} 
             isCurrency 
+            href="/payments"
           />
           <KpiCard 
             title="Active Tasks" 
@@ -602,6 +573,7 @@ export default function DashboardPage() {
             description="Pending Execution" 
             gradient="from-blue-600 to-cyan-700" 
             loading={loading} 
+            href="/tasks?status=Pending"
           />
           <KpiCard 
             title="Net Profit" 
@@ -613,15 +585,17 @@ export default function DashboardPage() {
             isCurrency
             trend={(reconciliationSummary?.finalPayoutNetProfit ?? summary?.net_profit ?? 0) >= 0 ? 5 : -5}
             periodLabel={netProfitPeriodLabel}
+            href="/reconciliation#settlement-profit"
           />
           <KpiCard 
-            title="Inventory Value" 
+            title="TOTAL INVENTORY VALUE" 
             value={inventoryValue} 
             icon={Package} 
             description="Capital Invested" 
             gradient="from-slate-700 to-slate-900" 
             loading={loading} 
             isCurrency
+            href="/inventory"
           />
         </div>
       </section>
@@ -639,16 +613,25 @@ export default function DashboardPage() {
 
       {/* 4. Analytics Layer: Daily Financial Trends & Order Distribution */}
       <section className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Badge
-            variant="outline"
-            className="glass-pill h-6 px-2 rounded-md border border-cyan-500/30 bg-cyan-500/10 font-bold text-[10px] uppercase tracking-wider text-cyan-300"
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Badge
+              variant="outline"
+              className="glass-pill h-6 px-2 rounded-md border border-cyan-500/30 bg-cyan-500/10 font-bold text-[10px] uppercase tracking-wider text-cyan-300"
+            >
+              Analytics
+            </Badge>
+            <h2 className="text-lg font-black tracking-tight text-white font-headline">
+              Reconciliation Analytics & Distribution
+            </h2>
+          </div>
+          <Link
+            href="/reconciliation#order-performance"
+            className="text-xs text-cyan-400 hover:text-white font-bold flex items-center gap-1 transition-colors"
           >
-            Analytics
-          </Badge>
-          <h2 className="text-lg font-black tracking-tight text-white font-headline">
-            Reconciliation Analytics & Distribution
-          </h2>
+            <span>Deep Analytics</span>
+            <ArrowUpRight className="h-3.5 w-3.5" />
+          </Link>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8 items-stretch">
@@ -687,16 +670,25 @@ export default function DashboardPage() {
 
       {/* 6. Operational Task Performance (Full Width) */}
       <section className="space-y-3">
-        <div className="flex items-center gap-2">
-          <Badge
-            variant="outline"
-            className="glass-pill h-6 px-2 rounded-md border border-indigo-500/30 bg-indigo-500/10 font-bold text-[10px] uppercase tracking-wider text-indigo-300"
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <Badge
+              variant="outline"
+              className="glass-pill h-6 px-2 rounded-md border border-indigo-500/30 bg-indigo-500/10 font-bold text-[10px] uppercase tracking-wider text-indigo-300"
+            >
+              Operations
+            </Badge>
+            <h2 className="text-lg font-black tracking-tight text-white font-headline">
+              Team Task Performance & Tracking
+            </h2>
+          </div>
+          <Link
+            href="/tasks"
+            className="text-xs text-indigo-400 hover:text-white font-bold flex items-center gap-1 transition-colors"
           >
-            Operations
-          </Badge>
-          <h2 className="text-lg font-black tracking-tight text-white font-headline">
-            Team Task Performance & Tracking
-          </h2>
+            <span>View Tasks</span>
+            <ArrowUpRight className="h-3.5 w-3.5" />
+          </Link>
         </div>
         <TaskPerformanceCard data={trackRecord} loading={loading} />
       </section>

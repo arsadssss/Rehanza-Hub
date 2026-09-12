@@ -240,7 +240,7 @@ export default function ReconciliationPage() {
           </section>
 
           {/* 5. FINANCIAL OVERVIEW, PERFORMANCE, SKU & DECISION ENGINE */}
-          <section className="space-y-4 pt-2">
+          <section id="settlement-profit" className="space-y-4 pt-2 scroll-mt-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-black uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">

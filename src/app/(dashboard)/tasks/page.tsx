@@ -293,6 +293,13 @@ export default function TasksPage() {
 
     useEffect(() => { 
         setIsMounted(true);
+        if (typeof window !== 'undefined') {
+            const urlParams = new URLSearchParams(window.location.search);
+            const statusParam = urlParams.get('status');
+            if (statusParam && ['Pending', 'In Progress', 'Completed', 'all'].includes(statusParam)) {
+                setStatusFilter(statusParam);
+            }
+        }
         fetchUsers();
         fetchPageData(); 
     }, [fetchPageData, fetchUsers]);

@@ -138,11 +138,15 @@ export function FinancialDashboard({ accountId, refreshTrigger }: FinancialDashb
       <ProfitLossChart summary={summary} loading={loading} />
 
       {/* 6. Order Performance (Donut Chart & Status Breakdown Table) */}
-      <OrderPerformance
-        orders={summary?.orders || null}
-        averageOrderValue={summary?.averageOrderValue || 0}
-        loading={loading}
-      />
+      <div id="order-performance" className="scroll-mt-6">
+        <div id="returns-rto" className="scroll-mt-6">
+          <OrderPerformance
+            orders={summary?.orders || null}
+            averageOrderValue={summary?.averageOrderValue || 0}
+            loading={loading}
+          />
+        </div>
+      </div>
 
       {/* 7. Detailed Financial Cost Breakdown */}
       <FinancialBreakdown

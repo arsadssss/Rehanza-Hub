@@ -51,3 +51,4 @@ worker/meesho/.sessions/
 worker/meesho/logs/
 worker/meesho/screenshots/
 *.storageState.json
+*.meta.json

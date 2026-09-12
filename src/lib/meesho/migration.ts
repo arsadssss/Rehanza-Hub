@@ -37,5 +37,25 @@ export async function ensureMarketplaceConnectionsTable(): Promise<void> {
     CREATE INDEX IF NOT EXISTS idx_marketplace_connections_status 
     ON marketplace_connections (account_id, marketplace, connection_status);
   `;
+
+  // Add auto_sync_enabled column (idempotent - safe to run multiple times)
+  await sql`
+    ALTER TABLE marketplace_connections
+    ADD COLUMN IF NOT EXISTS auto_sync_enabled BOOLEAN NOT NULL DEFAULT TRUE;
+  `;
+
+  // Add encrypted credential columns for automatic re-authentication
+  // These store AES-256-GCM encrypted login identifier (email/phone) and password
+  // Encryption key: MEESHO_ENCRYPTION_KEY (server-side only, never exposed to client)
+  await sql`
+    ALTER TABLE marketplace_connections
+    ADD COLUMN IF NOT EXISTS encrypted_login_identifier TEXT;
+  `;
+
+  await sql`
+    ALTER TABLE marketplace_connections
+    ADD COLUMN IF NOT EXISTS encrypted_password TEXT;
+  `;
 }
+
 

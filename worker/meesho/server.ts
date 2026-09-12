@@ -166,6 +166,18 @@ const server = http.createServer(async (req, res) => {
       });
     }
 
+    // Extract Payments: POST /sessions/:accountId/payments/extract
+    const extractPaymentsMatch = pathname.match(/^\/sessions\/([^/]+)\/payments\/extract$/);
+    if (method === 'POST' && extractPaymentsMatch) {
+      const accountId = decodeURIComponent(extractPaymentsMatch[1]);
+      console.log(`[Meesho Worker] Received payment extraction request for account: ${accountId}`);
+      const payments = await browserManager.extractPayments(accountId);
+      return sendJson(res, 200, {
+        success: true,
+        payments,
+      });
+    }
+
     // Trigger On-Demand Auto-Sync (Dev/Test or Manual): POST /sessions/:accountId/autosync/trigger
     const autoTriggerMatch = pathname.match(/^\/sessions\/([^/]+)\/autosync\/trigger$/);
     if (method === 'POST' && autoTriggerMatch) {
@@ -196,8 +208,21 @@ const server = http.createServer(async (req, res) => {
       return sendJson(res, 200, { success: true });
     }
 
+    // Auto Re-Auth: POST /sessions/:accountId/reauth
+    const reauthMatch = pathname.match(/^\/sessions\/([^/]+)\/reauth$/);
+    if (method === 'POST' && reauthMatch) {
+      const accountId = decodeURIComponent(reauthMatch[1]);
+      console.log(`[Meesho Worker] Received auto re-auth request for account: ${accountId}`);
+      const success = await browserManager.attemptAutoReauth(accountId);
+      return sendJson(res, success ? 200 : 503, {
+        success,
+        error: success ? undefined : 'Auto re-auth failed. Check worker logs for details.',
+      });
+    }
+
     // Not Found
     return sendJson(res, 404, { success: false, error: 'Endpoint not found.' });
+
 
   } catch (error: any) {
     console.error('[Meesho Worker] Server Error:', error);
