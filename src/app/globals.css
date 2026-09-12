@@ -1,4 +1,3 @@
-
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -8,7 +7,7 @@ html {
   background-color: #070d18;
 }
 
-body {
+:root:not(.theme-blue) body {
   font-family: 'PT Sans', sans-serif;
   min-height: 100vh;
   background-color: #070d18;
@@ -18,12 +17,20 @@ body {
   background-attachment: fixed;
 }
 
-.dark body {
+:root:not(.theme-blue).dark body {
   background-color: #070d18;
   background-image: url('/images/bg6.jpg');
   background-position: center center;
   background-repeat: no-repeat;
   background-attachment: fixed;
+}
+
+/* Blue Theme Canvas & Background */
+html.theme-blue,
+html.theme-blue body {
+  background-color: #f4f7fe !important;
+  background-image: none !important;
+  color: #0f172a !important;
 }
 
 body > * {
@@ -106,6 +113,45 @@ body > * {
     --chart-4: 340 82% 80%;
     --chart-5: 200 90% 45%;
   }
+
+  /* Blue Theme Tokens */
+  .theme-blue {
+    --background: 220 50% 98%;
+    --foreground: 222 47% 11%;
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+    --primary: 221 83% 53%;
+    --primary-foreground: 210 40% 98%;
+    --secondary: 214 32% 91%;
+    --secondary-foreground: 222 47% 11%;
+    --muted: 214 32% 91%;
+    --muted-foreground: 215 16% 47%;
+    --accent: 214 32% 91%;
+    --accent-foreground: 222 47% 11%;
+    --destructive: 0 84.2% 60.2%;
+    --destructive-foreground: 210 40% 98%;
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 221 83% 53%;
+    --radius: 1rem;
+
+    --sidebar-background: 224 76% 48%;
+    --sidebar-foreground: 210 40% 98%;
+    --sidebar-primary: 0 0% 100%;
+    --sidebar-primary-foreground: 221 83% 53%;
+    --sidebar-accent: 224 76% 55%;
+    --sidebar-accent-foreground: 210 40% 98%;
+    --sidebar-border: 224 76% 40%;
+    --sidebar-ring: 221 83% 53%;
+
+    --chart-1: 221 83% 53%;
+    --chart-2: 160 84% 39%;
+    --chart-3: 38 92% 50%;
+    --chart-4: 262 83% 58%;
+    --chart-5: 199 89% 48%;
+  }
 }
 
 @layer base {
@@ -127,8 +173,9 @@ body > * {
     background-color: transparent !important;
   }
 
-  .dashboard-shell::before,
-  .dashboard-shell::after {
+  /* Classic Theme Glow Blobs */
+  :root:not(.theme-blue) .dashboard-shell::before,
+  :root:not(.theme-blue) .dashboard-shell::after {
     content: "";
     position: absolute;
     inset: auto;
@@ -138,7 +185,7 @@ body > * {
     opacity: 0.5;
   }
 
-  .dashboard-shell::before {
+  :root:not(.theme-blue) .dashboard-shell::before {
     width: 28rem;
     height: 28rem;
     top: -6rem;
@@ -146,7 +193,7 @@ body > * {
     background: radial-gradient(circle, rgba(129, 140, 248, 0.30), transparent 62%);
   }
 
-  .dashboard-shell::after {
+  :root:not(.theme-blue) .dashboard-shell::after {
     width: 24rem;
     height: 24rem;
     bottom: 8%;
@@ -154,6 +201,7 @@ body > * {
     background: radial-gradient(circle, rgba(79, 70, 229, 0.18), transparent 60%);
   }
 
+  /* Classic Theme Glass Styles */
   .glass-panel {
     background: rgba(15, 23, 42, 0.32);
     border: 1px solid rgba(255,255,255,0.14);
@@ -186,22 +234,23 @@ body > * {
     -webkit-backdrop-filter: blur(10px) saturate(1.15);
   }
 
-  .bg-white\/80,
-  .bg-white\/60,
-  .bg-white\/40,
-  .bg-white\/5,
-  .bg-white\/10,
-  .bg-gray-50\/50,
-  .bg-background,
-  .bg-background\/40,
-  .bg-background\/50,
-  .bg-background\/80,
-  .bg-muted,
-  .bg-muted\/50,
-  .dark .dark\:bg-slate-900\/80,
-  .dark .dark\:bg-black\/50,
-  .dark .dark\:bg-white\/5,
-  .dark .dark\:bg-white\/10 {
+  /* Scoped Classic Theme Dark Overrides */
+  :root:not(.theme-blue) .bg-white\/80,
+  :root:not(.theme-blue) .bg-white\/60,
+  :root:not(.theme-blue) .bg-white\/40,
+  :root:not(.theme-blue) .bg-white\/5,
+  :root:not(.theme-blue) .bg-white\/10,
+  :root:not(.theme-blue) .bg-gray-50\/50,
+  :root:not(.theme-blue) .bg-background,
+  :root:not(.theme-blue) .bg-background\/40,
+  :root:not(.theme-blue) .bg-background\/50,
+  :root:not(.theme-blue) .bg-background\/80,
+  :root:not(.theme-blue) .bg-muted,
+  :root:not(.theme-blue) .bg-muted\/50,
+  :root:not(.theme-blue).dark .dark\:bg-slate-900\/80,
+  :root:not(.theme-blue).dark .dark\:bg-black\/50,
+  :root:not(.theme-blue).dark .dark\:bg-white\/5,
+  :root:not(.theme-blue).dark .dark\:bg-white\/10 {
     background-color: rgba(15, 23, 42, 0.24) !important;
     border-color: rgba(255,255,255,0.10) !important;
     box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 18px 40px rgba(2, 6, 23, 0.18) !important;
@@ -209,28 +258,387 @@ body > * {
     -webkit-backdrop-filter: blur(18px) saturate(1.15) !important;
   }
 
-  .border-border\/50,
-  .border-border\/60,
-  .border-white\/20,
-  .border-white\/10,
-  .border-white\/30,
-  .border-white\/50,
-  .border-transparent {
+  :root:not(.theme-blue) .border-border\/50,
+  :root:not(.theme-blue) .border-border\/60,
+  :root:not(.theme-blue) .border-white\/20,
+  :root:not(.theme-blue) .border-white\/10,
+  :root:not(.theme-blue) .border-white\/30,
+  :root:not(.theme-blue) .border-white\/50,
+  :root:not(.theme-blue) .border-transparent {
     border-color: rgba(255,255,255,0.10) !important;
   }
 
-  .text-foreground,
-  .text-muted-foreground,
-  .text-slate-100,
-  .text-black,
-  .dark .text-white {
+  :root:not(.theme-blue) .text-foreground,
+  :root:not(.theme-blue) .text-slate-100,
+  :root:not(.theme-blue) .text-black,
+  :root:not(.theme-blue).dark .text-white {
     color: rgba(241,245,249,0.96) !important;
+  }
+
+  :root:not(.theme-blue) .text-muted-foreground {
+    color: rgba(148, 163, 184, 0.85) !important;
+  }
+
+  /* Solid & Action Buttons in Classic Theme */
+  :root:not(.theme-blue) button[class*="bg-primary"],
+  :root:not(.theme-blue) button[class*="bg-indigo"],
+  :root:not(.theme-blue) button[class*="bg-blue"],
+  :root:not(.theme-blue) button[class*="bg-emerald"],
+  :root:not(.theme-blue) button[class*="bg-rose"],
+  :root:not(.theme-blue) button[class*="bg-red"],
+  :root:not(.theme-blue) button[type="submit"],
+  :root:not(.theme-blue) .btn-primary {
+    color: #ffffff !important;
+  }
+
+  /* =========================================================
+     BLUE THEME — GOOGLE DRIVE-INSPIRED ENTERPRISE DESIGN
+     ========================================================= */
+
+  /* Shell & Canvas */
+  .theme-blue .dashboard-shell {
+    background: #f4f7fe !important;
+  }
+  .theme-blue .dashboard-shell::before,
+  .theme-blue .dashboard-shell::after {
+    display: none !important;
+  }
+
+  /* Deep Royal Blue Sidebar */
+  .theme-blue [data-sidebar="sidebar"] {
+    background: linear-gradient(180deg, #17387e 0%, #1a56db 100%) !important;
+    border-right: 1px solid rgba(255, 255, 255, 0.12) !important;
+    box-shadow: 4px 0 24px rgba(23, 56, 126, 0.12) !important;
+  }
+
+  .theme-blue [data-sidebar="sidebar"] * {
+    border-color: rgba(255, 255, 255, 0.12);
+  }
+
+  .theme-blue [data-sidebar="sidebar"] .glass-pill {
+    background: #ffffff !important;
+    color: #17387e !important;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.12) !important;
+    border: none !important;
+    border-radius: 9999px !important;
+  }
+
+  .theme-blue [data-sidebar="sidebar"] .glass-pill span,
+  .theme-blue [data-sidebar="sidebar"] .glass-pill svg {
+    color: #17387e !important;
+  }
+
+  .theme-blue [data-sidebar="sidebar"] .glass-pill div.absolute {
+    display: none !important;
+  }
+
+  .theme-blue [data-sidebar="sidebar"] a:not(.glass-pill),
+  .theme-blue [data-sidebar="sidebar"] button:not(.glass-pill) {
+    color: #dbeafe !important;
+  }
+
+  .theme-blue [data-sidebar="sidebar"] a:not(.glass-pill):hover,
+  .theme-blue [data-sidebar="sidebar"] button:not(.glass-pill):hover {
+    background: rgba(255, 255, 255, 0.14) !important;
+    color: #ffffff !important;
+  }
+
+  .theme-blue [data-sidebar="sidebar"] a:not(.glass-pill):hover svg {
+    color: #ffffff !important;
+  }
+
+  .theme-blue [data-sidebar="sidebar"] .logout-wrapper button {
+    color: #bfdbfe !important;
+  }
+  .theme-blue [data-sidebar="sidebar"] .logout-wrapper button:hover {
+    color: #fca5a5 !important;
+    background-color: rgba(239, 68, 68, 0.2) !important;
+  }
+
+  /* Pure White Cards & Panels */
+  .theme-blue .glass-panel,
+  .theme-blue .glass-panel-soft,
+  .theme-blue main .bg-slate-950\/60,
+  .theme-blue main .bg-slate-950\/40,
+  .theme-blue main .bg-slate-950\/45,
+  .theme-blue main .bg-slate-950\/70,
+  .theme-blue main .bg-slate-950\/80,
+  .theme-blue main .bg-slate-950\/90,
+  .theme-blue main .bg-slate-900\/30,
+  .theme-blue main .bg-slate-900\/40,
+  .theme-blue main .bg-slate-900\/50,
+  .theme-blue main .bg-slate-900\/60,
+  .theme-blue main .bg-slate-900\/70,
+  .theme-blue main .bg-slate-900\/80,
+  .theme-blue main .bg-slate-900\/90,
+  .theme-blue main .bg-slate-900,
+  .theme-blue main .bg-slate-950 {
+    background-color: #ffffff !important;
+    border-color: #e2e8f0 !important;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05), 0 1px 2px -1px rgba(0, 0, 0, 0.05), 0 0 0 1px rgba(241, 245, 249, 0.6) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  /* =========================================================
+     CTA BUTTON VISIBILITY & TEXT CONTRAST (BLUE THEME)
+     ========================================================= */
+
+  /* 1. Primary Action & Submit Buttons */
+  .theme-blue button.bg-primary,
+  .theme-blue button[class*="bg-primary"],
+  .theme-blue button.bg-primary\/20,
+  .theme-blue button[class*="bg-blue-600"],
+  .theme-blue button[class*="bg-blue-700"],
+  .theme-blue button[class*="bg-indigo-600"],
+  .theme-blue button[class*="bg-indigo-700"],
+  .theme-blue button[type="submit"],
+  .theme-blue a.bg-primary,
+  .theme-blue a[class*="bg-primary"],
+  .theme-blue a[class*="bg-blue-600"],
+  .theme-blue a[class*="bg-indigo-600"],
+  .theme-blue .btn-primary {
+    background-color: #1a56db !important;
+    border-color: #1a56db !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 8px -1px rgba(26, 86, 219, 0.35) !important;
+  }
+
+  .theme-blue button.bg-primary:hover,
+  .theme-blue button[class*="bg-primary"]:hover,
+  .theme-blue button.bg-primary\/20:hover,
+  .theme-blue button[class*="bg-blue-600"]:hover,
+  .theme-blue button[class*="bg-indigo-600"]:hover,
+  .theme-blue button[type="submit"]:hover,
+  .theme-blue a.bg-primary:hover,
+  .theme-blue a[class*="bg-primary"]:hover,
+  .theme-blue a[class*="bg-blue-600"]:hover,
+  .theme-blue .btn-primary:hover {
+    background-color: #1545b2 !important;
+    border-color: #1545b2 !important;
+    color: #ffffff !important;
+  }
+
+  /* 2. Success Action Buttons (Ingest, Save, Sync, Add) */
+  .theme-blue button[class*="bg-emerald"],
+  .theme-blue button[class*="bg-green"],
+  .theme-blue a[class*="bg-emerald"],
+  .theme-blue a[class*="bg-green"] {
+    background-color: #059669 !important;
+    border-color: #059669 !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 8px -1px rgba(5, 150, 105, 0.35) !important;
+  }
+  .theme-blue button[class*="bg-emerald"]:hover,
+  .theme-blue button[class*="bg-green"]:hover {
+    background-color: #047857 !important;
+    border-color: #047857 !important;
+    color: #ffffff !important;
+  }
+
+  /* 3. Destructive Action Buttons (Delete, Remove, Cancel) */
+  .theme-blue button[class*="bg-rose"],
+  .theme-blue button[class*="bg-red"],
+  .theme-blue button[class*="destructive"],
+  .theme-blue a[class*="bg-rose"],
+  .theme-blue a[class*="bg-red"] {
+    background-color: #dc2626 !important;
+    border-color: #dc2626 !important;
+    color: #ffffff !important;
+    box-shadow: 0 2px 8px -1px rgba(220, 38, 38, 0.35) !important;
+  }
+  .theme-blue button[class*="bg-rose"]:hover,
+  .theme-blue button[class*="bg-red"]:hover,
+  .theme-blue button[class*="destructive"]:hover {
+    background-color: #b91c1c !important;
+    border-color: #b91c1c !important;
+    color: #ffffff !important;
+  }
+
+  /* 4. Secondary & Outline Action Buttons */
+  .theme-blue button.glass-button:not([class*="bg-primary"]):not([class*="bg-blue"]):not([class*="bg-indigo"]):not([class*="bg-emerald"]):not([class*="bg-green"]):not([class*="bg-rose"]):not([class*="bg-red"]):not([class*="destructive"]):not([type="submit"]):not([class*="bg-gradient"]),
+  .theme-blue button[class*="bg-slate-900\/20"],
+  .theme-blue button[class*="variant-outline"],
+  .theme-blue a.glass-button:not([class*="bg-primary"]):not([class*="bg-blue"]):not([class*="bg-indigo"]):not([class*="bg-emerald"]):not([class*="bg-green"]):not([class*="bg-rose"]):not([class*="bg-red"]) {
+    background-color: #ffffff !important;
+    border: 1px solid #cbd5e1 !important;
+    color: #1e293b !important;
+    box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
+  }
+  .theme-blue button.glass-button:not([class*="bg-primary"]):not([class*="bg-blue"]):not([class*="bg-indigo"]):not([class*="bg-emerald"]):not([class*="bg-green"]):not([class*="bg-rose"]):not([class*="bg-red"]):not([class*="destructive"]):not([type="submit"]):not([class*="bg-gradient"]):hover,
+  .theme-blue button[class*="bg-slate-900\/20"]:hover,
+  .theme-blue a.glass-button:hover {
+    background-color: #f8fafc !important;
+    border-color: #94a3b8 !important;
+    color: #0f172a !important;
+  }
+
+  .theme-blue .glass-pill {
+    background-color: #eff6ff !important;
+    border-color: #bfdbfe !important;
+    color: #1d4ed8 !important;
+    box-shadow: 0 1px 2px rgba(29, 78, 216, 0.08) !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
+
+  /* 5. ALL Elements Inside Solid/Colored CTA Buttons ALWAYS have Pure White Text */
+  .theme-blue button[class*="bg-primary"] span,
+  .theme-blue button[class*="bg-primary"] svg,
+  .theme-blue button[class*="bg-primary"] p,
+  .theme-blue button[class*="bg-blue"] span,
+  .theme-blue button[class*="bg-blue"] svg,
+  .theme-blue button[class*="bg-indigo"] span,
+  .theme-blue button[class*="bg-indigo"] svg,
+  .theme-blue button[class*="bg-emerald"] span,
+  .theme-blue button[class*="bg-emerald"] svg,
+  .theme-blue button[class*="bg-green"] span,
+  .theme-blue button[class*="bg-green"] svg,
+  .theme-blue button[class*="bg-rose"] span,
+  .theme-blue button[class*="bg-rose"] svg,
+  .theme-blue button[class*="bg-red"] span,
+  .theme-blue button[class*="bg-red"] svg,
+  .theme-blue button[class*="destructive"] span,
+  .theme-blue button[class*="destructive"] svg,
+  .theme-blue button[type="submit"] span,
+  .theme-blue button[type="submit"] svg,
+  .theme-blue a[class*="bg-primary"] span,
+  .theme-blue a[class*="bg-primary"] svg,
+  .theme-blue a[class*="bg-blue"] span,
+  .theme-blue a[class*="bg-blue"] svg,
+  .theme-blue a[class*="bg-emerald"] span,
+  .theme-blue a[class*="bg-emerald"] svg,
+  .theme-blue a[class*="bg-rose"] span,
+  .theme-blue a[class*="bg-rose"] svg {
+    color: #ffffff !important;
+  }
+
+  /* 6. Typography: Dark High-Contrast on White Surfaces */
+  .theme-blue main h1,
+  .theme-blue main h2,
+  .theme-blue main h3,
+  .theme-blue main h4,
+  .theme-blue main h5,
+  .theme-blue main h6 {
+    color: #0f172a !important;
+  }
+
+  .theme-blue main .text-slate-900,
+  .theme-blue main .text-slate-800 {
+    color: #0f172a !important;
+  }
+
+  .theme-blue main .text-slate-100,
+  .theme-blue main .text-slate-200 {
+    color: #1e293b !important;
+  }
+
+  .theme-blue main .text-slate-300 {
+    color: #334155 !important;
+  }
+
+  .theme-blue main .text-slate-400,
+  .theme-blue main .text-muted-foreground {
+    color: #64748b !important;
+  }
+
+  /* Text-white on white cards should be slate-900, EXCEPT inside buttons/badges */
+  .theme-blue main p.text-white,
+  .theme-blue main h1.text-white,
+  .theme-blue main h2.text-white,
+  .theme-blue main h3.text-white,
+  .theme-blue main h4.text-white,
+  .theme-blue main span.text-white:not(button *):not(a[class*="bg-"] *):not([class*="badge"] *):not([class*="bg-primary"] *):not([class*="bg-blue"] *):not([class*="bg-indigo"] *):not([class*="bg-emerald"] *):not([class*="bg-rose"] *):not([class*="bg-red"] *),
+  .theme-blue main div.text-white:not(button *):not(a[class*="bg-"] *):not([class*="badge"] *):not([class*="bg-primary"] *):not([class*="bg-blue"] *):not([class*="bg-indigo"] *):not([class*="bg-emerald"] *):not([class*="bg-rose"] *):not([class*="bg-red"] *) {
+    color: #0f172a !important;
+  }
+
+  .theme-blue main .border-white\/5,
+  .theme-blue main .border-white\/10,
+  .theme-blue main .border-white\/15,
+  .theme-blue main .border-white\/20,
+  .theme-blue main .border-white\/30 {
+    border-color: #e2e8f0 !important;
+  }
+
+  /* Form Elements & Inputs */
+  .theme-blue input:not([type="checkbox"]):not([type="radio"]),
+  .theme-blue textarea,
+  .theme-blue select {
+    background-color: #ffffff !important;
+    border-color: #cbd5e1 !important;
+    color: #0f172a !important;
+  }
+  .theme-blue input:focus,
+  .theme-blue textarea:focus,
+  .theme-blue select:focus {
+    border-color: #1a56db !important;
+    box-shadow: 0 0 0 3px rgba(26, 86, 219, 0.15) !important;
+    outline: none !important;
+  }
+  .theme-blue input::placeholder,
+  .theme-blue textarea::placeholder {
+    color: #94a3b8 !important;
+  }
+
+  /* Dialogs and Modals */
+  .theme-blue [role="dialog"] {
+    background-color: #ffffff !important;
+    border-color: #e2e8f0 !important;
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.15) !important;
+    color: #0f172a !important;
+  }
+  .theme-blue [role="dialog"] .text-white,
+  .theme-blue [role="dialog"] h1,
+  .theme-blue [role="dialog"] h2,
+  .theme-blue [role="dialog"] h3,
+  .theme-blue [role="dialog"] h4 {
+    color: #0f172a !important;
+  }
+  .theme-blue [role="dialog"] .text-slate-300,
+  .theme-blue [role="dialog"] .text-slate-400 {
+    color: #64748b !important;
+  }
+  .theme-blue [role="dialog"] .border-white\/10,
+  .theme-blue [role="dialog"] .border-white\/15,
+  .theme-blue [role="dialog"] .border-white\/20 {
+    border-color: #e2e8f0 !important;
+  }
+
+  /* Tables */
+  .theme-blue table thead tr {
+    background-color: #f8fafc !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+  }
+  .theme-blue table thead th {
+    color: #475569 !important;
+  }
+  .theme-blue table tbody tr {
+    border-bottom: 1px solid #f1f5f9 !important;
+  }
+  .theme-blue table tbody tr:hover {
+    background-color: #f8fafc !important;
+  }
+  .theme-blue table tbody td {
+    color: #1e293b !important;
+  }
+
+  /* Mobile Header and Bottom Navigation in Blue Theme */
+  .theme-blue header.glass-panel,
+  .theme-blue nav.glass-panel {
+    background-color: #ffffff !important;
+    border-color: #e2e8f0 !important;
+    box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05) !important;
+  }
+  .theme-blue header.glass-panel h1,
+  .theme-blue header.glass-panel button {
+    color: #0f172a !important;
   }
 }
 
 /* Smooth theme transition */
 * {
-  @apply transition-colors duration-300;
+  @apply transition-colors duration-200;
 }
 
 @media (prefers-reduced-motion: reduce) {

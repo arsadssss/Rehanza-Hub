@@ -43,7 +43,7 @@ import {
 } from '@/components/ui/form';
 import { apiFetch } from '@/lib/apiFetch';
 import { navItems } from '@/app/(dashboard)/_components/sidebar-nav';
-import { Moon, Sun, Monitor } from 'lucide-react';
+import { Moon, Sun, Monitor, Palette, Check } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { MeeshoConnectionCard } from './_components/meesho-connection-card';
 import { NotificationSettingsCard } from './_components/notification-settings-card';
@@ -75,7 +75,7 @@ const inventorySchema = z.object({
 });
 
 const preferencesSchema = z.object({
-  theme: z.enum(['light', 'dark', 'system']),
+  theme: z.enum(['classic', 'blue', 'light', 'dark', 'system']),
   notifications: z.boolean(),
 });
 
@@ -101,7 +101,7 @@ const DEFAULT_SETTINGS: Settings = {
     profit_rules: { defaultMargin: 50, packingCost: 15, promoAdsCost: 20 },
     return_rules: { restockableFixedLoss: 45 },
     inventory_settings: { defaultLowStockThreshold: 10 },
-    preferences: { theme: 'system', notifications: true },
+    preferences: { theme: 'classic', notifications: true },
     sidebar_config: navItems.reduce((acc, item) => ({ ...acc, [item.href]: true }), {}),
 };
 
@@ -206,7 +206,7 @@ export default function SettingsPage() {
           <TabsTrigger value="return_rules" className="rounded-xl px-3 py-2 font-bold text-xs">Returns</TabsTrigger>
           <TabsTrigger value="inventory_settings" className="rounded-xl px-3 py-2 font-bold text-xs">Inventory</TabsTrigger>
           <TabsTrigger value="sidebar_config" className="rounded-xl px-3 py-2 font-bold text-xs">Menus</TabsTrigger>
-          <TabsTrigger value="preferences" className="rounded-xl px-3 py-2 font-bold text-xs">Preferences</TabsTrigger>
+          <TabsTrigger value="preferences" className="rounded-xl px-3 py-2 font-bold text-xs">Appearance & Theme</TabsTrigger>
           <TabsTrigger value="notifications" className="rounded-xl px-3 py-2 font-bold text-xs">Notifications</TabsTrigger>
         </TabsList>
         
@@ -492,56 +492,161 @@ export default function SettingsPage() {
 
         <TabsContent value="preferences">
             <SettingsForm
-                title="Preferences"
-                description="Customize the look and feel of your dashboard."
+                title="Appearance & Theme"
+                description="Choose your preferred workspace theme. Your choice is saved per session and persisted to your account."
                 settingKey="preferences"
                 initialData={settings.preferences!}
                 schema={preferencesSchema}
                 onSave={handleSave}
                 render={({ form }) => (
-                <div className="space-y-6">
+                <div className="space-y-8">
                     <FormField
                         control={form.control}
                         name="theme"
                         render={({ field }) => (
-                            <FormItem className="space-y-3">
-                            <FormLabel className="font-bold text-sm uppercase tracking-widest text-muted-foreground">Appearance Mode</FormLabel>
+                            <FormItem className="space-y-4">
+                            <div>
+                              <FormLabel className="font-bold text-sm uppercase tracking-wider text-muted-foreground flex items-center gap-2">
+                                <Palette className="h-4 w-4 text-primary" />
+                                Select Workspace Theme
+                              </FormLabel>
+                              <FormDescription className="text-xs text-muted-foreground mt-1">
+                                Choose between the Classic Dark Glassmorphic Theme and the New Blue Enterprise Workspace.
+                              </FormDescription>
+                            </div>
                             <FormControl>
-                                <div className="grid grid-cols-3 gap-4">
-                                  {['light', 'dark', 'system'].map((mode) => {
-                                    const Icon = mode === 'light' ? Sun : mode === 'dark' ? Moon : Monitor;
-                                    const isActive = field.value === mode;
-                                    return (
-                                      <button
-                                        key={mode}
-                                        type="button"
-                                        onClick={() => field.onChange(mode)}
-                                        className={cn(
-                                          "flex flex-col items-center gap-3 p-4 rounded-[1.5rem] border-2 transition-all duration-300",
-                                          isActive 
-                                            ? "border-primary bg-primary/5 shadow-lg shadow-primary/10" 
-                                            : "border-transparent bg-muted/30 hover:bg-muted/50"
-                                        )}
-                                      >
-                                        <div className={cn(
-                                          "p-3 rounded-xl",
-                                          isActive ? "bg-primary text-white" : "bg-background text-muted-foreground"
-                                        )}>
-                                          <Icon className="h-5 w-5" />
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-5 pt-1">
+                                  {/* Classic Theme Card */}
+                                  <div
+                                    onClick={() => {
+                                      field.onChange('classic');
+                                      setTheme('classic');
+                                    }}
+                                    className={cn(
+                                      "group relative cursor-pointer rounded-2xl border-2 p-5 transition-all duration-200 overflow-hidden",
+                                      field.value === 'classic' || field.value === 'dark' || field.value === 'system'
+                                        ? "border-primary bg-primary/5 shadow-xl shadow-primary/10 ring-2 ring-primary/20"
+                                        : "border-border/60 hover:border-border hover:bg-muted/30"
+                                    )}
+                                  >
+                                    <div className="flex items-start justify-between mb-4">
+                                      <div className="space-y-1">
+                                        <div className="flex items-center gap-2">
+                                          <h4 className="font-bold text-base text-foreground">Classic Theme</h4>
+                                          <span className="text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded-full bg-slate-500/20 text-slate-300">
+                                            Default
+                                          </span>
                                         </div>
-                                        <span className={cn(
-                                          "text-[10px] font-black uppercase tracking-widest",
-                                          isActive ? "text-primary" : "text-muted-foreground"
-                                        )}>
-                                          {mode}
-                                        </span>
-                                      </button>
-                                    );
-                                  })}
+                                        <p className="text-xs text-muted-foreground">
+                                          Dark glassmorphic workspace with neon accents & deep ambient glow.
+                                        </p>
+                                      </div>
+                                      <div className={cn(
+                                        "h-6 w-6 rounded-full flex items-center justify-center transition-all",
+                                        (field.value === 'classic' || field.value === 'dark' || field.value === 'system')
+                                          ? "bg-primary text-white"
+                                          : "border border-border text-transparent"
+                                      )}>
+                                        <Check className="h-3.5 w-3.5" />
+                                      </div>
+                                    </div>
+
+                                    {/* Mini Visual Preview of Classic Theme */}
+                                    <div className="rounded-xl border border-white/10 bg-[#070c17] p-3 shadow-inner">
+                                      <div className="flex items-center gap-2 mb-2 pb-2 border-b border-white/10">
+                                        <div className="h-2 w-2 rounded-full bg-red-400/80" />
+                                        <div className="h-2 w-2 rounded-full bg-yellow-400/80" />
+                                        <div className="h-2 w-2 rounded-full bg-emerald-400/80" />
+                                        <span className="text-[10px] text-slate-400 ml-auto font-mono">Dark Glass</span>
+                                      </div>
+                                      <div className="flex gap-2">
+                                        <div className="w-1/4 h-16 rounded-lg bg-slate-900/80 border border-white/5 p-1 flex flex-col gap-1">
+                                          <div className="h-2 w-full bg-indigo-500/40 rounded" />
+                                          <div className="h-1.5 w-3/4 bg-slate-700/50 rounded" />
+                                          <div className="h-1.5 w-2/3 bg-slate-700/50 rounded" />
+                                        </div>
+                                        <div className="flex-1 grid grid-cols-2 gap-1.5">
+                                          <div className="h-7 rounded-lg bg-slate-800/40 border border-white/10 p-1">
+                                            <div className="h-1.5 w-8 bg-emerald-400/60 rounded mb-1" />
+                                            <div className="h-2 w-12 bg-white/40 rounded" />
+                                          </div>
+                                          <div className="h-7 rounded-lg bg-slate-800/40 border border-white/10 p-1">
+                                            <div className="h-1.5 w-8 bg-indigo-400/60 rounded mb-1" />
+                                            <div className="h-2 w-12 bg-white/40 rounded" />
+                                          </div>
+                                          <div className="col-span-2 h-7 rounded-lg bg-slate-800/20 border border-white/5" />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  {/* New Blue Theme Card */}
+                                  <div
+                                    onClick={() => {
+                                      field.onChange('blue');
+                                      setTheme('blue');
+                                    }}
+                                    className={cn(
+                                      "group relative cursor-pointer rounded-2xl border-2 p-5 transition-all duration-200 overflow-hidden",
+                                      field.value === 'blue'
+                                        ? "border-blue-600 bg-blue-50/50 dark:bg-blue-950/20 shadow-xl shadow-blue-500/10 ring-2 ring-blue-500/20"
+                                        : "border-border/60 hover:border-border hover:bg-muted/30"
+                                    )}
+                                  >
+                                    <div className="flex items-start justify-between mb-4">
+                                      <div className="space-y-1">
+                                        <div className="flex items-center gap-2">
+                                          <h4 className="font-bold text-base text-foreground">New Blue Theme</h4>
+                                          <span className="text-[10px] uppercase font-bold tracking-widest px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-600 dark:text-blue-400">
+                                            New
+                                          </span>
+                                        </div>
+                                        <p className="text-xs text-muted-foreground">
+                                          Google Drive-inspired workspace with royal blue navigation & clean cards.
+                                        </p>
+                                      </div>
+                                      <div className={cn(
+                                        "h-6 w-6 rounded-full flex items-center justify-center transition-all",
+                                        field.value === 'blue'
+                                          ? "bg-blue-600 text-white"
+                                          : "border border-border text-transparent"
+                                      )}>
+                                        <Check className="h-3.5 w-3.5" />
+                                      </div>
+                                    </div>
+
+                                    {/* Mini Visual Preview of Blue Theme */}
+                                    <div className="rounded-xl border border-slate-200 bg-[#f4f7fe] p-3 shadow-inner">
+                                      <div className="flex items-center gap-2 mb-2 pb-2 border-b border-slate-200">
+                                        <div className="h-2 w-2 rounded-full bg-red-400" />
+                                        <div className="h-2 w-2 rounded-full bg-yellow-400" />
+                                        <div className="h-2 w-2 rounded-full bg-emerald-400" />
+                                        <span className="text-[10px] text-slate-500 ml-auto font-mono">Enterprise Blue</span>
+                                      </div>
+                                      <div className="flex gap-2">
+                                        <div className="w-1/4 h-16 rounded-lg bg-[#17387e] p-1 flex flex-col gap-1 shadow-sm">
+                                          <div className="h-2 w-full bg-white/40 rounded" />
+                                          <div className="h-1.5 w-3/4 bg-white/20 rounded" />
+                                          <div className="h-1.5 w-2/3 bg-white/20 rounded" />
+                                        </div>
+                                        <div className="flex-1 grid grid-cols-2 gap-1.5">
+                                          <div className="h-7 rounded-lg bg-white border border-slate-200/80 p-1 shadow-xs">
+                                            <div className="h-1.5 w-8 bg-blue-500 rounded mb-1" />
+                                            <div className="h-2 w-12 bg-slate-700 rounded" />
+                                          </div>
+                                          <div className="h-7 rounded-lg bg-white border border-slate-200/80 p-1 shadow-xs">
+                                            <div className="h-1.5 w-8 bg-emerald-500 rounded mb-1" />
+                                            <div className="h-2 w-12 bg-slate-700 rounded" />
+                                          </div>
+                                          <div className="col-span-2 h-7 rounded-lg bg-white border border-slate-200/80 shadow-xs" />
+                                        </div>
+                                      </div>
+                                    </div>
+                                  </div>
                                 </div>
                             </FormControl>
-                            <FormDescription>
-                                Theme updates instantly across all connected windows.
+                            <FormDescription className="text-xs">
+                                Clicking a theme updates your view instantly. Click &quot;Save Changes&quot; to remember your choice across devices.
                             </FormDescription>
                             <FormMessage />
                             </FormItem>
