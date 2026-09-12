@@ -1,30 +1,396 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { parseCSV, findOrderColumns, findPaymentColumns, findAdsColumns, parseNumeric, parseDate } from '@/lib/reconciliation/csv-parser';
+import { parseCSV, parseNumeric } from '@/lib/reconciliation/csv-parser';
 import { validateOrderCSV, validatePaymentCSV, validateAdsCSV } from '@/lib/reconciliation/validator';
 import {
   calculateFileHash,
-  checkDuplicateUpload,
+  calculateRowHash,
+  getExistingRowHashes,
   createUploadRecord,
   insertOrdersRaw,
   insertPaymentsRaw,
   insertAdsRaw,
   recordImportErrors,
-  updateUploadStatus
+  updateUploadStatus,
+  ProcessedRow
 } from '@/lib/reconciliation/importer';
-import { processReconciliation } from '@/lib/reconciliation/reconciliation-engine';
+import { rebuildAccountReconciliation } from '@/lib/reconciliation/reconciliation-engine';
 import { syncSkusFromOrders } from '@/lib/reconciliation/sku-master-service';
+import { syncSkusFromReconciliation } from '@/lib/products/sku-registry-service';
 
 export const revalidate = 0;
 
-interface UploadRequest {
+interface ProgressEvent {
+  stage: string;
+  percent: number;
+  current?: number;
+  total?: number;
+  message: string;
+}
+
+interface UploadPipelineParams {
   file: File;
   sourceType: 'order' | 'payment' | 'ads';
   accountId: string;
+  onProgress?: (event: ProgressEvent) => void;
+}
+
+interface UploadPipelineResult {
+  success: boolean;
+  uploadId?: number;
+  message: string;
+  isDuplicate?: boolean;
+  allDuplicates?: boolean;
+  stats: {
+    totalRows: number;
+    successfulRows: number;
+    importedRows: number;
+    duplicateRows: number;
+    failedRows: number;
+    validationWarnings: number;
+    sourceType: string;
+  };
+  skuCostStatus?: any;
+  errors?: any[];
+  warnings?: any[];
+}
+
+/**
+ * Executes the complete reconciliation file upload pipeline.
+ * Performs row-level duplicate detection, batch insertions, transaction rebuilding,
+ * and live stage-by-stage progress reporting.
+ */
+export async function executeUploadPipeline({
+  file,
+  sourceType,
+  accountId,
+  onProgress,
+}: UploadPipelineParams): Promise<UploadPipelineResult> {
+  // --- Stage 1: Reading file ---
+  onProgress?.({
+    stage: 'Reading file',
+    percent: 10,
+    message: 'Reading and parsing reconciliation CSV export...',
+  });
+
+  const fileContent = await file.text();
+  if (!fileContent.trim()) {
+    throw new Error('CSV file is empty');
+  }
+
+  let csvData;
+  try {
+    csvData = parseCSV(fileContent, sourceType);
+  } catch (error: any) {
+    throw new Error(`CSV parsing error: ${error.message}`);
+  }
+
+  const fileHash = calculateFileHash(fileContent);
+
+  // --- Stage 2: Validating rows ---
+  onProgress?.({
+    stage: 'Validating rows',
+    percent: 25,
+    current: csvData.rows.length,
+    total: csvData.rows.length,
+    message: `Validating headers and structure across ${csvData.rows.length} rows...`,
+  });
+
+  let validationResult;
+  if (sourceType === 'order') {
+    validationResult = validateOrderCSV(csvData);
+  } else if (sourceType === 'payment') {
+    validationResult = validatePaymentCSV(csvData);
+  } else {
+    validationResult = validateAdsCSV(csvData);
+  }
+
+  if (!validationResult.isValid) {
+    const detailedMessage = formatValidationErrorMessage(validationResult.errors);
+    const err: any = new Error(detailedMessage);
+    err.validationErrors = validationResult.errors;
+    err.validationWarnings = validationResult.warnings;
+    throw err;
+  }
+
+  // Process rows into standard structure
+  const processedRows: ProcessedRow[] = [];
+  for (const row of csvData.rows) {
+    const processedRow = processRowData(row, validationResult.headerMapping, sourceType);
+    if (processedRow) {
+      processedRows.push(processedRow);
+    }
+  }
+
+  // --- Stage 3: Checking duplicates (Row-Level SHA-256 Deduplication) ---
+  onProgress?.({
+    stage: 'Checking duplicates',
+    percent: 38,
+    message: 'Comparing rows against existing account data using SHA-256...',
+  });
+
+  const { hashes: existingHashes } = await getExistingRowHashes(
+    accountId,
+    sourceType
+  );
+
+  const newRows: ProcessedRow[] = [];
+  const duplicateRows: ProcessedRow[] = [];
+  const seenInBatch = new Set<string>();
+
+  for (const row of processedRows) {
+    const hash = calculateRowHash(sourceType, row.data);
+    row.rowHash = hash;
+
+    const isDup = existingHashes.has(hash) || seenInBatch.has(hash);
+
+    if (isDup) {
+      duplicateRows.push(row);
+    } else {
+      newRows.push(row);
+      seenInBatch.add(hash);
+    }
+  }
+
+  // SCENARIO A: All rows already present
+  if (newRows.length === 0) {
+    onProgress?.({
+      stage: 'Finalizing',
+      percent: 90,
+      message: 'All records were already present. Updating upload audit record...',
+    });
+
+    const uploadRecord = await createUploadRecord(
+      'Meesho',
+      sourceType,
+      file.name,
+      fileHash,
+      csvData.rows.length,
+      accountId
+    );
+
+    await updateUploadStatus(
+      uploadRecord.id,
+      'completed',
+      0,
+      validationResult.errors.length,
+      duplicateRows.length,
+      {
+        allDuplicates: true,
+        duplicateCount: duplicateRows.length,
+        importedCount: 0,
+        totalRows: csvData.rows.length,
+        validationWarnings: validationResult.warnings.length,
+      }
+    );
+
+    onProgress?.({
+      stage: 'Completed',
+      percent: 100,
+      message: 'No new records to import. All records were already present.',
+    });
+
+    return {
+      success: true,
+      uploadId: uploadRecord.id,
+      message: 'No new records to import. All records were already present.',
+      isDuplicate: true,
+      allDuplicates: true,
+      stats: {
+        totalRows: csvData.rows.length,
+        successfulRows: 0,
+        importedRows: 0,
+        duplicateRows: duplicateRows.length,
+        failedRows: validationResult.errors.length,
+        validationWarnings: validationResult.warnings.length,
+        sourceType,
+      },
+      warnings: validationResult.warnings,
+    };
+  }
+
+  // SCENARIO B: Some or all new rows to import
+  const uploadRecord = await createUploadRecord(
+    'Meesho',
+    sourceType,
+    file.name,
+    fileHash,
+    csvData.rows.length,
+    accountId
+  );
+
+  // --- Stage 4: Importing records ---
+  onProgress?.({
+    stage: 'Importing records',
+    percent: 45,
+    current: 0,
+    total: newRows.length,
+    message: `Importing ${newRows.length} new records in batches...`,
+  });
+
+  let importResult: {
+    successCount: number;
+    errorIds: number[];
+    errors: Array<{ rowNumber: number; field: string; message: string }>;
+  };
+
+  if (sourceType === 'order') {
+    importResult = await insertOrdersRaw(uploadRecord.id, newRows, accountId, (processed, total) => {
+      const pct = 45 + Math.round((processed / total) * 30);
+      onProgress?.({
+        stage: 'Importing records',
+        percent: Math.min(75, pct),
+        current: processed,
+        total,
+        message: `Importing records (${processed} / ${total} rows)...`,
+      });
+    });
+  } else if (sourceType === 'payment') {
+    importResult = await insertPaymentsRaw(uploadRecord.id, newRows, accountId, (processed, total) => {
+      const pct = 45 + Math.round((processed / total) * 30);
+      onProgress?.({
+        stage: 'Importing records',
+        percent: Math.min(75, pct),
+        current: processed,
+        total,
+        message: `Importing records (${processed} / ${total} rows)...`,
+      });
+    });
+  } else {
+    importResult = await insertAdsRaw(uploadRecord.id, newRows, accountId, (processed, total) => {
+      const pct = 45 + Math.round((processed / total) * 30);
+      onProgress?.({
+        stage: 'Importing records',
+        percent: Math.min(75, pct),
+        current: processed,
+        total,
+        message: `Importing records (${processed} / ${total} rows)...`,
+      });
+    });
+  }
+
+  // Auto-detect and sync SKUs into SKU Cost Master on order upload
+  let skuCostStatus = null;
+  if (sourceType === 'order') {
+    try {
+      const orderSkus = newRows.map((r) => ({
+        sku: r.data.sku,
+        productName: r.data.productName,
+      }));
+      skuCostStatus = await syncSkusFromOrders(accountId, orderSkus);
+    } catch (skuErr) {
+      console.error('Error auto-syncing SKUs from orders upload:', skuErr);
+    }
+  }
+
+  // Combine validation errors and database insert errors for audit trail
+  const allRowErrors = [
+    ...validationResult.errors.map((err) => ({
+      rowNumber: err.rowNumber || 0,
+      field: err.field || 'Validation',
+      message: err.message,
+    })),
+    ...(importResult.errors || []).map((err) => ({
+      rowNumber: err.rowNumber || 0,
+      field: err.field || 'Database Import',
+      message: err.message,
+    })),
+  ];
+
+  if (allRowErrors.length > 0) {
+    await recordImportErrors(uploadRecord.id, allRowErrors);
+  }
+
+  // --- Stage 5: Building reconciliation transactions ---
+  onProgress?.({
+    stage: 'Building reconciliation transactions',
+    percent: 78,
+    message: 'Building authoritative Working Sheet transactions...',
+  });
+
+  try {
+    await rebuildAccountReconciliation(accountId, (inserted, total) => {
+      const pct = 78 + Math.round((inserted / (total || 1)) * 17);
+      onProgress?.({
+        stage: 'Building reconciliation transactions',
+        percent: Math.min(95, pct),
+        current: inserted,
+        total,
+        message: `Reconciling transactions (${inserted} / ${total})...`,
+      });
+    });
+  } catch (reconErr) {
+    console.error('Reconciliation transaction rebuild error:', reconErr);
+  }
+
+  // Auto-sync discovered SKUs into Products Registry
+  try {
+    await syncSkusFromReconciliation(accountId);
+  } catch (skuSyncErr) {
+    console.error('Auto-syncing SKUs to product registry error:', skuSyncErr);
+  }
+
+  // --- Stage 6: Finalizing ---
+  onProgress?.({
+    stage: 'Finalizing',
+    percent: 96,
+    message: 'Finalizing upload records and metrics...',
+  });
+
+  const hasErrors = allRowErrors.length > 0;
+  const finalStatus = hasErrors ? 'completed_with_errors' : 'completed';
+
+  await updateUploadStatus(
+    uploadRecord.id,
+    finalStatus,
+    importResult.successCount,
+    allRowErrors.length,
+    duplicateRows.length,
+    {
+      totalRows: csvData.rows.length,
+      importedRows: importResult.successCount,
+      duplicateRows: duplicateRows.length,
+      failedRows: allRowErrors.length,
+      validationWarnings: validationResult.warnings.length,
+    }
+  );
+
+  const message =
+    duplicateRows.length > 0
+      ? `${importResult.successCount} new rows imported, ${duplicateRows.length} duplicates skipped.`
+      : hasErrors
+      ? 'Upload completed with warnings.'
+      : 'Upload completed successfully.';
+
+  onProgress?.({
+    stage: 'Completed',
+    percent: 100,
+    message,
+  });
+
+  return {
+    success: true,
+    uploadId: uploadRecord.id,
+    message,
+    isDuplicate: duplicateRows.length > 0,
+    allDuplicates: false,
+    stats: {
+      totalRows: csvData.rows.length,
+      successfulRows: importResult.successCount,
+      importedRows: importResult.successCount,
+      duplicateRows: duplicateRows.length,
+      failedRows: allRowErrors.length,
+      validationWarnings: validationResult.warnings.length,
+      sourceType,
+    },
+    skuCostStatus,
+    errors: allRowErrors,
+    warnings: validationResult.warnings,
+  };
 }
 
 /**
  * POST /api/reconciliation/upload
- * Handles CSV upload for Orders, Payments, or RM Ads
+ * Handles CSV upload for Orders, Payments, or RM Ads with streaming or standard response
  */
 export async function POST(request: NextRequest) {
   try {
@@ -46,170 +412,91 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ success: false, message: 'Account context missing' }, { status: 400 });
     }
 
-    // Read file content
-    const fileContent = await file.text();
-    if (!fileContent.trim()) {
-      return NextResponse.json({ success: false, message: 'CSV file is empty' }, { status: 400 });
+    // Check if client requested live streaming
+    const wantsStream =
+      request.nextUrl.searchParams.get('stream') === 'true' ||
+      request.headers.get('accept')?.includes('application/x-ndjson') ||
+      request.headers.get('accept')?.includes('text/event-stream');
+
+    if (wantsStream) {
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        async start(controller) {
+          function send(obj: any) {
+            try {
+              controller.enqueue(encoder.encode(JSON.stringify(obj) + '\n'));
+            } catch (err) {
+              console.warn('Stream enqueue error:', err);
+            }
+          }
+
+          try {
+            const result = await executeUploadPipeline({
+              file,
+              sourceType: sourceType as 'order' | 'payment' | 'ads',
+              accountId,
+              onProgress: (p) => send({ type: 'progress', ...p }),
+            });
+            send({ type: 'complete', ...result });
+          } catch (err: any) {
+            console.error('Upload stream pipeline error:', err);
+            send({
+              type: 'error',
+              success: false,
+              message: err.message || 'Server error during upload processing',
+              errors: err.validationErrors || [],
+              warnings: err.validationWarnings || [],
+            });
+          } finally {
+            controller.close();
+          }
+        },
+      });
+
+      return new Response(stream, {
+        headers: {
+          'Content-Type': 'application/x-ndjson',
+          'Cache-Control': 'no-cache, no-transform',
+          Connection: 'keep-alive',
+        },
+      });
     }
 
-    // Parse CSV
-    let csvData;
+    // Standard Non-Streaming JSON Execution
     try {
-      csvData = parseCSV(fileContent, sourceType as 'order' | 'payment' | 'ads');
-    } catch (error: any) {
-      return NextResponse.json(
-        { success: false, message: `CSV parsing error: ${error.message}` },
-        { status: 400 }
-      );
-    }
-
-    // Calculate file hash for duplicate detection
-    const fileHash = calculateFileHash(fileContent);
-
-    // Check for duplicate
-    const isDuplicate = await checkDuplicateUpload(fileHash, 'Meesho', sourceType);
-    if (isDuplicate) {
+      const result = await executeUploadPipeline({
+        file,
+        sourceType: sourceType as 'order' | 'payment' | 'ads',
+        accountId,
+      });
+      return NextResponse.json(result, { status: 200 });
+    } catch (err: any) {
+      if (err.validationErrors) {
+        return NextResponse.json(
+          {
+            success: false,
+            message: err.message,
+            errors: err.validationErrors,
+            warnings: err.validationWarnings,
+          },
+          { status: 400 }
+        );
+      }
       return NextResponse.json(
         {
           success: false,
-          message: 'This file has already been uploaded. Duplicate uploads are not allowed to prevent data duplication.',
-          isDuplicate: true
-        },
-        { status: 409 }
-      );
-    }
-
-    // Validate headers and structure
-    let validationResult;
-    if (sourceType === 'order') {
-      validationResult = validateOrderCSV(csvData);
-    } else if (sourceType === 'payment') {
-      validationResult = validatePaymentCSV(csvData);
-    } else {
-      validationResult = validateAdsCSV(csvData);
-    }
-
-    if (!validationResult.isValid) {
-      const detailedMessage = formatValidationErrorMessage(validationResult.errors);
-      return NextResponse.json(
-        {
-          success: false,
-          message: detailedMessage,
-          errors: validationResult.errors
+          message: err.message || 'Server error during upload processing',
         },
         { status: 400 }
       );
     }
-
-    // Create upload record
-    const uploadRecord = await createUploadRecord(
-      'Meesho',
-      sourceType as 'order' | 'payment' | 'ads',
-      file.name,
-      fileHash,
-      csvData.rows.length,
-      accountId
-    );
-
-    // Process rows based on source type
-    let importResult;
-    const processedRows: Array<{
-      rowNumber: number;
-      data: Record<string, any>;
-      raw: Record<string, any>;
-    }> = [];
-
-    for (const row of csvData.rows) {
-      const processedRow = processRowData(row, validationResult.headerMapping, sourceType);
-      if (processedRow) {
-        processedRows.push(processedRow);
-      }
-    }
-
-    // Insert raw data
-    if (sourceType === 'order') {
-      importResult = await insertOrdersRaw(uploadRecord.id, processedRows);
-    } else if (sourceType === 'payment') {
-      importResult = await insertPaymentsRaw(uploadRecord.id, processedRows, accountId);
-    } else {
-      importResult = await insertAdsRaw(uploadRecord.id, processedRows, accountId);
-    }
-
-    // Auto-detect and sync SKUs into SKU Cost Master on order upload (without blocking)
-    let skuCostStatus = null;
-    if (sourceType === 'order') {
-      try {
-        const orderSkus = processedRows.map((r) => ({
-          sku: r.data.sku,
-          productName: r.data.productName,
-        }));
-        skuCostStatus = await syncSkusFromOrders(accountId, orderSkus);
-      } catch (skuErr) {
-        console.error('Error auto-syncing SKUs from orders upload:', skuErr);
-      }
-    }
-
-    // Record any errors
-    const errorRows = csvData.rows.filter((row, idx) =>
-      validationResult.errors.some((err) => err.rowNumber === row.rowNumber)
-    );
-
-    if (validationResult.errors.length > 0) {
-      await recordImportErrors(
-        uploadRecord.id,
-        validationResult.errors.map((err) => ({
-          rowNumber: err.rowNumber || 0,
-          field: err.field,
-          message: err.message
-        }))
-      );
-    }
-
-    // Update upload status
-    const hasErrors = importResult.errorIds.length > 0 || validationResult.errors.length > 0;
-    await updateUploadStatus(
-      uploadRecord.id,
-      hasErrors ? 'completed_with_errors' : 'completed',
-      importResult.successCount,
-      importResult.errorIds.length + validationResult.errors.length,
-      {
-        validationWarnings: validationResult.warnings.length,
-        totalRows: csvData.rows.length
-      }
-    );
-
-    // Trigger reconciliation processing
-    try {
-      await processReconciliation(uploadRecord.id);
-    } catch (error: any) {
-      console.error('Reconciliation processing error:', error);
-    }
-
-    return NextResponse.json(
-      {
-        success: true,
-        uploadId: uploadRecord.id,
-        message: hasErrors ? 'Upload completed with errors' : 'Upload completed successfully',
-        stats: {
-          totalRows: csvData.rows.length,
-          successfulRows: importResult.successCount,
-          failedRows: importResult.errorIds.length,
-          validationWarnings: validationResult.warnings.length,
-          sourceType
-        },
-        skuCostStatus,
-        errors: validationResult.errors,
-        warnings: validationResult.warnings
-      },
-      { status: 200 }
-    );
   } catch (error: any) {
-    console.error('Upload error:', error);
+    console.error('Top-level upload route error:', error);
     return NextResponse.json(
       {
         success: false,
         message: 'Server error during upload processing',
-        error: process.env.NODE_ENV === 'development' ? error.message : undefined
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined,
       },
       { status: 500 }
     );

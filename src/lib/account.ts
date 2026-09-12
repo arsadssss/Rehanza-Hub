@@ -37,7 +37,7 @@ export async function resolveActiveAccount(forceRefresh = false): Promise<Accoun
   const storedId = sessionStorage.getItem(ACTIVE_ACCOUNT_STORAGE_KEY);
   const storedName = sessionStorage.getItem(ACTIVE_ACCOUNT_NAME_STORAGE_KEY);
 
-  if (!forceRefresh && storedId && storedName && storedName.toLowerCase().includes("fashion")) {
+  if (!forceRefresh && storedId && storedName && storedName.toLowerCase().includes("rehanza")) {
     return { id: storedId, name: storedName };
   }
 
@@ -53,10 +53,10 @@ export async function resolveActiveAccount(forceRefresh = false): Promise<Accoun
       if (!json.success || !json.data || json.data.length === 0) return null;
 
       const accounts: Account[] = json.data;
-      const fashion = accounts.find((a) => a.name.toLowerCase().includes("fashion")) || accounts[0];
+      const primary = accounts.find((a) => a.name.toLowerCase().includes("rehanza") || a.name.toLowerCase().includes("fashion")) || accounts[0];
 
-      setStoredAccount(fashion);
-      return fashion;
+      setStoredAccount(primary);
+      return primary;
     } catch (err) {
       console.error("Failed to resolve active account:", err);
       if (storedId) return { id: storedId, name: storedName || "Account" };

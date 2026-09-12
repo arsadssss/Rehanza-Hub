@@ -41,6 +41,75 @@ const TAB_CONFIGS: Record<
   cancelled: { statusCode: 5, tabType: 'cancelled' },
 };
 
+/**
+ * Extracts and flattens subOrders from various Meesho response shapes:
+ * - data.subOrders (array or dictionary, used by pending, shipped, cancelled)
+ * - data.groups[].orders[].sub_orders[] (grouped structure, used by ready-to-ship)
+ * - data.orders[].sub_orders[] (flat orders fallback)
+ */
+export function parseSubOrdersFromResponse(responseData: any): any[] {
+  if (!responseData?.data) return [];
+
+  // 1. Direct subOrders list or dictionary
+  if (responseData.data.subOrders) {
+    const raw = responseData.data.subOrders;
+    if (Array.isArray(raw)) return raw;
+    if (typeof raw === 'object') return Object.values(raw);
+  }
+
+  // 2. Groups structure (used by ready-to-ship and other grouped views)
+  if (Array.isArray(responseData.data.groups)) {
+    const extracted: any[] = [];
+    for (const group of responseData.data.groups) {
+      if (Array.isArray(group.orders)) {
+        for (const order of group.orders) {
+          if (Array.isArray(order.sub_orders)) {
+            for (const subOrder of order.sub_orders) {
+              extracted.push({
+                ...subOrder,
+                order_num: order.order_num || subOrder.order_num,
+                order_id: order.order_num || subOrder.order_id,
+                created_iso: order.created_iso || subOrder.created_iso,
+                carrier_id: group.carrier_id || subOrder.carrier_id,
+                carrier_name: group.carrier_name || subOrder.carrier_name,
+                awb: group.awb || subOrder.awb,
+                packet_id: group.packet_id || subOrder.packet_id,
+                is_manifested: group.is_manifested ?? subOrder.is_manifested,
+                label_downloaded: group.label_downloaded ?? subOrder.label_downloaded,
+                grouping_key: group.grouping_key,
+                raw_group: group,
+              });
+            }
+          }
+        }
+      }
+    }
+    return extracted;
+  }
+
+  // 3. Flat orders list fallback
+  if (Array.isArray(responseData.data.orders)) {
+    const extracted: any[] = [];
+    for (const order of responseData.data.orders) {
+      if (Array.isArray(order.sub_orders)) {
+        for (const subOrder of order.sub_orders) {
+          extracted.push({
+            ...subOrder,
+            order_num: order.order_num || subOrder.order_num,
+            order_id: order.order_num || subOrder.order_id,
+            created_iso: order.created_iso || subOrder.created_iso,
+          });
+        }
+      } else {
+        extracted.push(order);
+      }
+    }
+    return extracted;
+  }
+
+  return [];
+}
+
 export async function extractMeeshoOrders(
   page: Page,
   supplier: SupplierDetails,
@@ -51,7 +120,7 @@ export async function extractMeeshoOrders(
     : (['pending', 'ready-to-ship', 'shipped', 'cancelled'] as const);
 
   const totalLimit = options.limit || 500;
-  const maxPerTab = options.maxOrdersPerTab || Math.max(10, Math.ceil(totalLimit / targetTabs.length));
+  const maxPerTab = options.maxOrdersPerTab || totalLimit;
 
   console.log(
     `[Order Extractor] Starting order extraction for supplier ${supplier.identifier} (${supplier.name}, ID: ${supplier.id})...`
@@ -154,10 +223,7 @@ export async function extractMeeshoOrders(
           break;
         }
 
-        const subOrdersRaw = responseData.data?.subOrders || {};
-        const subOrdersList: any[] = Array.isArray(subOrdersRaw)
-          ? subOrdersRaw
-          : Object.values(subOrdersRaw);
+        const subOrdersList = parseSubOrdersFromResponse(responseData);
 
         console.log(
           `[Order Extractor] [${tabName}] Page ${pageNumber}: fetched ${subOrdersList.length} subOrders (total available in tab: ${responseData.total_count ?? 'unknown'})`
@@ -167,24 +233,7 @@ export async function extractMeeshoOrders(
           break;
         }
 
-        let tabExhaustedByCutoff = false;
         for (const raw of subOrdersList) {
-          if (
-            options.cutoffIso &&
-            (tabName === 'shipped' || tabName === 'cancelled') &&
-            raw.created_iso
-          ) {
-            const orderTime = new Date(raw.created_iso).getTime();
-            const cutoffTime = new Date(options.cutoffIso).getTime();
-            if (!isNaN(orderTime) && !isNaN(cutoffTime) && orderTime < cutoffTime) {
-              console.log(
-                `[Order Extractor] [${tabName}] Order created before cutoff (${raw.created_iso} < ${options.cutoffIso}). Halting tab pagination.`
-              );
-              tabExhaustedByCutoff = true;
-              break;
-            }
-          }
-
           allOrders.push({
             raw,
             tabType: config.tabType,
@@ -196,7 +245,7 @@ export async function extractMeeshoOrders(
           }
         }
 
-        if (tabExhaustedByCutoff) {
+        if (tabOrderCount >= maxPerTab || allOrders.length >= totalLimit) {
           break;
         }
 

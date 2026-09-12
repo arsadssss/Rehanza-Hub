@@ -64,10 +64,10 @@ export async function resolveMarketplaceAuth(request: Request): Promise<AuthCont
     }
   }
 
-  // Fallback to default (Fashion or first account)
+  // Fallback to default (Rehanza/Fashion or first account)
   const defaultAcc = await sql`
     SELECT id, name FROM accounts
-    ORDER BY (CASE WHEN name ILIKE '%fashion%' THEN 0 ELSE 1 END), name ASC
+    ORDER BY (CASE WHEN name ILIKE '%rehanza%' OR name ILIKE '%fashion%' THEN 0 ELSE 1 END), name ASC
     LIMIT 1;
   `;
 

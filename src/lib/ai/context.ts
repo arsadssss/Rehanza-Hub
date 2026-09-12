@@ -43,18 +43,18 @@ export async function resolveAiAccountContext(
     }
   }
 
-  // Fallback to Fashion account if no specific or valid ID found
+  // Fallback to Rehanza account if no specific or valid ID found
   if (!targetAccount) {
     const fallbackRows = await sql`
       SELECT id, name 
       FROM accounts 
-      ORDER BY CASE WHEN LOWER(name) LIKE '%fashion%' THEN 0 ELSE 1 END, name ASC
+      ORDER BY CASE WHEN LOWER(name) LIKE '%rehanza%' OR LOWER(name) LIKE '%fashion%' THEN 0 ELSE 1 END, name ASC
       LIMIT 1
     `;
     if (fallbackRows.length > 0) {
       targetAccount = { id: fallbackRows[0].id, name: fallbackRows[0].name };
     } else {
-      targetAccount = { id: "1323beea-04db-4d44-a1ca-3ab7a1556f09", name: "Fashion" };
+      targetAccount = { id: "1323beea-04db-4d44-a1ca-3ab7a1556f09", name: "Rehanza" };
     }
   }
 

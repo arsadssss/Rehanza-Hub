@@ -48,6 +48,7 @@ export function computeSkuMetricsPure(rawSkuRows: any[]): {
     const deliveredRate = totalOrders > 0 ? round2((deliveredOrders / totalOrders) * 100) : 0;
     const returnRate = totalOrders > 0 ? round2((returnOrders / totalOrders) * 100) : 0;
     const rtoRate = totalOrders > 0 ? round2((rtoOrders / totalOrders) * 100) : 0;
+    const cancelRate = totalOrders > 0 ? round2((cancelOrders / totalOrders) * 100) : 0;
 
     // Margin = (profit / revenue) * 100 (preserve negative sign, null if revenue is 0)
     const profitMargin = revenue !== 0 ? round2((profit / revenue) * 100) : null;
@@ -87,6 +88,7 @@ export function computeSkuMetricsPure(rawSkuRows: any[]): {
       returnRate,
       rtoRate,
       deliveredRate,
+      cancelRate,
     };
   });
 

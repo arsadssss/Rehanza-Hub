@@ -36,23 +36,20 @@ export interface PaymentPivotRecord {
  * Groups by Sub Order No and aggregates exactly like Excel's 'Payment Pivot Table' tab.
  */
 export async function generatePaymentPivot(accountId: string): Promise<Map<string, PaymentPivotRecord>> {
-  // Find latest completed payments upload for this account
-  const latestPayUpload = await sql`
-    SELECT id FROM reconciliation_uploads
-    WHERE account_id = ${accountId} AND upload_type = 'payments' AND status = 'completed'
-    ORDER BY id DESC LIMIT 1
-  `;
-
-  if (latestPayUpload.length === 0) {
-    return new Map();
-  }
-
-  const uploadId = latestPayUpload[0].id;
+  // Fetch all raw payments for this account
   const rawPayments = await sql`
     SELECT * FROM reconciliation_payments_raw
-    WHERE upload_id = ${uploadId}
-    ORDER BY row_number ASC
+    WHERE account_id = ${accountId}
+       OR upload_id IN (
+         SELECT id FROM reconciliation_uploads 
+         WHERE account_id = ${accountId} AND upload_type = 'payments' AND status != 'failed'
+       )
+    ORDER BY row_number ASC, id ASC
   `;
+
+  if (rawPayments.length === 0) {
+    return new Map();
+  }
 
   const pivot = new Map<string, PaymentPivotRecord>();
 
@@ -148,7 +145,10 @@ export async function generatePaymentPivot(accountId: string): Promise<Map<strin
  * Completely rebuilds the Working Sheet reconciliation transactions for an account
  * to exactly mirror the Excel workbook's 'Working Sheet' tab.
  */
-export async function rebuildAccountReconciliation(accountId: string): Promise<{ count: number }> {
+export async function rebuildAccountReconciliation(
+  accountId: string,
+  onProgress?: (processed: number, total: number) => void
+): Promise<{ count: number }> {
   // 1. Fetch SKU Master map for this account
   const skuRecords = await sql`
     SELECT id, sku, cost_price, packaging_cost, cost_status
@@ -170,22 +170,15 @@ export async function rebuildAccountReconciliation(accountId: string): Promise<{
   // 2. Build Payment Pivot Table for this account
   const paymentPivot = await generatePaymentPivot(accountId);
 
-  // 3. Fetch latest completed Orders upload for this account
-  const latestOrderUpload = await sql`
-    SELECT id FROM reconciliation_uploads
-    WHERE account_id = ${accountId} AND upload_type = 'orders' AND status = 'completed'
-    ORDER BY id DESC LIMIT 1
-  `;
-
-  if (latestOrderUpload.length === 0) {
-    return { count: 0 };
-  }
-
-  const orderUploadId = latestOrderUpload[0].id;
+  // 3. Fetch all completed Orders for this account
   const rawOrders = await sql`
     SELECT * FROM reconciliation_orders_raw
-    WHERE upload_id = ${orderUploadId}
-    ORDER BY row_number ASC
+    WHERE account_id = ${accountId}
+       OR upload_id IN (
+         SELECT id FROM reconciliation_uploads 
+         WHERE account_id = ${accountId} AND upload_type = 'orders' AND status != 'failed'
+       )
+    ORDER BY row_number ASC, id ASC
   `;
 
   // 4. Clean existing transactions for this account to guarantee 1-to-1 parity with Working Sheet
@@ -195,154 +188,167 @@ export async function rebuildAccountReconciliation(accountId: string): Promise<{
     return { count: 0 };
   }
 
-  // 5. Transform each order row into exact Working Sheet representation
-  const batchSize = 50;
+  // 5. Transform each order row into exact Working Sheet representation using batch transactions
+  const batchSize = 100;
   let inserted = 0;
 
   for (let i = 0; i < rawOrders.length; i += batchSize) {
     const chunk = rawOrders.slice(i, i + batchSize);
 
-    await Promise.all(
-      chunk.map(async (order: any) => {
-        const subOrder = String(order.sub_order_no || '').trim();
-        const sku = String(order.sku || '').trim();
-        const normSku = normalizeSku(sku).toLowerCase();
-        const qty = order.quantity ? Number(order.quantity) : 1;
-        const skuConfig = skuMap.get(normSku) || { cost: 0, packaging: 0, isConfigured: false };
+    const queries = chunk.map((order: any) => {
+      const subOrder = String(order.sub_order_no || '').trim();
+      const sku = String(order.sku || '').trim();
+      const normSku = normalizeSku(sku).toLowerCase();
+      const qty = order.quantity ? Number(order.quantity) : 1;
+      const skuConfig = skuMap.get(normSku) || { cost: 0, packaging: 0, isConfigured: false };
 
-        const pivot = paymentPivot.get(subOrder);
-        // Working Sheet Status formula:
-        // =IF(ISBLANK(A2), "", IFERROR(VLOOKUP(A2, 'Payment Pivot Table'!A:C, 3, FALSE), "Cancel"))
-        const status = pivot ? pivot.status : 'Cancel';
+      const pivot = paymentPivot.get(subOrder);
+      // Working Sheet Status formula:
+      // =IF(ISBLANK(A2), "", IFERROR(VLOOKUP(A2, 'Payment Pivot Table'!A:C, 3, FALSE), "Cancel"))
+      const status = pivot ? pivot.status : 'Cancel';
 
-        // Working Sheet Cost formula:
-        // =IF(B2="","",IF((E2="RTO")+(E2="Return")+(E2="Cancel")+(E2="Recovery"), "", VLOOKUP(B2, SKU_Pivot, 2, 0)))
-        let unitCost: number | null = null;
-        let quantityCost: number | null = null;
-        if (
-          status !== 'RTO' &&
-          status !== 'Return' &&
-          status !== 'Cancel' &&
-          status !== 'Cancelled' &&
-          status !== 'Recovery'
-        ) {
-          unitCost = skuConfig.cost;
-          quantityCost = unitCost * qty;
+      // Working Sheet Cost formula:
+      // =IF(B2="","",IF((E2="RTO")+(E2="Return")+(E2="Cancel")+(E2="Recovery"), "", VLOOKUP(B2, SKU_Pivot, 2, 0)))
+      let unitCost: number | null = null;
+      let quantityCost: number | null = null;
+      if (
+        status !== 'RTO' &&
+        status !== 'Return' &&
+        status !== 'Cancel' &&
+        status !== 'Recovery'
+      ) {
+        unitCost = skuConfig.cost;
+        quantityCost = unitCost * qty;
+      }
+
+      // Working Sheet Packaging formula:
+      // =IF(B2="","",IF((E2="Cancel")+(E2="Recovery"),"",basePkg*IF(E2="Exchange",2,1)+IF(F2>1,(F2-1)*5,0)-IF(E2="RTO",5,0)))
+      let packaging: number | null = null;
+      if (status !== 'Cancel' && status !== 'Recovery') {
+        const basePkg = skuConfig.packaging;
+        const mult = status === 'Exchange' ? 2 : 1;
+        const extraQty = qty > 1 ? (qty - 1) * 5 : 0;
+        const rtoSub = status === 'RTO' ? 5 : 0;
+        packaging = basePkg * mult + extraQty - rtoSub;
+      }
+
+      // Working Sheet Payment: lookup from Payment Pivot
+      const payment = pivot ? pivot.payment : null;
+
+      // Working Sheet Profit formula:
+      // =IF(OR(TRIM(E2)="Delivered", TRIM(E2)="Exchange"), D2-G2-H2, IF(TRIM(E2)="Return", D2-H2, ""))
+      let profit: number | null = null;
+      if (payment !== null) {
+        if (status === 'Delivered' || status === 'Exchange') {
+          profit = payment - (quantityCost || 0) - (packaging || 0);
+        } else if (status === 'Return') {
+          profit = payment - (packaging || 0);
         }
+      }
 
-        // Working Sheet Packaging formula:
-        // =IF(B2="","",IF((E2="Cancel")+(E2="Recovery"),"",basePkg*IF(E2="Exchange",2,1)+IF(F2>1,(F2-1)*5,0)-IF(E2="RTO",5,0)))
-        let packaging: number | null = null;
-        if (status !== 'Cancel' && status !== 'Cancelled' && status !== 'Recovery') {
-          const basePkg = skuConfig.packaging;
-          const mult = status === 'Exchange' ? 2 : 1;
-          const extraQty = qty > 1 ? (qty - 1) * 5 : 0;
-          const rtoSub = status === 'RTO' ? 5 : 0;
-          packaging = basePkg * mult + extraQty - rtoSub;
+      const shippingCost = pivot && pivot.shipping_cost !== 0 ? pivot.shipping_cost : null;
+      const returnShippingCost = pivot && pivot.return_shipping_cost !== 0 ? pivot.return_shipping_cost : null;
+      const tcs = pivot && pivot.tcs !== 0 ? pivot.tcs : null;
+      const tds = pivot && pivot.tds !== 0 ? pivot.tds : null;
+      const claims = pivot && pivot.claim_amount !== 0 ? pivot.claim_amount : null;
+      const recovery = pivot && pivot.recovery_amount !== 0 ? pivot.recovery_amount : null;
+      const fixedFee = pivot && pivot.fixed_fee !== 0 ? pivot.fixed_fee : null;
+      const commission = pivot && pivot.commission !== 0 ? pivot.commission : null;
+      const warehousing = pivot && pivot.warehousing_fee !== 0 ? pivot.warehousing_fee : null;
+      const totalSaleAmount = pivot && pivot.total_sale_amount > 0 ? pivot.total_sale_amount : null;
+
+      return sql`
+        INSERT INTO reconciliation_transactions (
+          platform,
+          order_no,
+          sub_order_no,
+          sku,
+          product_name,
+          status,
+          quantity,
+          cost,
+          quantity_cost,
+          payment,
+          packaging,
+          shipping_cost,
+          return_shipping_cost,
+          tcs,
+          tds,
+          fixed_fee,
+          platform_commission,
+          warehousing_fee,
+          profit,
+          claim_amount,
+          claim_reason,
+          recovery_amount,
+          recovery_reason,
+          reconciliation_status,
+          order_source_id,
+          source_order_id,
+          created_at,
+          updated_at,
+          order_date,
+          order_source,
+          live_order_status,
+          listing_price,
+          total_sale_amount,
+          account_id
+        )
+        VALUES (
+          'Meesho',
+          ${order.order_no || null},
+          ${subOrder},
+          ${sku},
+          ${order.product_name || sku},
+          ${status},
+          ${qty},
+          ${unitCost},
+          ${quantityCost},
+          ${payment},
+          ${packaging},
+          ${shippingCost},
+          ${returnShippingCost},
+          ${tcs},
+          ${tds},
+          ${fixedFee},
+          ${commission},
+          ${warehousing},
+          ${profit},
+          ${claims},
+          ${pivot?.claim_reason || null},
+          ${recovery},
+          ${pivot?.recovery_reason || null},
+          'matched',
+          ${order.id},
+          ${order.id},
+          NOW(),
+          NOW(),
+          ${order.order_date || null},
+          ${order.order_source || null},
+          ${pivot?.status || null},
+          ${pivot?.listing_price || null},
+          ${totalSaleAmount},
+          ${accountId}
+        )
+      `;
+    });
+
+    try {
+      await sql.transaction(queries);
+      inserted += chunk.length;
+    } catch (batchErr) {
+      console.warn(`Batch insert warning on transactions chunk ${i}-${i + chunk.length}, falling back:`, batchErr);
+      for (const q of queries) {
+        try {
+          await q;
+          inserted++;
+        } catch (singleErr) {
+          console.error('Failed single transaction insert:', singleErr);
         }
+      }
+    }
 
-        // Working Sheet Payment: lookup from Payment Pivot
-        const payment = pivot ? pivot.payment : null;
-
-        // Working Sheet Profit formula:
-        // =IF(OR(TRIM(E2)="Delivered", TRIM(E2)="Exchange"), D2-G2-H2, IF(TRIM(E2)="Return", D2-H2, ""))
-        let profit: number | null = null;
-        if (payment !== null) {
-          if (status === 'Delivered' || status === 'Exchange') {
-            profit = payment - (quantityCost || 0) - (packaging || 0);
-          } else if (status === 'Return') {
-            profit = payment - (packaging || 0);
-          }
-        }
-
-        const shippingCost = pivot && pivot.shipping_cost !== 0 ? pivot.shipping_cost : null;
-        const returnShippingCost = pivot && pivot.return_shipping_cost !== 0 ? pivot.return_shipping_cost : null;
-        const tcs = pivot && pivot.tcs !== 0 ? pivot.tcs : null;
-        const tds = pivot && pivot.tds !== 0 ? pivot.tds : null;
-        const claims = pivot && pivot.claim_amount !== 0 ? pivot.claim_amount : null;
-        const recovery = pivot && pivot.recovery_amount !== 0 ? pivot.recovery_amount : null;
-        const fixedFee = pivot && pivot.fixed_fee !== 0 ? pivot.fixed_fee : null;
-        const commission = pivot && pivot.commission !== 0 ? pivot.commission : null;
-        const warehousing = pivot && pivot.warehousing_fee !== 0 ? pivot.warehousing_fee : null;
-        const totalSaleAmount = pivot && pivot.total_sale_amount > 0 ? pivot.total_sale_amount : null;
-
-        await sql`
-          INSERT INTO reconciliation_transactions (
-            platform,
-            order_no,
-            sub_order_no,
-            sku,
-            product_name,
-            status,
-            quantity,
-            cost,
-            quantity_cost,
-            payment,
-            packaging,
-            shipping_cost,
-            return_shipping_cost,
-            tcs,
-            tds,
-            fixed_fee,
-            platform_commission,
-            warehousing_fee,
-            profit,
-            claim_amount,
-            claim_reason,
-            recovery_amount,
-            recovery_reason,
-            reconciliation_status,
-            order_source_id,
-            source_order_id,
-            created_at,
-            updated_at,
-            order_date,
-            order_source,
-            live_order_status,
-            listing_price,
-            total_sale_amount,
-            account_id
-          )
-          VALUES (
-            'Meesho',
-            ${order.order_no || null},
-            ${subOrder},
-            ${sku},
-            ${order.product_name || sku},
-            ${status},
-            ${qty},
-            ${unitCost},
-            ${quantityCost},
-            ${payment},
-            ${packaging},
-            ${shippingCost},
-            ${returnShippingCost},
-            ${tcs},
-            ${tds},
-            ${fixedFee},
-            ${commission},
-            ${warehousing},
-            ${profit},
-            ${claims},
-            ${pivot?.claim_reason || null},
-            ${recovery},
-            ${pivot?.recovery_reason || null},
-            'matched',
-            ${order.id},
-            ${order.id},
-            NOW(),
-            NOW(),
-            ${order.order_date || null},
-            ${order.order_source || null},
-            ${pivot?.status || null},
-            ${pivot?.listing_price || null},
-            ${totalSaleAmount},
-            ${accountId}
-          );
-        `;
-        inserted++;
-      })
-    );
+    onProgress?.(inserted, rawOrders.length);
   }
 
   return { count: inserted };

@@ -42,6 +42,7 @@ export interface UploadRecord {
   row_count: number;
   successful_rows: number;
   failed_rows: number;
+  duplicate_rows?: number;
   errorCount: number;
   created_at: string;
   updated_at: string;
@@ -92,9 +93,18 @@ export function ImportHistory({
     }
   };
 
-  const getStatusBadge = (status: string) => {
+  const getStatusBadge = (upload: UploadRecord) => {
+    const { status, successful_rows, duplicate_rows } = upload;
     switch (status) {
       case 'completed':
+        if (successful_rows === 0 && (duplicate_rows || 0) > 0) {
+          return (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-blue-500/15 text-blue-300 border border-blue-500/30">
+              <CheckCircle2 className="h-3 w-3" />
+              All Duplicates Skipped
+            </span>
+          );
+        }
         return (
           <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-bold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
             <CheckCircle2 className="h-3 w-3" />
@@ -155,7 +165,7 @@ export function ImportHistory({
             <div>
               <CardTitle className="text-base sm:text-lg font-black text-white">Import History & Audit Log</CardTitle>
               <p className="text-xs text-slate-300 mt-0.5 font-medium">
-                Verified logs of uploaded Meesho reconciliation files and row-level ingestion metrics
+                Verified logs of uploaded Meesho reconciliation files, row ingestion, and duplicate skipping metrics
               </p>
             </div>
           </div>
@@ -195,7 +205,8 @@ export function ImportHistory({
                     <TableHead className="text-xs font-black uppercase text-slate-300">Upload Date</TableHead>
                     <TableHead className="text-xs font-black uppercase text-slate-300">Status</TableHead>
                     <TableHead className="text-xs font-black uppercase text-slate-300 text-right">Total Rows</TableHead>
-                    <TableHead className="text-xs font-black uppercase text-slate-300 text-right">Successful</TableHead>
+                    <TableHead className="text-xs font-black uppercase text-slate-300 text-right">Imported</TableHead>
+                    <TableHead className="text-xs font-black uppercase text-slate-300 text-right">Duplicates</TableHead>
                     <TableHead className="text-xs font-black uppercase text-slate-300 text-right">Failed</TableHead>
                     <TableHead className="text-xs font-black uppercase text-slate-300 text-center">Actions</TableHead>
                   </TableRow>
@@ -220,13 +231,16 @@ export function ImportHistory({
                         {format(new Date(upload.created_at), 'dd MMM yyyy, HH:mm:ss')}
                       </TableCell>
                       <TableCell className="py-3.5 whitespace-nowrap">
-                        {getStatusBadge(upload.status)}
+                        {getStatusBadge(upload)}
                       </TableCell>
                       <TableCell className="py-3.5 text-xs font-black text-white text-right">
                         {upload.row_count.toLocaleString()}
                       </TableCell>
                       <TableCell className="py-3.5 text-xs font-black text-emerald-400 text-right">
                         {(upload.successful_rows || 0).toLocaleString()}
+                      </TableCell>
+                      <TableCell className="py-3.5 text-xs font-black text-amber-400 text-right">
+                        {(upload.duplicate_rows || 0).toLocaleString()}
                       </TableCell>
                       <TableCell className="py-3.5 text-xs font-black text-rose-400 text-right">
                         {(upload.failed_rows || 0).toLocaleString()}

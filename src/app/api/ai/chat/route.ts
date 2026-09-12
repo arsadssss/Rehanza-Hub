@@ -116,13 +116,13 @@ export async function POST(request: Request) {
         const fallbackRows = await sql`
           SELECT id, name 
           FROM accounts 
-          ORDER BY CASE WHEN LOWER(name) LIKE '%fashion%' THEN 0 ELSE 1 END, name ASC
+          ORDER BY CASE WHEN LOWER(name) LIKE '%rehanza%' OR LOWER(name) LIKE '%fashion%' THEN 0 ELSE 1 END, name ASC
           LIMIT 1
         `;
         if (fallbackRows.length > 0) {
           activeAccount = { id: fallbackRows[0].id, name: fallbackRows[0].name };
         } else {
-          activeAccount = { id: "1323beea-04db-4d44-a1ca-3ab7a1556f09", name: "Fashion" };
+          activeAccount = { id: "1323beea-04db-4d44-a1ca-3ab7a1556f09", name: "Rehanza" };
         }
       }
       console.log("[AI_CHAT] Context loaded");
@@ -134,7 +134,7 @@ export async function POST(request: Request) {
           message: dbErr?.message || "Database account lookup failed",
         })
       );
-      activeAccount = { id: "1323beea-04db-4d44-a1ca-3ab7a1556f09", name: "Fashion" };
+      activeAccount = { id: "1323beea-04db-4d44-a1ca-3ab7a1556f09", name: "Rehanza" };
     }
 
     const targetAccountId = activeAccount.id;

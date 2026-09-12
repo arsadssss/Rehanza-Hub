@@ -17,27 +17,39 @@ import {
   Zap,
   RotateCcw,
   Sparkles,
-  AlertTriangle,
   FileCheck2,
   Package,
+  Check,
+  Circle,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Papa from 'papaparse';
-import { detectCsvFileType, detectCsvFileTypeFromRows } from '@/lib/reconciliation/csv-parser';
+import { detectCsvFileTypeFromRows } from '@/lib/reconciliation/csv-parser';
 
 interface UploadSectionProps {
   onUploadComplete?: (result: any) => void;
   accountId: string | null;
 }
 
+interface UploadProgressState {
+  stage: string;
+  percent: number;
+  current?: number;
+  total?: number;
+  message: string;
+}
+
 interface UploadResult {
   success: boolean;
   isDuplicate?: boolean;
+  allDuplicates?: boolean;
   uploadId?: number;
   message?: string;
   stats?: {
     totalRows: number;
     successfulRows: number;
+    importedRows?: number;
+    duplicateRows?: number;
     failedRows: number;
     validationWarnings: number;
     sourceType?: string;
@@ -52,6 +64,15 @@ interface UploadResult {
   warnings?: Array<{ message: string }>;
 }
 
+const PIPELINE_STAGES = [
+  { key: 'Reading file', label: 'Reading file' },
+  { key: 'Validating rows', label: 'Validating rows' },
+  { key: 'Checking duplicates', label: 'Checking duplicates' },
+  { key: 'Importing records', label: 'Importing records' },
+  { key: 'Building reconciliation transactions', label: 'Building transactions' },
+  { key: 'Finalizing', label: 'Finalizing' },
+];
+
 export function UploadSection({ onUploadComplete, accountId }: UploadSectionProps) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -59,6 +80,7 @@ export function UploadSection({ onUploadComplete, accountId }: UploadSectionProp
   const [detectedType, setDetectedType] = useState<'order' | 'payment' | 'ads' | 'unknown'>('unknown');
   const [selectedSourceType, setSelectedSourceType] = useState<'order' | 'payment' | 'ads'>('payment');
   const [isLoading, setIsLoading] = useState(false);
+  const [progress, setProgress] = useState<UploadProgressState | null>(null);
   const [uploadResult, setUploadResult] = useState<UploadResult | null>(null);
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
@@ -76,6 +98,7 @@ export function UploadSection({ onUploadComplete, accountId }: UploadSectionProp
 
     setSelectedFile(file);
     setUploadResult(null);
+    setProgress(null);
 
     // Read first chunk to detect file type across candidate rows
     try {
@@ -114,12 +137,18 @@ export function UploadSection({ onUploadComplete, accountId }: UploadSectionProp
     }
 
     setIsLoading(true);
+    setProgress({
+      stage: 'Reading file',
+      percent: 5,
+      message: 'Connecting and reading CSV file...',
+    });
+
     try {
       const formData = new FormData();
       formData.append('file', selectedFile);
       formData.append('sourceType', selectedSourceType);
 
-      const response = await fetch('/api/reconciliation/upload', {
+      const response = await fetch('/api/reconciliation/upload?stream=true', {
         method: 'POST',
         headers: {
           'x-account-id': accountId,
@@ -127,42 +156,97 @@ export function UploadSection({ onUploadComplete, accountId }: UploadSectionProp
         body: formData,
       });
 
-      const result = await response.json();
+      let finalResult: UploadResult | null = null;
 
-      if (response.status === 409 || result.isDuplicate) {
-        setUploadResult({
-          success: false,
-          isDuplicate: true,
-          message: result.message || 'Duplicate file detected — this file has already been imported.',
-        });
-        toast({
-          variant: 'destructive',
-          title: 'Duplicate File Detected',
-          description: result.message || 'This file has already been imported. Skipping duplicate ingestion.',
-        });
-      } else if (result.success) {
-        setUploadResult(result);
-        onUploadComplete?.(result);
+      if (!response.body) {
+        // Fallback for non-streaming response
+        const result = await response.json();
+        finalResult = result;
+      } else {
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = '';
 
-        if (result.stats?.failedRows === 0) {
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const lines = buffer.split('\n');
+          buffer = lines.pop() || '';
+
+          for (const line of lines) {
+            const trimmed = line.trim();
+            if (!trimmed) continue;
+            try {
+              const event = JSON.parse(trimmed);
+              if (event.type === 'progress') {
+                setProgress({
+                  stage: event.stage,
+                  percent: event.percent ?? 50,
+                  current: event.current,
+                  total: event.total,
+                  message: event.message || '',
+                });
+              } else if (event.type === 'complete') {
+                finalResult = event;
+              } else if (event.type === 'error') {
+                finalResult = event;
+              }
+            } catch (parseErr) {
+              console.warn('NDJSON line parse error:', parseErr);
+            }
+          }
+        }
+
+        // Check if there is trailing JSON in buffer
+        if (buffer.trim()) {
+          try {
+            const event = JSON.parse(buffer.trim());
+            if (event.type === 'complete' || event.type === 'error') {
+              finalResult = event;
+            }
+          } catch (e) {
+            // Ignore trailing partial chunk
+          }
+        }
+      }
+
+      if (finalResult) {
+        setUploadResult(finalResult);
+        onUploadComplete?.(finalResult);
+
+        if (finalResult.allDuplicates) {
           toast({
-            title: 'Import Successful',
-            description: `${result.stats.successfulRows} rows imported into reconciliation engine.`,
+            title: 'Upload Completed',
+            description: 'All records were already present. 0 duplicate records created.',
           });
+        } else if (finalResult.success) {
+          const imported = finalResult.stats?.importedRows ?? finalResult.stats?.successfulRows ?? 0;
+          const duplicates = finalResult.stats?.duplicateRows ?? 0;
+          const failed = finalResult.stats?.failedRows ?? 0;
+
+          if (failed === 0) {
+            toast({
+              title: 'Upload Completed',
+              description: `${imported} imported, ${duplicates} duplicates skipped.`,
+            });
+          } else {
+            toast({
+              variant: 'destructive',
+              title: 'Upload Completed with Warnings',
+              description: `${imported} imported, ${duplicates} duplicates skipped, ${failed} failed.`,
+            });
+          }
         } else {
           toast({
             variant: 'destructive',
-            title: 'Import Completed with Warnings',
-            description: `${result.stats.successfulRows} rows imported, ${result.stats.failedRows} rows flagged with errors.`,
+            title: 'Upload Failed',
+            description: finalResult.message || 'Validation failed for this CSV file.',
           });
         }
       } else {
-        setUploadResult(result);
-        toast({
-          variant: 'destructive',
-          title: 'Upload Failed',
-          description: result.message || 'Validation failed for this CSV file.',
-        });
+        throw new Error('No completion response received from upload stream.');
       }
     } catch (error: any) {
       toast({
@@ -170,8 +254,13 @@ export function UploadSection({ onUploadComplete, accountId }: UploadSectionProp
         title: 'Error',
         description: error.message || 'Network error during upload.',
       });
+      setUploadResult({
+        success: false,
+        message: error.message || 'Upload failed due to network or connection error.',
+      });
     } finally {
       setIsLoading(false);
+      setProgress(null);
     }
   };
 
@@ -179,6 +268,7 @@ export function UploadSection({ onUploadComplete, accountId }: UploadSectionProp
     setSelectedFile(null);
     setDetectedType('unknown');
     setUploadResult(null);
+    setProgress(null);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -188,6 +278,12 @@ export function UploadSection({ onUploadComplete, accountId }: UploadSectionProp
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(2)} MB`;
+  };
+
+  const getCurrentStageIndex = (currentStage: string) => {
+    return PIPELINE_STAGES.findIndex(
+      (s) => s.key === currentStage || currentStage.toLowerCase().includes(s.label.toLowerCase())
+    );
   };
 
   return (
@@ -203,7 +299,7 @@ export function UploadSection({ onUploadComplete, accountId }: UploadSectionProp
                 Meesho Reconciliation Import Center
               </CardTitle>
               <p className="text-xs text-slate-300 mt-0.5 font-medium">
-                Automatic file-type recognition, duplicate SHA-256 prevention, and row-level ingestion
+                Automatic file-type recognition, row-level deduplication, and fast bulk ingestion
               </p>
             </div>
           </div>
@@ -223,67 +319,87 @@ export function UploadSection({ onUploadComplete, accountId }: UploadSectionProp
       </CardHeader>
 
       <CardContent className="p-4 sm:p-6 space-y-5">
-        {/* State 1: Upload Result Card (Success or Duplicate) */}
+        {/* State 1: Upload Result Card (Success, All Duplicates Skipped, or Error) */}
         {uploadResult && (
           <div className="space-y-4">
-            {uploadResult.isDuplicate ? (
-              <div className="p-4 rounded-xl border border-amber-500/30 bg-amber-500/10 flex items-start gap-3.5">
-                <AlertTriangle className="h-5 w-5 text-amber-400 flex-shrink-0 mt-0.5" />
-                <div className="space-y-1 text-left flex-1">
-                  <h4 className="font-bold text-sm text-white">Duplicate File Detected</h4>
-                  <p className="text-xs text-amber-200/90 leading-relaxed">
-                    {uploadResult.message || 'This CSV file has already been imported into the system. Ingestion was safely aborted to avoid creating duplicate transactions.'}
-                  </p>
-                </div>
-              </div>
-            ) : uploadResult.success ? (
-              <div className={cn(
-                'p-4 rounded-xl border flex flex-col gap-3',
-                uploadResult.stats?.failedRows === 0
-                  ? 'border-emerald-500/30 bg-emerald-500/10'
-                  : 'border-amber-500/30 bg-amber-500/10'
-              )}>
-                <div className="flex items-start gap-3">
-                  {uploadResult.stats?.failedRows === 0 ? (
-                    <CheckCircle2 className="h-5 w-5 text-emerald-400 flex-shrink-0 mt-0.5" />
-                  ) : (
-                    <AlertCircle className="h-5 w-5 text-amber-400 flex-shrink-0 mt-0.5" />
-                  )}
-                  <div className="space-y-1 flex-1">
-                    <h4 className="font-bold text-sm text-white">
-                      {uploadResult.stats?.failedRows === 0
-                        ? 'Reconciliation Import Successful'
-                        : 'Import Completed with Row Warnings'}
-                    </h4>
-                    <p className="text-xs text-slate-300">
-                      Import ID #{uploadResult.uploadId} processed into reconciliation engine.
-                    </p>
+            {uploadResult.success ? (
+              <div
+                className={cn(
+                  'p-4 sm:p-5 rounded-2xl border flex flex-col gap-3.5 transition-all',
+                  uploadResult.allDuplicates
+                    ? 'border-indigo-500/30 bg-indigo-500/10'
+                    : uploadResult.stats?.failedRows === 0
+                    ? 'border-emerald-500/30 bg-emerald-500/10'
+                    : 'border-amber-500/30 bg-amber-500/10'
+                )}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <CheckCircle2
+                      className={cn(
+                        'h-5 w-5 flex-shrink-0 mt-0.5',
+                        uploadResult.allDuplicates ? 'text-indigo-400' : 'text-emerald-400'
+                      )}
+                    />
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <h4 className="font-bold text-sm sm:text-base text-white">
+                          {uploadResult.allDuplicates
+                            ? 'Upload completed — All records already present'
+                            : 'Upload completed'}
+                        </h4>
+                        {uploadResult.allDuplicates ? (
+                          <Badge
+                            variant="outline"
+                            className="bg-indigo-500/20 text-indigo-300 border-indigo-400/40 text-[10px] font-bold uppercase tracking-wider"
+                          >
+                            All Duplicates Skipped
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="bg-emerald-500/20 text-emerald-300 border-emerald-400/40 text-[10px] font-bold uppercase tracking-wider"
+                          >
+                            Completed
+                          </Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-slate-300 leading-relaxed">
+                        {uploadResult.message || 'File processed successfully into reconciliation engine.'}
+                      </p>
+                    </div>
                   </div>
                 </div>
 
+                {/* Metric Summary Grid */}
                 {uploadResult.stats && (
                   <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 pt-2">
-                    <div className="p-2.5 rounded-lg bg-slate-900/60 border border-white/10 text-center">
-                      <p className="text-[11px] text-slate-400 font-medium">Total Rows</p>
-                      <p className="font-black text-base text-white">{uploadResult.stats.totalRows}</p>
+                    <div className="p-3 rounded-xl bg-slate-900/70 border border-white/10 text-center">
+                      <p className="text-[11px] text-slate-400 font-semibold uppercase tracking-wider">Total Rows</p>
+                      <p className="font-black text-lg text-white mt-0.5">{uploadResult.stats.totalRows}</p>
                     </div>
-                    <div className="p-2.5 rounded-lg bg-slate-900/60 border border-white/10 text-center">
-                      <p className="text-[11px] text-slate-400 font-medium">Successful</p>
-                      <p className="font-black text-base text-emerald-400">{uploadResult.stats.successfulRows}</p>
+                    <div className="p-3 rounded-xl bg-slate-900/70 border border-white/10 text-center">
+                      <p className="text-[11px] text-emerald-400/90 font-semibold uppercase tracking-wider">Imported</p>
+                      <p className="font-black text-lg text-emerald-400 mt-0.5">
+                        {uploadResult.stats.importedRows ?? uploadResult.stats.successfulRows ?? 0}
+                      </p>
                     </div>
-                    <div className="p-2.5 rounded-lg bg-slate-900/60 border border-white/10 text-center">
-                      <p className="text-[11px] text-slate-400 font-medium">Failed</p>
-                      <p className="font-black text-base text-rose-400">{uploadResult.stats.failedRows}</p>
+                    <div className="p-3 rounded-xl bg-slate-900/70 border border-white/10 text-center">
+                      <p className="text-[11px] text-indigo-300 font-semibold uppercase tracking-wider">Duplicates Skipped</p>
+                      <p className="font-black text-lg text-indigo-300 mt-0.5">
+                        {uploadResult.stats.duplicateRows ?? (uploadResult.allDuplicates ? uploadResult.stats.totalRows : 0)}
+                      </p>
                     </div>
-                    <div className="p-2.5 rounded-lg bg-slate-900/60 border border-white/10 text-center">
-                      <p className="text-[11px] text-slate-400 font-medium">Warnings</p>
-                      <p className="font-black text-base text-amber-400">{uploadResult.stats.validationWarnings}</p>
+                    <div className="p-3 rounded-xl bg-slate-900/70 border border-white/10 text-center">
+                      <p className="text-[11px] text-rose-400 font-semibold uppercase tracking-wider">Failed</p>
+                      <p className="font-black text-lg text-rose-400 mt-0.5">{uploadResult.stats.failedRows ?? 0}</p>
                     </div>
                   </div>
                 )}
 
+                {/* SKU Cost Configuration Status (for order imports) */}
                 {uploadResult.skuCostStatus && (
-                  <div className="mt-3 p-3 rounded-xl bg-slate-900/90 border border-white/15 space-y-2">
+                  <div className="mt-2 p-3 rounded-xl bg-slate-900/90 border border-white/15 space-y-2">
                     <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
                       <div className="space-y-0.5 text-left">
                         <p className="text-xs font-bold text-white flex items-center gap-1.5">
@@ -366,8 +482,77 @@ export function UploadSection({ onUploadComplete, accountId }: UploadSectionProp
           </div>
         )}
 
-        {/* State 2: File Selector & Auto-Detection View */}
-        {!uploadResult && (
+        {/* State 2: Live Progress Bar & Processing Stepper */}
+        {isLoading && (
+          <div className="p-5 sm:p-6 rounded-2xl border border-indigo-500/30 bg-indigo-950/20 space-y-4">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2.5">
+                <Loader2 className="h-5 w-5 text-indigo-400 animate-spin" />
+                <span className="font-bold text-sm sm:text-base text-white">
+                  {progress?.stage || 'Processing CSV File...'}
+                </span>
+              </div>
+              <span className="font-black text-sm text-indigo-300 tabular-nums">
+                {progress?.percent ?? 10}%
+              </span>
+            </div>
+
+            {/* Smooth animated progress bar */}
+            <div className="w-full bg-slate-800/80 rounded-full h-2.5 overflow-hidden border border-white/10 p-0.5">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-indigo-500 via-blue-500 to-emerald-400 transition-all duration-300 ease-out"
+                style={{ width: `${Math.max(5, Math.min(100, progress?.percent ?? 10))}%` }}
+              />
+            </div>
+
+            {/* Stage description & row count */}
+            <div className="flex items-center justify-between text-xs text-slate-300">
+              <p className="font-medium truncate pr-2">
+                {progress?.message || 'Processing records in batches...'}
+              </p>
+              {progress?.current !== undefined && progress?.total !== undefined && (
+                <span className="text-slate-400 flex-shrink-0 font-mono text-[11px]">
+                  {progress.current} / {progress.total} rows
+                </span>
+              )}
+            </div>
+
+            {/* 6-Stage Stepper Grid */}
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 pt-2 border-t border-white/10">
+              {PIPELINE_STAGES.map((step, idx) => {
+                const currentIdx = progress ? getCurrentStageIndex(progress.stage) : 0;
+                const isComplete = currentIdx > idx || (progress?.percent ?? 0) >= 100;
+                const isActive = currentIdx === idx && (progress?.percent ?? 0) < 100;
+
+                return (
+                  <div
+                    key={step.key}
+                    className={cn(
+                      'flex items-center gap-2 p-2 rounded-lg text-xs font-medium transition-all',
+                      isComplete
+                        ? 'bg-emerald-500/10 border border-emerald-500/20 text-emerald-300'
+                        : isActive
+                        ? 'bg-indigo-500/20 border border-indigo-400/30 text-white font-bold'
+                        : 'bg-slate-900/30 border border-white/5 text-slate-500'
+                    )}
+                  >
+                    {isComplete ? (
+                      <Check className="h-3.5 w-3.5 text-emerald-400 flex-shrink-0" />
+                    ) : isActive ? (
+                      <Loader2 className="h-3.5 w-3.5 text-indigo-400 animate-spin flex-shrink-0" />
+                    ) : (
+                      <Circle className="h-3 w-3 text-slate-600 flex-shrink-0" />
+                    )}
+                    <span className="truncate">{step.label}</span>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* State 3: File Selector & Auto-Detection View (When not loading and no result) */}
+        {!uploadResult && !isLoading && (
           <div className="space-y-4">
             <div
               onClick={() => fileInputRef.current?.click()}
@@ -470,17 +655,8 @@ export function UploadSection({ onUploadComplete, accountId }: UploadSectionProp
                   disabled={isLoading}
                   className="w-full h-10 rounded-xl font-bold text-xs uppercase tracking-wider bg-indigo-600 hover:bg-indigo-500 text-white shadow-md transition-all mt-2"
                 >
-                  {isLoading ? (
-                    <>
-                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Validating & Ingesting {selectedSourceType.toUpperCase()}...
-                    </>
-                  ) : (
-                    <>
-                      <Upload className="h-4 w-4 mr-2" />
-                      Import & Reconcile {selectedSourceType.toUpperCase()} CSV
-                    </>
-                  )}
+                  <Upload className="h-4 w-4 mr-2" />
+                  Import & Reconcile {selectedSourceType.toUpperCase()} CSV
                 </Button>
               </div>
             )}

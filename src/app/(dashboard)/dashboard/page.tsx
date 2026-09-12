@@ -3,6 +3,7 @@
 import Image from 'next/image';
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { format, subMonths } from 'date-fns';
 import { formatINR } from '@/lib/format';
 import { Skeleton } from '@/components/ui/skeleton';
 import { 
@@ -37,27 +38,17 @@ import {
   FinancialSummary,
   DailyTrendMetric,
   SkuProfitabilityMetric,
+  ReconciliationDateFilter,
 } from '@/lib/reconciliation/types';
 import { DecisionEngineSummary } from '@/lib/reconciliation/decision-engine';
 
-// Helper: Calculate previous calendar month range
-function getLastMonthRange(): { startDate: string; endDate: string; label: string } {
-  const now = new Date();
-  const year = now.getMonth() === 0 ? now.getFullYear() - 1 : now.getFullYear();
-  const month = now.getMonth() === 0 ? 11 : now.getMonth() - 1; // 0-indexed (August is 7)
-  const lastDay = new Date(Date.UTC(year, month + 1, 0));
-
-  const monthNames = [
-    'January', 'February', 'March', 'April', 'May', 'June',
-    'July', 'August', 'September', 'October', 'November', 'December',
-  ];
-
-  const pad = (n: number) => String(n).padStart(2, '0');
-  const startDate = `${year}-${pad(month + 1)}-01`;
-  const endDate = `${year}-${pad(month + 1)}-${pad(lastDay.getUTCDate())}`;
-  const label = `Last Month (${monthNames[month]} ${year})`;
-
-  return { startDate, endDate, label };
+// Helper: Calculate previous calendar month in YYYY-MM format
+function getPrevMonthStr(): string {
+  const d = new Date();
+  d.setMonth(d.getMonth() - 1);
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  return `${y}-${m}`;
 }
 
 // --- Sub-components ---
@@ -114,6 +105,7 @@ interface KpiCardProps {
   isCurrency?: boolean;
   trend?: number;
   suffix?: string;
+  periodLabel?: string;
 }
 
 const KpiCard = ({
@@ -126,6 +118,7 @@ const KpiCard = ({
   isCurrency = false,
   trend,
   suffix = "",
+  periodLabel,
 }: KpiCardProps) => {
   const iconBgClass = gradient ? gradient.replace('from-', 'bg-').split(' ')[0] : 'bg-indigo-600';
   return (
@@ -136,9 +129,16 @@ const KpiCard = ({
           <div className="space-y-1">
             <p className="text-[10px] font-black uppercase tracking-[0.2em] text-muted-foreground/60">{title}</p>
             {loading ? <Skeleton className="h-10 w-24 bg-muted/40" /> : (
-              <h2 className="text-3xl font-black font-headline tracking-tighter text-white">
-                <AnimatedValue value={value} isCurrency={isCurrency} suffix={suffix} />
-              </h2>
+              <div>
+                <h2 className="text-3xl font-black font-headline tracking-tighter text-white">
+                  <AnimatedValue value={value} isCurrency={isCurrency} suffix={suffix} />
+                </h2>
+                {periodLabel && (
+                  <p className="text-xs font-semibold text-slate-300/80 mt-1">
+                    {periodLabel}
+                  </p>
+                )}
+              </div>
             )}
           </div>
           <div className={cn("p-3 rounded-2xl shadow-lg shadow-black/5", iconBgClass, "text-white")}>
@@ -237,10 +237,13 @@ export default function DashboardPage() {
   const [liveOrders, setLiveOrders] = useState<{ pending: number; readyToShip: number }>({ pending: 0, readyToShip: 0 });
   const [trackRecord, setTrackRecord] = useState<TrackRecordEntry[]>([]);
   const [taskProgress, setTaskProgress] = useState<any>(null);
+  const [activeTasks, setActiveTasks] = useState(0);
   const [inventoryValue, setInventoryValue] = useState(0);
   const [totalPaymentReceived, setTotalPaymentReceived] = useState(0);
   const [netCashFlow, setNetCashFlow] = useState(0);
   const [fetchError, setFetchError] = useState<string | null>(null);
+
+  const [totalExpenses, setTotalExpenses] = useState(0);
 
   // Reconciliation Intelligence States
   const [reconciliationSummary, setReconciliationSummary] = useState<FinancialSummary | null>(null);
@@ -252,10 +255,25 @@ export default function DashboardPage() {
   const [financialsError, setFinancialsError] = useState<string | null>(null);
   const [isAiCopilotOpen, setIsAiCopilotOpen] = useState(false);
 
-  // Compute Last Month Range
-  const { startDate, endDate, label: periodLabel } = useMemo(() => getLastMonthRange(), []);
+  // Reconciliation Period Filter State - defaults to 'all' for 100% exact parity with Reconciliation page source-of-truth
+  const [filter, setFilter] = useState<ReconciliationDateFilter>({ range: 'all' });
+  const [activePreset, setActivePreset] = useState<'all' | 'this_month' | 'prev_month'>('all');
+  const [periodLabel, setPeriodLabel] = useState<string>('All Available Data');
 
-  const fetchAllData = useCallback(async (explicitAccountId?: string) => {
+  const netProfitPeriodLabel = useMemo(() => {
+    if (activePreset === 'prev_month') {
+      return format(subMonths(new Date(), 1), 'MMMM yyyy');
+    }
+    if (activePreset === 'this_month') {
+      return format(new Date(), 'MMMM yyyy');
+    }
+    if (periodLabel && periodLabel !== 'All Available Data') {
+      return periodLabel;
+    }
+    return format(new Date(), 'MMMM yyyy');
+  }, [activePreset, periodLabel]);
+
+  const fetchAllData = useCallback(async (explicitAccountId?: string, overrideFilter?: ReconciliationDateFilter) => {
     let targetAccountId = explicitAccountId || activeAccountId || getStoredAccountId();
     if (!targetAccountId) {
       const resolved = await resolveActiveAccount();
@@ -271,6 +289,8 @@ export default function DashboardPage() {
       return;
     }
 
+    const currentFilter = overrideFilter || filter;
+
     setLoading(true);
     setFetchError(null);
     setFinancialsError(null);
@@ -278,13 +298,21 @@ export default function DashboardPage() {
     try {
       const headers = { 'x-account-id': targetAccountId };
 
+      const params = new URLSearchParams();
+      if (currentFilter.range) params.set('range', currentFilter.range);
+      if (currentFilter.month) params.set('month', currentFilter.month);
+      if (currentFilter.year) params.set('year', currentFilter.year.toString());
+      if (currentFilter.startDate) params.set('startDate', currentFilter.startDate);
+      if (currentFilter.endDate) params.set('endDate', currentFilter.endDate);
+      const qs = params.toString() ? `?${params.toString()}` : '';
+
       // Execute all 5 server-side endpoints concurrently in parallel via allSettled for resilience
       const [dashRes, finRes, skuRes, dailyRes, decRes] = await Promise.allSettled([
         apiFetch('/api/dashboard', { headers }),
-        apiFetch(`/api/reconciliation/financials?startDate=${startDate}&endDate=${endDate}`, { headers }),
-        apiFetch(`/api/reconciliation/sku-analytics?startDate=${startDate}&endDate=${endDate}`, { headers }),
-        apiFetch(`/api/reconciliation/daily-analytics?startDate=${startDate}&endDate=${endDate}`, { headers }),
-        apiFetch(`/api/reconciliation/decision-engine?startDate=${startDate}&endDate=${endDate}`, { headers }),
+        apiFetch(`/api/reconciliation/financials${qs}`, { headers }),
+        apiFetch(`/api/reconciliation/sku-analytics${qs}`, { headers }),
+        apiFetch(`/api/reconciliation/daily-analytics${qs}`, { headers }),
+        apiFetch(`/api/reconciliation/decision-engine${qs}`, { headers }),
       ]);
 
       // 1. Process Operational Dashboard API response
@@ -299,9 +327,15 @@ export default function DashboardPage() {
             });
           }
           setTotalPaymentReceived(d.totalPaymentReceived || 0);
+          setTotalExpenses(d.totalExpenses || 0);
           setNetCashFlow(d.netCashFlow || 0);
           setInventoryValue(d.inventoryValue || 0);
           setTaskProgress(d.taskProgress || null);
+          if (typeof d.activeTasks === 'number') {
+            setActiveTasks(d.activeTasks);
+          } else if (d.taskProgress?.overall) {
+            setActiveTasks((d.taskProgress.overall.total || 0) - (d.taskProgress.overall.completed || 0));
+          }
           setTrackRecord(d.trackRecord || []);
         } catch (e) {
           console.error('Error parsing dashboard response:', e);
@@ -313,7 +347,11 @@ export default function DashboardPage() {
         try {
           const f = await finRes.value.json();
           if (f.success) {
-            setReconciliationSummary(f.summary || f.data || null);
+            const summaryData = f.summary || f.data || null;
+            setReconciliationSummary(summaryData);
+            if (f.period?.label) {
+              setPeriodLabel(f.period.label);
+            }
             setFinancialsError(null);
           } else {
             setFinancialsError(f.message || 'Failed to load reconciliation financials');
@@ -373,7 +411,19 @@ export default function DashboardPage() {
     } finally {
       setLoading(false);
     }
-  }, [activeAccountId, toast, startDate, endDate]);
+  }, [activeAccountId, toast, filter]);
+
+  const handlePresetChange = (preset: 'all' | 'this_month' | 'prev_month') => {
+    setActivePreset(preset);
+    let newFilter: ReconciliationDateFilter = { range: 'all' };
+    if (preset === 'this_month') {
+      newFilter = { range: 'month' };
+    } else if (preset === 'prev_month') {
+      newFilter = { month: getPrevMonthStr() };
+    }
+    setFilter(newFilter);
+    fetchAllData(undefined, newFilter);
+  };
 
   useEffect(() => {
     setIsMounted(true);
@@ -425,7 +475,53 @@ export default function DashboardPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
+          {/* Period Filter Presets */}
+          <div className="inline-flex rounded-xl p-1 bg-slate-900/60 border border-white/10 backdrop-blur-md shadow-inner">
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => handlePresetChange('all')}
+              className={cn(
+                'h-9 px-3 text-xs font-bold rounded-lg transition-all',
+                activePreset === 'all'
+                  ? 'bg-indigo-600 text-white shadow-md'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
+              )}
+            >
+              All Time
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => handlePresetChange('this_month')}
+              className={cn(
+                'h-9 px-3 text-xs font-bold rounded-lg transition-all',
+                activePreset === 'this_month'
+                  ? 'bg-indigo-600 text-white shadow-md'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
+              )}
+            >
+              This Month
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={() => handlePresetChange('prev_month')}
+              className={cn(
+                'h-9 px-3 text-xs font-bold rounded-lg transition-all',
+                activePreset === 'prev_month'
+                  ? 'bg-indigo-600 text-white shadow-md'
+                  : 'text-slate-300 hover:text-white hover:bg-white/5'
+              )}
+            >
+              Last Month
+            </Button>
+          </div>
+
           <AiAssistButton
             isOpen={isAiCopilotOpen}
             onClick={() => setIsAiCopilotOpen((prev) => !prev)}
@@ -501,7 +597,7 @@ export default function DashboardPage() {
           />
           <KpiCard 
             title="Active Tasks" 
-            value={(taskProgress?.overall?.total || 0) - (taskProgress?.overall?.completed || 0)} 
+            value={activeTasks} 
             icon={Zap} 
             description="Pending Execution" 
             gradient="from-blue-600 to-cyan-700" 
@@ -509,13 +605,14 @@ export default function DashboardPage() {
           />
           <KpiCard 
             title="Net Profit" 
-            value={summary?.net_profit || 0} 
+            value={reconciliationSummary ? reconciliationSummary.finalPayoutNetProfit : (summary?.net_profit || 0)} 
             icon={Target} 
             description="Post-Cost Ledger" 
             gradient="from-emerald-500 to-teal-600" 
             loading={loading} 
             isCurrency
-            trend={5}
+            trend={(reconciliationSummary?.finalPayoutNetProfit ?? summary?.net_profit ?? 0) >= 0 ? 5 : -5}
+            periodLabel={netProfitPeriodLabel}
           />
           <KpiCard 
             title="Inventory Value" 

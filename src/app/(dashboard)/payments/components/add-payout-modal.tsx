@@ -131,7 +131,7 @@ export function AddPayoutModal({ isOpen, onClose, onSuccess, payout, accountType
                       <Select onValueChange={field.onChange} value={field.value}>
                         <FormControl><SelectTrigger><SelectValue placeholder="Type" /></SelectTrigger></FormControl>
                         <SelectContent>
-                          <SelectItem value="Fashion">Fashion</SelectItem>
+                          <SelectItem value="Fashion">Rehanza</SelectItem>
                         </SelectContent>
                       </Select>
                       <FormMessage />

@@ -50,6 +50,7 @@ export async function GET(request: NextRequest) {
         row_count,
         successful_rows,
         failed_rows,
+        duplicate_rows,
         uploaded_at as created_at,
         uploaded_at as updated_at,
         metadata

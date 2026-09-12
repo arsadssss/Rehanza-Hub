@@ -10,6 +10,10 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: false, message: "Account not selected" }, { status: 400 });
     }
 
+    // Resolve account name to accurately segment task group workflows (e.g. 'Rehanza' vs 'Cosmetics')
+    const accountRow = await sql`SELECT name FROM accounts WHERE id = ${accountId} LIMIT 1;`.catch(() => []);
+    const accountName = accountRow[0]?.name || 'Rehanza';
+
     // Parallel execution of all required dashboard datasets
     const [
       orderSummary,
@@ -63,7 +67,7 @@ export async function GET(request: Request) {
         ORDER BY total_units_sold DESC
         LIMIT 7
       `,
-      // Total Payment Received from platform settlements
+      // Total Payment Received from platform settlements (Authoritative Payments source)
       sql`
         SELECT COALESCE(SUM(amount), 0)::numeric as total
         FROM platform_payouts
@@ -75,12 +79,12 @@ export async function GET(request: Request) {
         FROM vendor_purchases
         WHERE account_id = ${accountId} AND is_deleted = false
       `,
-      // Task progress counts for Fashion workflow
+      // Active Task progress counts matching the current account workflow
       sql`
         SELECT status, task_group
         FROM tasks
-        WHERE is_deleted = false AND task_group = 'Fashion'
-      `,
+        WHERE is_deleted = false AND (task_group ILIKE ${accountName} OR task_group ILIKE 'Fashion' OR task_group IS NULL)
+      `.catch(() => []),
       // Team Performance Track Record
       sql`
         SELECT 
@@ -130,20 +134,29 @@ export async function GET(request: Request) {
       return_rate: returnRate,
     };
 
-    // Task progress calculation
-    const fashionTasks = taskProgressRes.filter((t: any) => t.task_group === 'Fashion');
-    const fashionTotal = fashionTasks.length;
-    const fashionCompleted = fashionTasks.filter((t: any) => t.status === 'Completed').length;
+    // Task progress calculation reflecting actual active tasks
+    const currentTasks = (taskProgressRes || []).filter((t: any) =>
+      !t.task_group ||
+      t.task_group.toLowerCase() === accountName.toLowerCase() ||
+      (accountName.toLowerCase() === 'rehanza' && t.task_group.toLowerCase() === 'fashion') ||
+      t.task_group.toLowerCase() === 'fashion'
+    );
+    const taskTotal = currentTasks.length;
+    const taskCompleted = currentTasks.filter((t: any) => t.status === 'Completed').length;
+    const activeTasksCount = currentTasks.filter((t: any) => t.status !== 'Completed').length;
+
     const taskProgress = {
       fashion: {
-        total: fashionTotal,
-        completed: fashionCompleted,
-        percentage: fashionTotal > 0 ? (fashionCompleted / fashionTotal) * 100 : 0
+        total: taskTotal,
+        completed: taskCompleted,
+        percentage: taskTotal > 0 ? (taskCompleted / taskTotal) * 100 : 0
       },
       overall: {
-        total: fashionTotal,
-        completed: fashionCompleted
-      }
+        total: taskTotal,
+        completed: taskCompleted,
+        active: activeTasksCount
+      },
+      activeTasks: activeTasksCount
     };
 
     const totalPaymentReceived = Number(payoutRes[0]?.total || 0);
@@ -155,7 +168,9 @@ export async function GET(request: Request) {
       summary,
       netCashFlow,
       totalPaymentReceived,
+      totalExpenses,
       inventoryValue: Number(inventoryRes[0]?.total || 0),
+      activeTasks: activeTasksCount,
       taskProgress,
       trackRecord: (trackRecordRes || []).map((t: any) => ({
         user_name: t.user_name,

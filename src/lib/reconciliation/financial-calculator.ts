@@ -317,17 +317,10 @@ export async function calculateReconciliationFinancials(
         FROM reconciliation_rm_ads_raw a
         WHERE a.platform = 'Meesho'
           AND (
-            a.upload_id = (
+            a.account_id = ${accountId}
+            OR a.upload_id IN (
               SELECT id FROM reconciliation_uploads 
-              WHERE account_id = ${accountId} AND upload_type = 'rm_ads' AND status = 'completed'
-              ORDER BY id DESC LIMIT 1
-            )
-            OR (
-              a.account_id = ${accountId}
-              AND NOT EXISTS (
-                SELECT 1 FROM reconciliation_uploads 
-                WHERE account_id = ${accountId} AND upload_type = 'rm_ads' AND status = 'completed'
-              )
+              WHERE account_id = ${accountId}
             )
           )
           AND (
@@ -341,17 +334,10 @@ export async function calculateReconciliationFinancials(
         FROM reconciliation_rm_ads_raw a
         WHERE a.platform = 'Meesho'
           AND (
-            a.upload_id = (
+            a.account_id = ${accountId}
+            OR a.upload_id IN (
               SELECT id FROM reconciliation_uploads 
-              WHERE account_id = ${accountId} AND upload_type = 'rm_ads' AND status = 'completed'
-              ORDER BY id DESC LIMIT 1
-            )
-            OR (
-              a.account_id = ${accountId}
-              AND NOT EXISTS (
-                SELECT 1 FROM reconciliation_uploads 
-                WHERE account_id = ${accountId} AND upload_type = 'rm_ads' AND status = 'completed'
-              )
+              WHERE account_id = ${accountId}
             )
           )
       `;

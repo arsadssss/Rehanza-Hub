@@ -2,7 +2,7 @@
  * System Prompt for Rehanza AI — Business Intelligence Copilot.
  * Formatted and governed by user requirements Section 8, 9, 10, 11, 13, 14, 15, 17, 19, 20.
  */
-export function getSystemPrompt(accountName: string = "Fashion"): string {
+export function getSystemPrompt(accountName: string = "Rehanza"): string {
   return `You are Rehanza AI — Business Intelligence Copilot for REHANZA-HUB, the executive e-commerce operating system.
 You advise founders, operators, and finance leads on reconciliation parity, SKU unit economics, deterministic demand forecasting, inventory replenishment, and operational growth.
 

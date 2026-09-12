@@ -67,6 +67,7 @@ export function runDecisionEngineTests() {
     returnRate: 7.69, // < 15%
     rtoRate: 9.23, // < 20%
     deliveredRate: 69.23, // >= 50%
+    cancelRate: 6.15,
   };
 
   const scaleDec = evaluateSkuDecision(scaleSku);
@@ -110,6 +111,7 @@ export function runDecisionEngineTests() {
     returnRate: 29.17,
     rtoRate: 29.17,
     deliveredRate: 33.33,
+    cancelRate: 4.17,
   };
 
   const stopDec = evaluateSkuDecision(stopSku);
@@ -153,6 +155,7 @@ export function runDecisionEngineTests() {
     returnRate: 30.0,
     rtoRate: 15.0,
     deliveredRate: 40.0,
+    cancelRate: 10.0,
   };
 
   const returnDec = evaluateSkuDecision(returnSku);
@@ -195,6 +198,7 @@ export function runDecisionEngineTests() {
     returnRate: 8.57,
     rtoRate: 40.0,
     deliveredRate: 40.0,
+    cancelRate: 11.43,
   };
 
   const rtoDec = evaluateSkuDecision(rtoSku);
@@ -236,6 +240,7 @@ export function runDecisionEngineTests() {
     returnRate: 0,
     rtoRate: 33.33,
     deliveredRate: 66.67,
+    cancelRate: 0,
   };
 
   const lowVolDec = evaluateSkuDecision(lowVolSku);
@@ -278,6 +283,7 @@ export function runDecisionEngineTests() {
     returnRate: 0,
     rtoRate: 0,
     deliveredRate: 0,
+    cancelRate: 0,
   };
 
   const zeroRevDec = evaluateSkuDecision(zeroRevSku);
@@ -328,6 +334,7 @@ export function runDecisionEngineTests() {
     returnRate: 12.0,
     rtoRate: 16.0,
     deliveredRate: 52.0,
+    cancelRate: 8.0,
   };
 
   const healthyDec = evaluateSkuDecision(healthySku);

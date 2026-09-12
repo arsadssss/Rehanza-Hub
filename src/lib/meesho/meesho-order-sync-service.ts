@@ -149,22 +149,27 @@ export class MeeshoOrderSyncService {
     let updatedCount = 0;
     let newPendingCount = 0;
 
-    for (const order of orders) {
-      const isExisting = existingMap.has(order.subOrderId);
-      const previousStatus = existingMap.get(order.subOrderId);
+    const BATCH_SIZE = 25;
+    for (let i = 0; i < orders.length; i += BATCH_SIZE) {
+      const batch = orders.slice(i, i + BATCH_SIZE);
+      const notifQueries: any[] = [];
+      const upsertQueries: any[] = [];
 
-      if (isExisting) {
-        updatedCount++;
-      } else {
-        insertedCount++;
-      }
+      for (const order of batch) {
+        const isExisting = existingMap.has(order.subOrderId);
+        const previousStatus = existingMap.get(order.subOrderId);
 
-      // Check if this is a newly arrived pending order (brand-new OR transitioned to pending from a non-pending state)
-      if (order.status === 'pending') {
-        const isNewlyPending = !isExisting || (previousStatus && previousStatus !== 'pending');
-        if (isNewlyPending) {
-          try {
-            const notifInsert = await sql`
+        if (isExisting) {
+          updatedCount++;
+        } else {
+          insertedCount++;
+        }
+
+        // Check if this is a newly arrived pending order (brand-new OR transitioned to pending from a non-pending state)
+        if (order.status === 'pending') {
+          const isNewlyPending = !isExisting || (previousStatus && previousStatus !== 'pending');
+          if (isNewlyPending) {
+            notifQueries.push(sql`
               INSERT INTO meesho_order_notifications (
                 account_id,
                 marketplace,
@@ -183,86 +188,97 @@ export class MeeshoOrderSyncService {
               ON CONFLICT (account_id, marketplace, sub_order_id, notification_type)
               DO NOTHING
               RETURNING id;
-            `;
-            if (notifInsert && notifInsert.length > 0) {
+            `);
+          }
+        }
+
+        upsertQueries.push(sql`
+          INSERT INTO meesho_orders (
+            account_id,
+            marketplace,
+            order_id,
+            sub_order_id,
+            fulfillment_id,
+            status,
+            meesho_status_code,
+            order_date,
+            expected_dispatch_date,
+            sku,
+            product_name,
+            variation,
+            quantity,
+            carrier_id,
+            carrier_name,
+            awb,
+            packet_id,
+            cancellation_reason,
+            order_source,
+            raw_data,
+            synced_at,
+            updated_at
+          ) VALUES (
+            ${accountId},
+            'meesho',
+            ${order.orderId},
+            ${order.subOrderId},
+            ${order.fulfillmentId},
+            ${order.status},
+            ${order.meeshoStatusCode},
+            ${order.orderDate ? order.orderDate.toISOString() : null},
+            ${order.expectedDispatchDate ? order.expectedDispatchDate.toISOString() : null},
+            ${order.sku},
+            ${order.productName},
+            ${order.variation},
+            ${order.quantity},
+            ${order.carrierId},
+            ${order.carrierName},
+            ${order.awb},
+            ${order.packetId},
+            ${order.cancellationReason},
+            ${order.orderSource},
+            ${JSON.stringify(order.rawData)}::jsonb,
+            NOW(),
+            NOW()
+          )
+          ON CONFLICT (account_id, marketplace, sub_order_id)
+          DO UPDATE SET
+            fulfillment_id = COALESCE(EXCLUDED.fulfillment_id, meesho_orders.fulfillment_id),
+            status = EXCLUDED.status,
+            meesho_status_code = EXCLUDED.meesho_status_code,
+            order_date = COALESCE(EXCLUDED.order_date, meesho_orders.order_date),
+            expected_dispatch_date = COALESCE(EXCLUDED.expected_dispatch_date, meesho_orders.expected_dispatch_date),
+            sku = EXCLUDED.sku,
+            product_name = COALESCE(EXCLUDED.product_name, meesho_orders.product_name),
+            variation = COALESCE(EXCLUDED.variation, meesho_orders.variation),
+            quantity = EXCLUDED.quantity,
+            carrier_id = COALESCE(EXCLUDED.carrier_id, meesho_orders.carrier_id),
+            carrier_name = COALESCE(EXCLUDED.carrier_name, meesho_orders.carrier_name),
+            awb = COALESCE(EXCLUDED.awb, meesho_orders.awb),
+            packet_id = COALESCE(EXCLUDED.packet_id, meesho_orders.packet_id),
+            cancellation_reason = COALESCE(EXCLUDED.cancellation_reason, meesho_orders.cancellation_reason),
+            order_source = COALESCE(EXCLUDED.order_source, meesho_orders.order_source),
+            raw_data = EXCLUDED.raw_data,
+            synced_at = NOW(),
+            updated_at = NOW();
+        `);
+      }
+
+      if (notifQueries.length > 0) {
+        try {
+          const notifResults = await sql.transaction(notifQueries);
+          for (const nr of notifResults) {
+            if (nr && nr.length > 0) {
               newPendingCount++;
             }
-          } catch (notifErr: any) {
-            console.warn('[Order Sync Service] Could not record pending order notification:', notifErr.message);
           }
+        } catch (notifErr: any) {
+          console.warn('[Order Sync Service] Could not record pending order notification:', notifErr.message);
         }
       }
 
-      await sql`
-        INSERT INTO meesho_orders (
-          account_id,
-          marketplace,
-          order_id,
-          sub_order_id,
-          fulfillment_id,
-          status,
-          meesho_status_code,
-          order_date,
-          expected_dispatch_date,
-          sku,
-          product_name,
-          variation,
-          quantity,
-          carrier_id,
-          carrier_name,
-          awb,
-          packet_id,
-          cancellation_reason,
-          order_source,
-          raw_data,
-          synced_at,
-          updated_at
-        ) VALUES (
-          ${accountId},
-          'meesho',
-          ${order.orderId},
-          ${order.subOrderId},
-          ${order.fulfillmentId},
-          ${order.status},
-          ${order.meeshoStatusCode},
-          ${order.orderDate ? order.orderDate.toISOString() : null},
-          ${order.expectedDispatchDate ? order.expectedDispatchDate.toISOString() : null},
-          ${order.sku},
-          ${order.productName},
-          ${order.variation},
-          ${order.quantity},
-          ${order.carrierId},
-          ${order.carrierName},
-          ${order.awb},
-          ${order.packetId},
-          ${order.cancellationReason},
-          ${order.orderSource},
-          ${JSON.stringify(order.rawData)}::jsonb,
-          NOW(),
-          NOW()
-        )
-
-        ON CONFLICT (account_id, marketplace, sub_order_id)
-        DO UPDATE SET
-          fulfillment_id = COALESCE(EXCLUDED.fulfillment_id, meesho_orders.fulfillment_id),
-          status = EXCLUDED.status,
-          meesho_status_code = EXCLUDED.meesho_status_code,
-          order_date = COALESCE(EXCLUDED.order_date, meesho_orders.order_date),
-          expected_dispatch_date = COALESCE(EXCLUDED.expected_dispatch_date, meesho_orders.expected_dispatch_date),
-          sku = EXCLUDED.sku,
-          product_name = COALESCE(EXCLUDED.product_name, meesho_orders.product_name),
-          variation = COALESCE(EXCLUDED.variation, meesho_orders.variation),
-          quantity = EXCLUDED.quantity,
-          carrier_id = COALESCE(EXCLUDED.carrier_id, meesho_orders.carrier_id),
-          carrier_name = COALESCE(EXCLUDED.carrier_name, meesho_orders.carrier_name),
-          awb = COALESCE(EXCLUDED.awb, meesho_orders.awb),
-          packet_id = COALESCE(EXCLUDED.packet_id, meesho_orders.packet_id),
-          cancellation_reason = COALESCE(EXCLUDED.cancellation_reason, meesho_orders.cancellation_reason),
-          order_source = COALESCE(EXCLUDED.order_source, meesho_orders.order_source),
-          raw_data = EXCLUDED.raw_data,
-          synced_at = NOW(),
-          updated_at = NOW();
-      `;
+      if (upsertQueries.length > 0) {
+        await sql.transaction(upsertQueries);
+      }
     }
 
     return {

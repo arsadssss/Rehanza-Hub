@@ -16,6 +16,7 @@ import { UploadSection } from './_components/upload-section';
 import { ImportHistory, UploadRecord } from './_components/import-history';
 import { SkuCostMaster } from './_components/sku-cost-master';
 import { FinancialDashboard } from './_components/financial-dashboard';
+import { ResetReconciliationDialog } from './_components/reset-reconciliation-dialog';
 import { cn } from '@/lib/utils';
 import { apiFetch } from '@/lib/apiFetch';
 import { resolveActiveAccount } from '@/lib/account';
@@ -24,7 +25,7 @@ export default function ReconciliationPage() {
   const { toast } = useToast();
   const [isMounted, setIsMounted] = useState(false);
   const [activeAccountId, setActiveAccountId] = useState<string | null>(null);
-  const [activeAccountName, setActiveAccountName] = useState<string>('Fashion');
+  const [activeAccountName, setActiveAccountName] = useState<string>('Rehanza');
   const [uploads, setUploads] = useState<UploadRecord[]>([]);
   const [loadingUploads, setLoadingUploads] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -39,14 +40,14 @@ export default function ReconciliationPage() {
       const acc = await resolveActiveAccount();
       if (acc?.id) {
         setActiveAccountId(acc.id);
-        setActiveAccountName(acc.name || 'Fashion');
+        setActiveAccountName(acc.name || 'Rehanza');
       }
     }
     initAccount();
 
     const handleAccountInit = (e: any) => {
       const freshId = e?.detail?.id || sessionStorage.getItem('active_account');
-      const freshName = e?.detail?.name || sessionStorage.getItem('active_account_name') || 'Fashion';
+      const freshName = e?.detail?.name || sessionStorage.getItem('active_account_name') || 'Rehanza';
       if (freshId) {
         setActiveAccountId(freshId);
         setActiveAccountName(freshName);
@@ -107,6 +108,12 @@ export default function ReconciliationPage() {
     });
   };
 
+  const handleResetComplete = () => {
+    fetchUploads();
+    setSkuMasterRefreshTrigger((prev) => prev + 1);
+    setFinancialRefreshTrigger((prev) => prev + 1);
+  };
+
   if (!isMounted) return null;
 
   return (
@@ -139,6 +146,11 @@ export default function ReconciliationPage() {
             <div className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
             <span>Reconciliation Engine Active</span>
           </Badge>
+          <ResetReconciliationDialog
+            accountId={activeAccountId}
+            accountName={activeAccountName}
+            onResetComplete={handleResetComplete}
+          />
           <Button
             onClick={handleGlobalRefresh}
             disabled={refreshing}
