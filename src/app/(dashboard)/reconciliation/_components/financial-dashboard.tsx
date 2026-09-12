@@ -18,9 +18,14 @@ import { exportFinancialSummaryToCSV } from '@/lib/reconciliation/export-utils';
 interface FinancialDashboardProps {
   accountId: string;
   refreshTrigger?: number; // Increment to trigger refresh from parent
+  onSummaryChange?: (summary: FinancialSummary | null) => void;
 }
 
-export function FinancialDashboard({ accountId, refreshTrigger }: FinancialDashboardProps) {
+export function FinancialDashboard({
+  accountId,
+  refreshTrigger,
+  onSummaryChange,
+}: FinancialDashboardProps) {
   const [summary, setSummary] = useState<FinancialSummary | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
@@ -48,14 +53,16 @@ export function FinancialDashboard({ accountId, refreshTrigger }: FinancialDashb
       }
 
       const data = await res.json();
-      setSummary(data.summary || null);
+      const s = data.summary || null;
+      setSummary(s);
+      onSummaryChange?.(s);
     } catch (err: any) {
       console.error('Financial Dashboard fetch error:', err);
       setError(err.message || 'Failed to communicate with reconciliation service.');
     } finally {
       setLoading(false);
     }
-  }, [accountId]);
+  }, [accountId, onSummaryChange]);
 
   useEffect(() => {
     fetchFinancials(filter);

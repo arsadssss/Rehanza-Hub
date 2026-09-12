@@ -4,11 +4,16 @@
  * Handles lifecycle commands for browser sessions and authenticates with Rehanza-Hub.
  */
 
+import 'dotenv/config';
 import http from 'http';
 import path from 'path';
 import { MeeshoBrowserManager } from './browser-manager';
 import { MeeshoSyncScheduler } from './sync-scheduler';
 import { WorkerConfig } from './types';
+
+if (process.env.NODE_ENV === 'production' && !process.env.MEESHO_WORKER_SECRET) {
+  throw new Error('FATAL: MEESHO_WORKER_SECRET environment variable is required in production.');
+}
 
 const PORT = parseInt(process.env.MEESHO_WORKER_PORT || '9005', 10);
 const HUB_URL = process.env.MEESHO_HUB_URL || 'http://localhost:9002';
@@ -226,9 +231,22 @@ const server = http.createServer(async (req, res) => {
 
   } catch (error: any) {
     console.error('[Meesho Worker] Server Error:', error);
-    return sendJson(res, 500, {
+    const msg = error.message || 'Internal server error';
+    let statusCode = 500;
+    let errorCode = 'INTERNAL_ERROR';
+
+    if (msg.includes('No authenticated session state found')) {
+      statusCode = 400;
+      errorCode = 'SESSION_NOT_FOUND';
+    } else if (msg.includes('supplier identity could not be resolved')) {
+      statusCode = 422;
+      errorCode = 'IDENTITY_UNRESOLVED';
+    }
+
+    return sendJson(res, statusCode, {
       success: false,
-      error: error.message || 'Internal server error',
+      error: msg,
+      code: errorCode,
     });
   }
 });

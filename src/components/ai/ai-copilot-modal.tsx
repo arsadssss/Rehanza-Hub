@@ -141,6 +141,7 @@ export function AiCopilotModal({ isOpen, onClose, activeAccountId }: AiCopilotMo
   const [inputValue, setInputValue] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [viewportHeight, setViewportHeight] = useState<number | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
@@ -152,9 +153,50 @@ export function AiCopilotModal({ isOpen, onClose, activeAccountId }: AiCopilotMo
     }
   }, [messages, loading, isOpen]);
 
-  // Focus input when opened
+  // Mobile keyboard and visualViewport tracking
   useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) return;
+
+    const updateViewport = () => {
+      if (typeof window !== "undefined" && window.visualViewport && window.innerWidth < 768) {
+        setViewportHeight(window.visualViewport.height);
+      } else {
+        setViewportHeight(null);
+      }
+    };
+
+    updateViewport();
+    const vv = typeof window !== "undefined" ? window.visualViewport : null;
+    vv?.addEventListener("resize", updateViewport);
+    vv?.addEventListener("scroll", updateViewport);
+    window.addEventListener("resize", updateViewport);
+
+    return () => {
+      vv?.removeEventListener("resize", updateViewport);
+      vv?.removeEventListener("scroll", updateViewport);
+      window.removeEventListener("resize", updateViewport);
+    };
+  }, [isOpen]);
+
+  // Lock body scroll on mobile when modal is open
+  useEffect(() => {
+    if (!isOpen) return;
+    if (typeof window === "undefined" || window.innerWidth >= 768) return;
+
+    const originalOverflow = document.body.style.overflow;
+    const originalTouchAction = document.body.style.touchAction;
+    document.body.style.overflow = "hidden";
+    document.body.style.touchAction = "none";
+
+    return () => {
+      document.body.style.overflow = originalOverflow;
+      document.body.style.touchAction = originalTouchAction;
+    };
+  }, [isOpen]);
+
+  // Focus input when opened (Desktop only to avoid mobile keyboard layout jumps)
+  useEffect(() => {
+    if (isOpen && typeof window !== "undefined" && window.innerWidth >= 768) {
       setTimeout(() => inputRef.current?.focus(), 150);
     }
   }, [isOpen]);
@@ -170,9 +212,20 @@ export function AiCopilotModal({ isOpen, onClose, activeAccountId }: AiCopilotMo
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isOpen, onClose]);
 
+  const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setInputValue(e.target.value);
+    const target = e.target;
+    target.style.height = "auto";
+    target.style.height = `${Math.min(target.scrollHeight, 120)}px`;
+  };
+
   const handleSendMessage = async (userPrompt: string) => {
     const text = userPrompt.trim();
     if (!text || loading) return;
+
+    if (inputRef.current) {
+      inputRef.current.style.height = "auto";
+    }
 
     const userMessageId = "msg-" + Date.now();
     const newUserMessage: ChatMessage = {
@@ -259,24 +312,29 @@ export function AiCopilotModal({ isOpen, onClose, activeAccountId }: AiCopilotMo
     <>
       {/* Backdrop for mobile */}
       <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-40 md:hidden animate-in fade-in duration-200"
+        className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[99] md:hidden animate-in fade-in duration-200"
         onClick={onClose}
       />
 
       {/* Floating Assistant Window */}
       <div
+        style={
+          viewportHeight
+            ? { height: `${viewportHeight}px`, top: 0, bottom: "auto" }
+            : undefined
+        }
         className={cn(
-          "fixed z-50 flex flex-col font-body border border-indigo-500/30 bg-slate-950/90 backdrop-blur-2xl shadow-2xl shadow-indigo-950/70 overflow-hidden transition-all duration-300 animate-in fade-in zoom-in-95",
+          "fixed z-[100] flex flex-col font-body border border-indigo-500/30 bg-slate-950/95 backdrop-blur-2xl shadow-2xl shadow-indigo-950/70 overflow-hidden transition-all duration-200",
           // Desktop positioning: aligned right near the AI Assist button
-          "md:top-20 md:right-8 md:w-[480px] md:h-[80vh] md:max-h-[740px] md:rounded-3xl",
-          // Mobile positioning: bottom sheet / near full screen
-          "inset-x-2 bottom-2 top-16 rounded-2xl md:inset-x-auto"
+          "md:top-20 md:right-8 md:w-[480px] md:h-[80vh] md:max-h-[740px] md:rounded-3xl md:inset-auto",
+          // Mobile positioning: full screen bottom-sheet style with safe-area support
+          "inset-0 h-[100dvh] w-full rounded-none md:rounded-3xl"
         )}
       >
         {/* Top Header */}
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-white/10 bg-slate-900/60 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center shadow-md shadow-indigo-500/20 border border-white/20">
+        <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-white/10 bg-slate-900/80 shrink-0 pt-[max(0.75rem,env(safe-area-inset-top,0px))]">
+          <div className="flex items-center gap-2.5 sm:gap-3">
+            <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center shadow-md shadow-indigo-500/20 border border-white/20 shrink-0">
               <Sparkles className="h-4 w-4 text-white" />
             </div>
             <div>
@@ -289,7 +347,7 @@ export function AiCopilotModal({ isOpen, onClose, activeAccountId }: AiCopilotMo
                   Connected
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 font-medium">
+              <p className="text-[11px] text-slate-400 font-medium line-clamp-1">
                 Your business intelligence assistant
               </p>
             </div>
@@ -300,7 +358,8 @@ export function AiCopilotModal({ isOpen, onClose, activeAccountId }: AiCopilotMo
               <button
                 onClick={handleResetChat}
                 title="Start new conversation"
-                className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+                aria-label="Start new conversation"
+                className="h-9 w-9 flex items-center justify-center rounded-xl text-slate-400 hover:text-white hover:bg-white/10 active:bg-white/15 transition-colors"
               >
                 <RotateCcw className="h-4 w-4" />
               </button>
@@ -308,7 +367,8 @@ export function AiCopilotModal({ isOpen, onClose, activeAccountId }: AiCopilotMo
             <button
               onClick={onClose}
               title="Close Rehanza AI"
-              className="p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/10 transition-colors"
+              aria-label="Close Rehanza AI"
+              className="h-9 w-9 flex items-center justify-center rounded-xl text-slate-400 hover:text-white hover:bg-white/10 active:bg-white/15 transition-colors"
             >
               <X className="h-4 w-4" />
             </button>
@@ -316,24 +376,24 @@ export function AiCopilotModal({ isOpen, onClose, activeAccountId }: AiCopilotMo
         </div>
 
         {/* Conversation Area */}
-        <div className="flex-1 overflow-y-auto p-4 space-y-4 scroll-smooth">
+        <div className="flex-1 overflow-y-auto p-3.5 sm:p-4 space-y-4 overscroll-contain touch-pan-y scroll-smooth">
           {messages.length === 0 ? (
             /* Welcome State */
-            <div className="h-full flex flex-col justify-between py-2 space-y-5">
-              <div className="text-center space-y-2 pt-2">
-                <div className="mx-auto h-12 w-12 rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-600 to-indigo-700 flex items-center justify-center shadow-xl shadow-indigo-500/30 border border-white/20">
-                  <Bot className="h-6 w-6 text-white" />
+            <div className="flex flex-col py-1 space-y-4">
+              <div className="text-center space-y-1.5 pt-1">
+                <div className="mx-auto h-11 w-11 sm:h-12 sm:w-12 rounded-2xl bg-gradient-to-br from-indigo-500 via-purple-600 to-indigo-700 flex items-center justify-center shadow-xl shadow-indigo-500/30 border border-white/20">
+                  <Bot className="h-5 w-5 sm:h-6 sm:w-6 text-white" />
                 </div>
                 <h4 className="text-base font-black text-white font-headline tracking-tight">
                   Hi, I&apos;m Rehanza AI.
                 </h4>
-                <p className="text-xs text-slate-300 max-w-sm mx-auto leading-relaxed">
+                <p className="text-xs text-slate-300 max-w-sm mx-auto leading-relaxed px-2">
                   I can analyze your business, explain your numbers, find risks, forecast inventory and help you decide what to do next.
                 </p>
               </div>
 
               {/* Quick Action Chips */}
-              <div className="space-y-2 pt-2">
+              <div className="space-y-2 pt-1">
                 <span className="text-[11px] font-bold uppercase tracking-widest text-slate-400 px-1">
                   Quick Analysis
                 </span>
@@ -345,14 +405,14 @@ export function AiCopilotModal({ isOpen, onClose, activeAccountId }: AiCopilotMo
                         key={idx}
                         onClick={() => handleSendMessage(action.prompt)}
                         className={cn(
-                          "flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition-all duration-200 group bg-slate-900/40 hover:bg-slate-900/80 hover:border-indigo-400/50 hover:shadow-md hover:scale-[1.01] active:scale-[0.99]",
+                          "flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition-all duration-200 group bg-slate-900/40 hover:bg-slate-900/80 hover:border-indigo-400/50 active:scale-[0.98]",
                           action.color
                         )}
                       >
                         <div className="p-1.5 rounded-lg bg-white/5 group-hover:bg-white/10 shrink-0">
                           <Icon className="h-3.5 w-3.5" />
                         </div>
-                        <span className="text-xs font-bold text-slate-200 group-hover:text-white line-clamp-1">
+                        <span className="text-xs font-bold text-slate-200 group-hover:text-white truncate">
                           {action.label}
                         </span>
                       </button>
@@ -361,7 +421,7 @@ export function AiCopilotModal({ isOpen, onClose, activeAccountId }: AiCopilotMo
                 </div>
               </div>
 
-              <div className="p-3 rounded-xl border border-white/5 bg-white/[0.02] text-center">
+              <div className="p-2.5 sm:p-3 rounded-xl border border-white/5 bg-white/[0.02] text-center">
                 <p className="text-[11px] text-slate-400">
                   💡 Answers are generated in real-time from your live reconciliation, inventory, and SKU data.
                 </p>
@@ -380,7 +440,7 @@ export function AiCopilotModal({ isOpen, onClose, activeAccountId }: AiCopilotMo
                 >
                   <div
                     className={cn(
-                      "p-3.5 rounded-2xl text-xs leading-relaxed max-w-[92%]",
+                      "p-3 sm:p-3.5 rounded-2xl text-xs leading-relaxed max-w-[92%] sm:max-w-[85%] break-words",
                       msg.role === "user"
                         ? "bg-gradient-to-br from-indigo-600/40 to-purple-600/30 border border-indigo-500/40 text-slate-100 rounded-tr-sm shadow-md"
                         : "bg-slate-900/75 border border-white/10 text-slate-200 rounded-tl-sm shadow-xl"
@@ -451,7 +511,7 @@ export function AiCopilotModal({ isOpen, onClose, activeAccountId }: AiCopilotMo
         </div>
 
         {/* Message Composer Footer */}
-        <div className="p-3 border-t border-white/10 bg-slate-900/70 shrink-0">
+        <div className="p-2.5 sm:p-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] border-t border-white/10 bg-slate-900/80 backdrop-blur-md shrink-0">
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -463,19 +523,19 @@ export function AiCopilotModal({ isOpen, onClose, activeAccountId }: AiCopilotMo
               <textarea
                 ref={inputRef}
                 value={inputValue}
-                onChange={(e) => setInputValue(e.target.value)}
+                onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
                 rows={1}
                 placeholder="Ask Rehanza AI anything about your business..."
                 disabled={loading}
-                className="w-full resize-none rounded-xl border border-white/10 bg-slate-950/60 px-3.5 py-2.5 text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 disabled:opacity-50 min-h-[38px] max-h-[96px]"
+                className="w-full resize-none rounded-xl border border-white/10 bg-slate-950/60 px-3.5 py-2.5 text-[16px] md:text-xs text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500/50 disabled:opacity-50 min-h-[42px] max-h-[120px] leading-snug transition-all"
               />
             </div>
             <Button
               type="submit"
               size="icon"
               disabled={loading || !inputValue.trim()}
-              className="h-10 w-10 rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-md shadow-indigo-600/30 shrink-0 disabled:opacity-40 disabled:pointer-events-none transition-all"
+              className="h-[42px] w-[42px] rounded-xl bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white shadow-md shadow-indigo-600/30 shrink-0 disabled:opacity-40 disabled:pointer-events-none transition-all active:scale-95 flex items-center justify-center"
             >
               {loading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -484,12 +544,12 @@ export function AiCopilotModal({ isOpen, onClose, activeAccountId }: AiCopilotMo
               )}
             </Button>
           </form>
-          <div className="flex justify-between items-center mt-1.5 px-1">
-            <span className="text-[10px] text-slate-500">
+          <div className="flex justify-between items-center mt-1.5 px-1 text-[10px]">
+            <span className="text-slate-500 hidden sm:inline">
               Press Enter to send, Shift+Enter for new line
             </span>
-            <span className="text-[10px] text-indigo-400/80 font-medium">
-              Powered by Live REHANZA-HUB Intelligence
+            <span className="text-indigo-400/80 font-medium ml-auto sm:ml-0">
+              Live REHANZA-HUB Intelligence
             </span>
           </div>
         </div>

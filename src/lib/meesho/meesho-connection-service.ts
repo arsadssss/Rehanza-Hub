@@ -148,6 +148,9 @@ export class MeeshoConnectionService {
 
     if (workerBaseUrl) {
       const cleanBase = workerBaseUrl.replace(/\/+$/, '');
+      if (process.env.NODE_ENV === 'production' && !process.env.MEESHO_WORKER_SECRET) {
+        throw new Error('Configuration error: MEESHO_WORKER_SECRET is required in production.');
+      }
       const secret = process.env.MEESHO_WORKER_SECRET || 'dev_meesho_worker_secret';
       try {
         console.log(`[Meesho Connection Service] Dispatching /sessions/start for account ${accountId.slice(0, 8)}... (ticket prefix: ${ticket.slice(0, 8)}...) to worker at ${cleanBase}`);
@@ -162,7 +165,7 @@ export class MeeshoConnectionService {
         const workerJson = await workerRes.json().catch(() => ({}));
         console.log(`[Meesho Connection Service] Worker response: HTTP ${workerRes.status}, success=${workerJson.success}`);
       } catch (err: any) {
-        console.warn(`[Meesho Connection Service] Could not notify worker: ${err.message}`);
+        console.warn(`[Meesho Connection Service] Could not notify worker (${cleanBase}): ${err.message}`);
       }
     }
 

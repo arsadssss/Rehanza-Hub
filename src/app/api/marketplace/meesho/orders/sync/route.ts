@@ -45,9 +45,18 @@ export async function POST(request: Request) {
     return NextResponse.json({ success: true, data: result });
   } catch (error: any) {
     console.error('[API /api/marketplace/meesho/orders/sync] Error:', error);
+    const msg = error.message || 'Internal server error';
+    let status = error.statusCode || 500;
+    if (!error.statusCode) {
+      if (msg.includes('not connected') || msg.includes('connect first') || msg.includes('No authenticated session')) {
+        status = 400;
+      } else if (msg.includes('unreachable') || msg.includes('ECONNREFUSED') || msg.includes('fetch failed')) {
+        status = 503;
+      }
+    }
     return NextResponse.json(
-      { success: false, error: error.message || 'Internal server error' },
-      { status: 500 }
+      { success: false, error: msg, code: error.code },
+      { status }
     );
   }
 }

@@ -101,8 +101,15 @@ export class MeeshoBrowserManager {
 
     // Track any new tabs / popups opened within this context
     context.on('page', (newPage) => {
-      console.log(`[Meesho Worker] [${accountId.slice(0, 8)}...] New tab/window opened in context. Current URL: ${newPage.url()}`);
       session.page = newPage;
+      const initialUrl = newPage.url().split('?')[0];
+      console.log(`[Meesho Worker] [${accountId.slice(0, 8)}...] New tab/window opened in context. URL: ${initialUrl}`);
+      newPage.on('framenavigated', (frame) => {
+        if (frame === newPage.mainFrame()) {
+          const safeNavUrl = newPage.url().split('?')[0];
+          console.log(`[Meesho Worker] [${accountId.slice(0, 8)}...] Page navigated: ${safeNavUrl}`);
+        }
+      });
       newPage.on('close', () => {
         console.log(`[Meesho Worker] [${accountId.slice(0, 8)}...] A tab was closed in context.`);
       });
@@ -170,7 +177,7 @@ export class MeeshoBrowserManager {
         }
 
         // Check context cookies (SAFE: check names only, never log values)
-        const cookies = await browserContext?.cookies();
+        const cookies = await browserContext?.cookies().catch(() => []);
         const cookieNames = (cookies || []).map((c) => c.name);
 
         const hasAuthCookies = (cookies || []).some((c) => {
@@ -187,41 +194,48 @@ export class MeeshoBrowserManager {
 
         // Evaluate all open pages for authenticated state
         for (const activePage of openPages) {
+          if (activePage.isClosed()) continue;
           const currentUrl = activePage.url();
 
-          // 1. URL Authentication Signal
-          const isNotLoginUrl =
-            !currentUrl.includes('/login') &&
-            !currentUrl.includes('/signup') &&
-            !currentUrl.endsWith('/root');
+          // 1. URL Authentication Signal: Identify login paths specifically
+          const isLoginUrl =
+            currentUrl.includes('/login') ||
+            currentUrl.includes('/signin') ||
+            currentUrl.includes('/signup') ||
+            currentUrl.includes('/register') ||
+            currentUrl.includes('/auth/otp') ||
+            currentUrl.includes('/root/login');
+
+          const isNotLoginUrl = !isLoginUrl;
 
           const isPanelUrl =
-            currentUrl.startsWith(MEESHO_PANEL_BASE) ||
-            currentUrl.includes('supplier.meesho.com/panel/v3/new/');
+            currentUrl.includes('supplier.meesho.com/panel/') ||
+            currentUrl.startsWith(MEESHO_PANEL_BASE);
 
           const hasDashboardPath =
-            currentUrl.includes('/growth/') ||
+            currentUrl.includes('/growth') ||
+            currentUrl.includes('/fulfillment') ||
             currentUrl.includes('/home') ||
             currentUrl.includes('/orders') ||
             currentUrl.includes('/payments') ||
+            currentUrl.includes('/payouts') ||
             currentUrl.includes('/catalogs') ||
-            currentUrl.includes('/returns');
+            currentUrl.includes('/returns') ||
+            currentUrl.includes('/root');
 
           const isAuthUrlMatch = isPanelUrl && isNotLoginUrl;
 
           // 2. DOM Signals: Inspect page without capturing sensitive data
           let hasAuthDom = false;
+          let hasNoPasswordInputs = true;
           let supplierName: string | undefined;
-          let supplierId: string | undefined;
 
           try {
-            // Check if password inputs are gone
             const passwordInputs = await activePage.$$('input[type="password"]');
-            const hasNoPasswordInputs = passwordInputs.length === 0;
+            hasNoPasswordInputs = passwordInputs.length === 0;
 
-            // Check for navigation / dashboard shell
             const shellElement = await activePage.$(
-              'nav, aside, header, [data-testid*="supplier"], [class*="Supplier"], [class*="profile"], [class*="dashboard"]'
+              'nav, aside, header, [data-testid*="supplier"], [class*="Supplier"], [class*="profile"], [class*="dashboard"], [data-testid*="header"], [data-testid*="sidebar"]'
             );
 
             if (shellElement && hasNoPasswordInputs && isNotLoginUrl) {
@@ -230,32 +244,96 @@ export class MeeshoBrowserManager {
 
             // Extract supplier display name if visible
             const nameEl = await activePage.$(
-              '[data-testid="supplier-name"], [class*="SupplierName"], [class*="profile-name"], [class*="supplierName"]'
+              '[data-testid="supplier-name"], [class*="SupplierName"], [class*="profile-name"], [class*="supplierName"], [data-testid*="user-name"]'
             );
             if (nameEl) {
-              const text = await nameEl.innerText();
+              const text = await nameEl.innerText().catch(() => '');
               if (text) supplierName = text.trim();
             }
           } catch {
             // DOM inspection is non-blocking
           }
 
-          // Dynamically detect supplier details from URL or prefetch
-          let detectedIdentifier: string | undefined;
-          let detectedNumericId: number | undefined;
-          let detectedSupplierName: string | undefined = supplierName;
+          // 3. Storage Signals: Inspect localStorage & sessionStorage for auth tokens
+          let hasStorageAuth = false;
+          let storageSupplierId: string | undefined;
+          let storageSupplierName: string | undefined;
+          try {
+            const storageData = await activePage.evaluate(() => {
+              try {
+                let authFound = false;
+                let sId: string | undefined;
+                let sName: string | undefined;
 
-          const panelMatch = currentUrl.match(/\/panel\/v3\/new\/(?:growth|fulfillment|payouts|home|pricing|catalog|notices|inventory)\/([a-zA-Z0-9_-]+)/);
-          if (panelMatch && panelMatch[1] && !['root', 'login', 'signup'].includes(panelMatch[1])) {
+                const checkStorage = (store: Storage) => {
+                  for (let i = 0; i < store.length; i++) {
+                    const k = store.key(i);
+                    if (!k) continue;
+                    const val = store.getItem(k) || '';
+                    const lk = k.toLowerCase();
+                    if (
+                      lk.includes('token') ||
+                      lk.includes('auth') ||
+                      lk.includes('session') ||
+                      lk.includes('user') ||
+                      lk.includes('supplier')
+                    ) {
+                      if (val && val.length > 5) authFound = true;
+                    }
+                    if (val.includes('supplier_id') || val.includes('identifier')) {
+                      try {
+                        const parsed = JSON.parse(val);
+                        if (parsed.supplier_id) sId = String(parsed.supplier_id);
+                        if (parsed.identifier) sId = sId || parsed.identifier;
+                        if (parsed.name || parsed.supplier_name) sName = parsed.name || parsed.supplier_name;
+                      } catch {}
+                    }
+                  }
+                };
+
+                checkStorage(localStorage);
+                checkStorage(sessionStorage);
+                return { authFound, sId, sName };
+              } catch {
+                return { authFound: false };
+              }
+            }).catch(() => null);
+
+            if (storageData?.authFound) hasStorageAuth = true;
+            if (storageData?.sId) storageSupplierId = storageData.sId;
+            if (storageData?.sName) storageSupplierName = storageData.sName;
+          } catch {
+            // Storage inspection is non-blocking
+          }
+
+          // Dynamically detect supplier details from URL
+          let detectedIdentifier: string | undefined = storageSupplierId;
+          let detectedNumericId: number | undefined;
+          let detectedSupplierName: string | undefined = supplierName || storageSupplierName;
+
+          const panelMatch = currentUrl.match(
+            /\/panel\/v3\/new\/(?:growth|fulfillment|payouts|home|pricing|catalog|notices|inventory|root)\/([a-zA-Z0-9_-]+)/
+          );
+          if (panelMatch && panelMatch[1] && !['root', 'login', 'signup', 'signin'].includes(panelMatch[1])) {
             detectedIdentifier = panelMatch[1];
           }
 
+          try {
+            const parsedUrl = new URL(currentUrl);
+            const queryIdent = parsedUrl.searchParams.get('identifier') || parsedUrl.searchParams.get('supplier_id');
+            if (queryIdent && !detectedIdentifier) {
+              detectedIdentifier = queryIdent;
+            }
+          } catch {}
+
           // Positive authentication condition:
-          // Either URL indicates panel dashboard (and not login), or (on meesho domain with auth cookies and auth DOM)
-          if (
-            (isAuthUrlMatch && (hasDashboardPath || hasAuthCookies || hasAuthDom)) ||
-            (currentUrl.includes('supplier.meesho.com') && hasAuthCookies && hasAuthDom && isNotLoginUrl)
-          ) {
+          // Either URL indicates panel dashboard (and not login), or on meesho domain with auth cookies/storage and panel DOM
+          const isPositiveAuth =
+            (isAuthUrlMatch && (hasDashboardPath || hasAuthCookies || hasStorageAuth || hasAuthDom)) ||
+            (currentUrl.includes('supplier.meesho.com') && (hasAuthCookies || hasStorageAuth) && hasAuthDom && isNotLoginUrl) ||
+            (currentUrl.includes('supplier.meesho.com') && (hasAuthCookies || hasStorageAuth) && hasDashboardPath && isNotLoginUrl);
+
+          if (isPositiveAuth) {
             clearInterval(intervalId);
 
             // Fetch prefetch-supply-data directly on activePage to extract exact supplier metadata
@@ -269,7 +347,7 @@ export class MeeshoBrowserManager {
                   body: ident ? JSON.stringify({ identifier: ident }) : JSON.stringify({}),
                 }).catch(() => null);
                 return res && res.ok ? await res.json().catch(() => null) : null;
-              }, detectedIdentifier);
+              }, detectedIdentifier).catch(() => null);
 
               if (prefetch?.supplier) {
                 if (prefetch.supplier.identifier) detectedIdentifier = prefetch.supplier.identifier;
@@ -287,6 +365,45 @@ export class MeeshoBrowserManager {
                 }
               }
             } catch {}
+
+            // Extract from cookies if available
+            const sidCookie = (cookies || []).find((c: any) => c.name === 's_id' || c.name === 'supplier_id');
+            if (!detectedNumericId && sidCookie?.value && /^\d+$/.test(sidCookie.value)) {
+              detectedNumericId = Number(sidCookie.value);
+            }
+            const azCookie = (cookies || []).find((c: any) => c.name === 'current_az_identifier');
+            if (!detectedIdentifier && azCookie?.value) {
+              detectedIdentifier = azCookie.value;
+            }
+
+            // Extract from window.__NEXT_DATA__ if available
+            try {
+              const pageMeta = await activePage.evaluate(() => {
+                const w = window as any;
+                const nextProps = w.__NEXT_DATA__?.props?.pageProps;
+                return {
+                  sId: nextProps?.supplierId || nextProps?.supplier_id || nextProps?.supplier?.id || nextProps?.supplier_details?.id,
+                  ident: nextProps?.supplierIdentifier || nextProps?.supplier_identifier || nextProps?.identifier,
+                  name: nextProps?.supplierName || nextProps?.supplier?.name,
+                };
+              }).catch(() => null);
+              if (pageMeta) {
+                if (!detectedNumericId && pageMeta.sId && /^\d+$/.test(String(pageMeta.sId))) {
+                  detectedNumericId = Number(pageMeta.sId);
+                }
+                if (!detectedIdentifier && pageMeta.ident) {
+                  detectedIdentifier = pageMeta.ident;
+                }
+                if (!detectedSupplierName && pageMeta.name) {
+                  detectedSupplierName = pageMeta.name;
+                }
+              }
+            } catch {}
+
+            // Ensure numeric ID is parsed if possible
+            if (!detectedNumericId && detectedIdentifier && /^\d+$/.test(detectedIdentifier)) {
+              detectedNumericId = Number(detectedIdentifier);
+            }
 
             // Redact query params for clean safe logging
             const safeUrl = currentUrl.split('?')[0];
@@ -307,14 +424,20 @@ export class MeeshoBrowserManager {
             }
 
             session.state = 'AUTHENTICATING';
-            session.supplierId = detectedNumericId ? String(detectedNumericId) : detectedIdentifier;
-            session.supplierName = detectedSupplierName;
-            session.identifier = detectedIdentifier;
+            session.supplierId = detectedNumericId
+              ? String(detectedNumericId)
+              : (detectedIdentifier || 'meesho_supplier');
+            session.supplierName = detectedSupplierName || 'Meesho Supplier';
+            session.identifier = detectedIdentifier || null;
             session.supplierNumericId = detectedNumericId;
             session.page = activePage;
 
             // Save Playwright storage state locally
-            await browserContext?.storageState({ path: session.storageStatePath });
+            try {
+              await browserContext?.storageState({ path: session.storageStatePath });
+            } catch (storageErr: any) {
+              console.warn(`[Meesho Worker] Could not save storageState: ${storageErr.message}`);
+            }
 
             // Persist metadata file alongside storage state
             const metaPath = path.join(this.config.sessionsDir, `${accountId}.meta.json`);
@@ -334,8 +457,8 @@ export class MeeshoBrowserManager {
               );
             } catch {}
 
-            // Transmit session to Rehanza-Hub
-            await this.notifyRehanzaHub(session, cookies || []);
+            // Transmit session to Rehanza-Hub with retry mechanism
+            await this.notifyRehanzaHub(session, cookies || [], openPages.length);
             return;
           }
         }
@@ -347,82 +470,103 @@ export class MeeshoBrowserManager {
 
   /**
    * Notifies Rehanza-Hub via /api/marketplace/meesho/session-callback.
+   * Employs retry with exponential backoff and structured safe logging.
    */
-  private async notifyRehanzaHub(session: WorkerSession, cookies: any[]) {
+  private async notifyRehanzaHub(session: WorkerSession, cookies: any[], pageCount: number = 1) {
     const { accountId, ticket } = session;
     console.log(
       `[Meesho Worker] [${accountId.slice(0, 8)}...] Transmitting authenticated session to Rehanza-Hub (ticket prefix: ${ticket.slice(0, 8)}...)...`
     );
 
-    try {
-      // Format cookies string
-      const cookieString = cookies.map((c) => `${c.name}=${c.value}`).join('; ');
+    const callbackUrl = `${this.config.hubUrl.replace(/\/+$/, '')}/api/marketplace/meesho/session-callback`;
+    const cookieString = (cookies || []).map((c) => `${c.name}=${c.value}`).join('; ');
 
-      // Read saved storage state
-      let storageStateObj: any = null;
-      if (fs.existsSync(session.storageStatePath)) {
-        try {
-          storageStateObj = JSON.parse(fs.readFileSync(session.storageStatePath, 'utf8'));
-        } catch {}
-      }
-
-      const callbackUrl = `${this.config.hubUrl.replace(/\/+$/, '')}/api/marketplace/meesho/session-callback`;
-      console.log(`[Meesho Worker] [${accountId.slice(0, 8)}...] Target callback URL: ${callbackUrl}`);
-
-      const res = await fetch(callbackUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-worker-secret': this.config.workerSecret,
-        },
-        body: JSON.stringify({
-          accountId,
-          ticket,
-          sessionPayload: {
-            cookies: cookieString,
-            rawSession: JSON.stringify(storageStateObj || {}),
-          },
-          metadata: {
-            supplierId: session.supplierId,
-            supplierName: session.supplierName,
-            identifier: session.identifier,
-            supplierNumericId: session.supplierNumericId,
-            sessionSource: 'browser_worker',
-          },
-        }),
-      });
-
-      const resText = await res.text().catch(() => '');
-      let json: any = {};
+    let storageStateObj: any = null;
+    if (fs.existsSync(session.storageStatePath)) {
       try {
-        json = JSON.parse(resText);
+        storageStateObj = JSON.parse(fs.readFileSync(session.storageStatePath, 'utf8'));
       } catch {}
+    }
 
-      console.log(
-        `[Meesho Worker] [${accountId.slice(0, 8)}...] Callback HTTP status: ${res.status} ${res.statusText}`
-      );
+    const payload = {
+      accountId,
+      ticket,
+      sessionPayload: {
+        cookies: cookieString,
+        rawSession: JSON.stringify(storageStateObj || {}),
+      },
+      metadata: {
+        supplierId: session.supplierId,
+        supplierName: session.supplierName,
+        identifier: session.identifier,
+        supplierNumericId: session.supplierNumericId,
+        sessionSource: 'browser_worker',
+      },
+    };
 
-      if (res.ok && json.success) {
-        session.state = 'CONNECTED';
-        session.lastActivityAt = Date.now();
+    let attempt = 0;
+    const maxAttempts = 3;
+    let callbackSuccess = false;
+    let lastError: string | null = null;
+
+    while (attempt < maxAttempts && !callbackSuccess) {
+      attempt++;
+      try {
         console.log(
-          `[Meesho Worker] [${accountId.slice(0, 8)}...] ✅ Rehanza-Hub acknowledged authenticated session! Status: CONNECTED`
+          `[Meesho Worker] [${accountId.slice(0, 8)}...] Callback attempt ${attempt}/${maxAttempts} -> ${callbackUrl}`
         );
-      } else {
-        session.state = 'ERROR';
-        const errMsg = json.error || resText || `HTTP ${res.status}`;
-        session.error = `Hub rejected session (status: ${res.status}): ${errMsg}`;
-        console.error(
-          `[Meesho Worker] [${accountId.slice(0, 8)}...] ❌ Rehanza-Hub rejected session (status ${res.status}):`,
-          errMsg
+
+        const res = await fetch(callbackUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-worker-secret': this.config.workerSecret,
+          },
+          body: JSON.stringify(payload),
+        });
+
+        const resText = await res.text().catch(() => '');
+        let json: any = {};
+        try {
+          json = JSON.parse(resText);
+        } catch {}
+
+        if (res.ok && json.success) {
+          callbackSuccess = true;
+          session.state = 'CONNECTED';
+          session.lastActivityAt = Date.now();
+          console.log(
+            `[MEESHO_CONNECT] accountId=${accountId.slice(0, 8)}... ticketId=${ticket.slice(0, 8)}... pageCount=${pageCount} authenticated=true supplierIdentityFound=${!!(session.supplierId || session.identifier)} callbackStatus=CONNECTED`
+          );
+          console.log(
+            `[Meesho Worker] [${accountId.slice(0, 8)}...] ✅ Rehanza-Hub acknowledged authenticated session! Status: CONNECTED`
+          );
+          return;
+        } else {
+          lastError = json.error || resText || `HTTP ${res.status}`;
+          console.warn(
+            `[Meesho Worker] [${accountId.slice(0, 8)}...] Callback attempt ${attempt} rejected (status ${res.status}): ${lastError}`
+          );
+          if (attempt < maxAttempts) {
+            await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+          }
+        }
+      } catch (err: any) {
+        lastError = err.message;
+        console.warn(
+          `[Meesho Worker] [${accountId.slice(0, 8)}...] Callback attempt ${attempt} network error: ${err.message}`
         );
+        if (attempt < maxAttempts) {
+          await new Promise((resolve) => setTimeout(resolve, 1000 * attempt));
+        }
       }
-    } catch (err: any) {
+    }
+
+    if (!callbackSuccess) {
       session.state = 'ERROR';
-      session.error = `Failed to contact Rehanza-Hub: ${err.message}`;
+      session.error = `Hub rejected session after ${maxAttempts} attempts: ${lastError}`;
       console.error(
-        `[Meesho Worker] [${accountId.slice(0, 8)}...] ❌ Callback communication error:`,
-        err.message
+        `[MEESHO_CONNECT] accountId=${accountId.slice(0, 8)}... ticketId=${ticket.slice(0, 8)}... pageCount=${pageCount} authenticated=true supplierIdentityFound=${!!(session.supplierId || session.identifier)} callbackStatus=ERROR error="${lastError}"`
       );
     }
   }
@@ -567,8 +711,10 @@ export class MeeshoBrowserManager {
       if (fs.existsSync(metaPath)) {
         try {
           const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
-          supplierIdentifier = meta.identifier || undefined;
-          supplierId = meta.supplierNumericId ? Number(meta.supplierNumericId) : undefined;
+          supplierIdentifier = meta.identifier || (meta.supplierId && !/^\d+$/.test(meta.supplierId) ? meta.supplierId : undefined);
+          supplierId = meta.supplierNumericId
+            ? Number(meta.supplierNumericId)
+            : (meta.supplierId && /^\d+$/.test(meta.supplierId) ? Number(meta.supplierId) : undefined);
           supplierName = meta.supplierName || undefined;
           console.log(
             `[Meesho Worker] [${accountId.slice(0, 8)}...] Orders: Resolved from .meta.json: ` +
@@ -584,6 +730,21 @@ export class MeeshoBrowserManager {
       if (!supplierId && session?.supplierNumericId) supplierId = session.supplierNumericId;
       if (!supplierName && session?.supplierName) supplierName = session.supplierName;
 
+      // Extract from cookies if available
+      if (!supplierId || !supplierIdentifier) {
+        try {
+          const cookies = await (page.context ? page.context().cookies() : []).catch(() => []);
+          const sidCookie = cookies.find((c: any) => c.name === 's_id' || c.name === 'supplier_id');
+          if (!supplierId && sidCookie?.value && /^\d+$/.test(sidCookie.value)) {
+            supplierId = Number(sidCookie.value);
+          }
+          const azCookie = cookies.find((c: any) => c.name === 'current_az_identifier');
+          if (!supplierIdentifier && azCookie?.value) {
+            supplierIdentifier = azCookie.value;
+          }
+        } catch {}
+      }
+
       // Ensure page is on panel for prefetch to work
       if (!page.url().includes('supplier.meesho.com')) {
         const navUrl = supplierIdentifier
@@ -593,11 +754,35 @@ export class MeeshoBrowserManager {
         await page.waitForTimeout(2000);
       }
 
+      // Check window.__NEXT_DATA__
+      if (!supplierId || !supplierIdentifier) {
+        try {
+          const pageMeta = await page.evaluate(() => {
+            const w = window as any;
+            const nextProps = w.__NEXT_DATA__?.props?.pageProps;
+            return {
+              sId: nextProps?.supplierId || nextProps?.supplier_id || nextProps?.supplier?.id || nextProps?.supplier_details?.id,
+              ident: nextProps?.supplierIdentifier || nextProps?.supplier_identifier || nextProps?.identifier,
+              name: nextProps?.supplierName || nextProps?.supplier?.name,
+            };
+          }).catch(() => null);
+          if (pageMeta) {
+            if (!supplierId && pageMeta.sId && /^\d+$/.test(String(pageMeta.sId))) supplierId = Number(pageMeta.sId);
+            if (!supplierIdentifier && pageMeta.ident) supplierIdentifier = pageMeta.ident;
+            if (!supplierName && pageMeta.name) supplierName = pageMeta.name;
+          }
+        } catch {}
+      }
+
       // Live prefetch to fill any missing identity fields
       if (!supplierIdentifier || !supplierId) {
         try {
           const prefetch = await page.evaluate(async (ident) => {
-            const headers: Record<string, string> = { 'content-type': 'application/json' };
+            const headers: Record<string, string> = {
+              'content-type': 'application/json',
+              'client-type': 'd-web',
+              'client-package-version': '1.0.4',
+            };
             if (ident) headers['identifier'] = ident;
             const res = await fetch('/api/container/supplier/prefetch-supply-data', {
               method: 'POST',
@@ -624,13 +809,44 @@ export class MeeshoBrowserManager {
         } catch {}
       }
 
-      if (!supplierIdentifier || !supplierId) {
+      // Soften / Finalize identity:
+      if (!supplierId && supplierIdentifier && /^\d+$/.test(supplierIdentifier)) {
+        supplierId = Number(supplierIdentifier);
+      }
+      if (!supplierIdentifier && supplierId) {
+        supplierIdentifier = String(supplierId);
+      }
+
+      // Only fail if NEITHER identifier NOR supplierId could be resolved
+      if (!supplierIdentifier && !supplierId) {
         throw new Error(
           `Cannot extract orders for account ${accountId}: supplier identity could not be resolved. ` +
           `identifier=${supplierIdentifier || 'missing'}, supplierId=${supplierId || 'missing'}. ` +
           `Please ensure the account is fully connected with a completed login.`
         );
       }
+
+      // Default numeric ID to 0 if only slug identifier is known (avoids 500 crashes)
+      if (!supplierId) {
+        supplierId = 0;
+      }
+
+      // Cache resolved identity back to .meta.json
+      try {
+        fs.writeFileSync(
+          metaPath,
+          JSON.stringify(
+            {
+              supplierId: String(supplierId || supplierIdentifier),
+              supplierName: supplierName || 'Meesho Supplier',
+              identifier: supplierIdentifier,
+              supplierNumericId: supplierId || null,
+            },
+            null,
+            2
+          )
+        );
+      } catch {}
 
       const supplierDetails: SupplierDetails = {
         id: supplierId,
@@ -701,11 +917,13 @@ export class MeeshoBrowserManager {
       if (fs.existsSync(metaPath)) {
         try {
           const meta = JSON.parse(fs.readFileSync(metaPath, 'utf8'));
-          supplierIdentifier = meta.identifier || undefined;          // e.g. "4zy6k"
-          supplierId = meta.supplierNumericId ? Number(meta.supplierNumericId) : undefined; // e.g. 4768417
+          supplierIdentifier = meta.identifier || (meta.supplierId && !/^\d+$/.test(meta.supplierId) ? meta.supplierId : undefined);
+          supplierId = meta.supplierNumericId
+            ? Number(meta.supplierNumericId)
+            : (meta.supplierId && /^\d+$/.test(meta.supplierId) ? Number(meta.supplierId) : undefined);
           supplierName = meta.supplierName || undefined;
           console.log(
-            `[Meesho Worker] [${accountId.slice(0, 8)}...] Resolved from .meta.json: ` +
+            `[Meesho Worker] [${accountId.slice(0, 8)}...] Payments: Resolved from .meta.json: ` +
             `identifier=${supplierIdentifier || 'N/A'}, id=${supplierId || 'N/A'}, name=${supplierName || 'N/A'}`
           );
         } catch {
@@ -724,10 +942,24 @@ export class MeeshoBrowserManager {
         supplierName = session.supplierName;
       }
 
+      // Extract from cookies if available
+      if (!supplierId || !supplierIdentifier) {
+        try {
+          const cookies = await (page.context ? page.context().cookies() : []).catch(() => []);
+          const sidCookie = cookies.find((c: any) => c.name === 's_id' || c.name === 'supplier_id');
+          if (!supplierId && sidCookie?.value && /^\d+$/.test(sidCookie.value)) {
+            supplierId = Number(sidCookie.value);
+          }
+          const azCookie = cookies.find((c: any) => c.name === 'current_az_identifier');
+          if (!supplierIdentifier && azCookie?.value) {
+            supplierIdentifier = azCookie.value;
+          }
+        } catch {}
+      }
+
       // === STEP 2: Ensure page is on Meesho panel (navigate if needed) ===
       const pageUrl = page.url();
       if (!pageUrl.includes('supplier.meesho.com')) {
-        // Navigate to panel; use identifier if available, otherwise just the base panel
         const navUrl = supplierIdentifier
           ? `https://supplier.meesho.com/panel/v3/new/payouts/${supplierIdentifier}/payments`
           : `https://supplier.meesho.com/panel/v3/new/home`;
@@ -736,12 +968,36 @@ export class MeeshoBrowserManager {
         await page.waitForTimeout(2000);
       }
 
+      // Check window.__NEXT_DATA__
+      if (!supplierId || !supplierIdentifier) {
+        try {
+          const pageMeta = await page.evaluate(() => {
+            const w = window as any;
+            const nextProps = w.__NEXT_DATA__?.props?.pageProps;
+            return {
+              sId: nextProps?.supplierId || nextProps?.supplier_id || nextProps?.supplier?.id || nextProps?.supplier_details?.id,
+              ident: nextProps?.supplierIdentifier || nextProps?.supplier_identifier || nextProps?.identifier,
+              name: nextProps?.supplierName || nextProps?.supplier?.name,
+            };
+          }).catch(() => null);
+          if (pageMeta) {
+            if (!supplierId && pageMeta.sId && /^\d+$/.test(String(pageMeta.sId))) supplierId = Number(pageMeta.sId);
+            if (!supplierIdentifier && pageMeta.ident) supplierIdentifier = pageMeta.ident;
+            if (!supplierName && pageMeta.name) supplierName = pageMeta.name;
+          }
+        } catch {}
+      }
+
       // === STEP 3: Live prefetch to fill any missing identity fields ===
       if (!supplierIdentifier || !supplierId) {
         console.log(`[Meesho Worker] [${accountId.slice(0, 8)}...] Fetching supplier identity via prefetch-supply-data...`);
         try {
           const prefetch = await page.evaluate(async (ident) => {
-            const headers: Record<string, string> = { 'content-type': 'application/json' };
+            const headers: Record<string, string> = {
+              'content-type': 'application/json',
+              'client-type': 'd-web',
+              'client-package-version': '1.0.4',
+            };
             if (ident) headers['identifier'] = ident;
             const res = await fetch('/api/container/supplier/prefetch-supply-data', {
               method: 'POST',
@@ -778,18 +1034,48 @@ export class MeeshoBrowserManager {
             `identifier=${supplierIdentifier || 'N/A'}, id=${supplierId || 'N/A'}, name=${supplierName || 'N/A'}`
           );
         } catch {
-          // Prefetch failure is non-fatal; will fail below with clear error if identity still missing
+          // Prefetch failure is non-fatal
         }
       }
 
-      // === STEP 4: Guard — require both identifier and numeric ID ===
-      if (!supplierIdentifier || !supplierId) {
+      // Soften / Finalize identity:
+      if (!supplierId && supplierIdentifier && /^\d+$/.test(supplierIdentifier)) {
+        supplierId = Number(supplierIdentifier);
+      }
+      if (!supplierIdentifier && supplierId) {
+        supplierIdentifier = String(supplierId);
+      }
+
+      // === STEP 4: Guard — only fail if NEITHER identifier NOR supplierId could be resolved ===
+      if (!supplierIdentifier && !supplierId) {
         throw new Error(
           `Cannot extract payments for account ${accountId}: supplier identity could not be resolved. ` +
           `identifier=${supplierIdentifier || 'missing'}, supplierId=${supplierId || 'missing'}. ` +
           `Please ensure the account is fully connected with a completed login.`
         );
       }
+
+      // Default numeric ID to 0 if only slug identifier is known (avoids 500 crashes)
+      if (!supplierId) {
+        supplierId = 0;
+      }
+
+      // Cache resolved identity back to .meta.json
+      try {
+        fs.writeFileSync(
+          metaPath,
+          JSON.stringify(
+            {
+              supplierId: String(supplierId || supplierIdentifier),
+              supplierName: supplierName || 'Meesho Supplier',
+              identifier: supplierIdentifier,
+              supplierNumericId: supplierId || null,
+            },
+            null,
+            2
+          )
+        );
+      } catch {}
 
       const supplierDetails: SupplierDetails = {
         id: supplierId,

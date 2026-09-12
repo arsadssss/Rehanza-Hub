@@ -111,6 +111,20 @@ export async function extractMeeshoPayments(
     `[Payment Extractor] Starting payment extraction for supplier ${supplier.identifier} (${supplier.name}, ID: ${supplier.id})...`
   );
 
+  // Intercept browser payout requests to capture real supplier_id if missing
+  page.on('request', (req) => {
+    if (req.url().includes('/api/payouts/') && req.method() === 'POST') {
+      try {
+        const postData = req.postDataJSON ? req.postDataJSON() : JSON.parse(req.postData() || '{}');
+        const sid = postData?.supplier_id || postData?.supplierId;
+        if (sid && (!supplier.id || supplier.id === 0) && /^\d+$/.test(String(sid))) {
+          supplier.id = Number(sid);
+          console.log(`[Payment Extractor] Captured dynamic supplier numeric ID: ${supplier.id}`);
+        }
+      } catch {}
+    }
+  });
+
   // 1. Ensure page is on Meesho panel
   const currentUrl = page.url();
   const targetPaymentsUrl = `https://supplier.meesho.com/panel/v3/new/payouts/${supplier.identifier}/payments`;

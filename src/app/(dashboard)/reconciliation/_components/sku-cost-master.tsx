@@ -26,6 +26,7 @@ import {
   RotateCcw,
   Sparkles,
   Package,
+  ChevronDown,
 } from 'lucide-react';
 import { SkuMasterItem, SkuMasterSummary } from '@/lib/reconciliation/sku-master-service';
 
@@ -184,11 +185,43 @@ export function SkuCostMaster({
     return list;
   }, [skus, statusFilter, searchTerm]);
 
+  const STORAGE_KEY = 'rehanza_reconciliation_sku_cost_master_expanded';
+  const [isExpanded, setIsExpanded] = useState<boolean>(true);
+
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(STORAGE_KEY);
+      if (saved !== null) {
+        setIsExpanded(saved === 'true');
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const toggleExpanded = () => {
+    setIsExpanded((prev) => {
+      const next = !prev;
+      try {
+        sessionStorage.setItem(STORAGE_KEY, String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
   return (
     <div id="sku-cost-master-section" className="space-y-4">
       {/* 1. Header & Summary Bar */}
-      <Card className="glass-panel bg-slate-950/60 border-white/15 rounded-2xl overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.25)]">
-        <CardHeader className="pb-4 border-b border-white/15 flex flex-col md:flex-row md:items-center justify-between gap-4">
+      <Card className="glass-panel bg-slate-950/60 border-white/15 rounded-2xl overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.25)] transition-all">
+        <CardHeader
+          className={cn(
+            'pb-4 flex flex-col md:flex-row md:items-center justify-between gap-4 transition-colors cursor-pointer select-none',
+            isExpanded ? 'border-b border-white/15' : ''
+          )}
+          onClick={toggleExpanded}
+        >
           <div>
             <CardTitle className="text-base sm:text-lg font-black text-white flex items-center gap-2">
               <Coins className="h-5 w-5 text-amber-400" />
@@ -200,6 +233,13 @@ export function SkuCostMaster({
           </div>
 
           <div className="flex flex-wrap items-center gap-3">
+            {/* Total SKUs pill */}
+            <div className="glass-pill px-3 py-1.5 rounded-xl border border-white/10 bg-slate-900/60 flex items-center gap-1.5 text-xs text-slate-300">
+              <Package className="h-3.5 w-3.5 text-indigo-400" />
+              <span className="font-semibold text-slate-400">Total:</span>
+              <span className="font-black text-white">{summary.totalSkus}</span>
+            </div>
+
             {/* Configured Pill */}
             <div className="glass-pill px-3 py-1.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 flex items-center gap-2 text-xs">
               <CheckCircle2 className="h-4 w-4 text-emerald-400" />
@@ -209,7 +249,11 @@ export function SkuCostMaster({
 
             {/* Pending Pill (clickable to filter) */}
             <button
-              onClick={() => setStatusFilter('pending')}
+              onClick={(e) => {
+                e.stopPropagation();
+                if (!isExpanded) setIsExpanded(true);
+                setStatusFilter('pending');
+              }}
               className={cn(
                 'glass-pill px-3 py-1.5 rounded-xl border flex items-center gap-2 text-xs transition-all',
                 summary.pendingSkus > 0
@@ -223,16 +267,50 @@ export function SkuCostMaster({
             </button>
 
             <Button
-              onClick={() => fetchSkuMaster(true)}
+              onClick={(e) => {
+                e.stopPropagation();
+                fetchSkuMaster(true);
+              }}
               disabled={refreshing || loading}
               size="sm"
               variant="outline"
               className="glass-button bg-slate-900/80 border-white/15 text-white h-8 px-3 rounded-xl hover:bg-white/10"
+              title="Refresh SKU Master"
             >
               <RotateCcw className={cn('h-3.5 w-3.5', refreshing && 'animate-spin')} />
             </Button>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleExpanded();
+              }}
+              className="glass-button bg-slate-900/80 border border-white/15 text-slate-300 hover:text-white hover:bg-white/10 h-8 px-2.5 rounded-xl flex items-center gap-1.5 transition-colors"
+              aria-label={isExpanded ? 'Collapse SKU Cost Master' : 'Expand SKU Cost Master'}
+            >
+              <span className="text-[11px] text-slate-400 hidden sm:inline font-semibold">
+                {isExpanded ? 'Collapse' : 'Expand'}
+              </span>
+              <ChevronDown
+                className={cn(
+                  'h-3.5 w-3.5 transition-transform duration-200 text-slate-300',
+                  isExpanded && 'rotate-180'
+                )}
+              />
+            </Button>
           </div>
         </CardHeader>
+
+        <div
+          className={cn(
+            'grid transition-[grid-template-rows,opacity] duration-300 ease-in-out',
+            isExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0 pointer-events-none'
+          )}
+        >
+          <div className="overflow-hidden">
 
         {/* Pending Banner Alert if required */}
         {summary.pendingSkus > 0 && (
@@ -433,6 +511,8 @@ export function SkuCostMaster({
             </table>
           </div>
         </CardContent>
+          </div>
+        </div>
       </Card>
 
       {/* 4. Set / Edit Cost Dialog Modal */}

@@ -183,25 +183,54 @@ export class MeeshoPaymentSyncService {
   static async triggerPaymentSync(accountId: string): Promise<MeeshoPaymentsDTO> {
     if (!accountId) throw new Error('accountId is required.');
 
+    const connRows = await sql`
+      SELECT connection_status FROM marketplace_connections
+      WHERE account_id = ${accountId} AND marketplace = 'meesho'
+      LIMIT 1;
+    `;
+    if (!connRows || connRows.length === 0 || connRows[0].connection_status !== 'connected') {
+      const err: any = new Error('Meesho is not connected for this account. Please connect first.');
+      err.statusCode = 400;
+      err.code = 'NOT_CONNECTED';
+      throw err;
+    }
+
     const workerUrl = process.env.MEESHO_WORKER_URL || 'http://localhost:9005';
     const workerSecret = process.env.MEESHO_WORKER_SECRET || 'dev_meesho_worker_secret';
 
-    const res = await fetch(`${workerUrl.replace(/\/+$/, '')}/sessions/${encodeURIComponent(accountId)}/payments/extract`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'x-worker-secret': workerSecret,
-      },
-    });
+    let res: Response;
+    try {
+      res = await fetch(`${workerUrl.replace(/\/+$/, '')}/sessions/${encodeURIComponent(accountId)}/payments/extract`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-worker-secret': workerSecret,
+        },
+      });
+    } catch (netErr: any) {
+      const err: any = new Error(`Meesho sync worker is unreachable at ${workerUrl}. Please ensure the worker daemon is running.`);
+      err.statusCode = 503;
+      err.code = 'WORKER_UNAVAILABLE';
+      throw err;
+    }
 
     if (!res.ok) {
-      const err = await res.text().catch(() => '');
-      throw new Error(`Worker payment extraction failed (HTTP ${res.status}): ${err}`);
+      const errText = await res.text().catch(() => '');
+      let errJson: any = null;
+      try { errJson = JSON.parse(errText); } catch {}
+      const msg = errJson?.error || errText || `Worker payment extraction failed (HTTP ${res.status})`;
+      const err: any = new Error(msg);
+      err.statusCode = res.status >= 400 && res.status < 500 ? res.status : 502;
+      err.code = errJson?.code || 'WORKER_EXTRACTION_FAILED';
+      throw err;
     }
 
     const json = await res.json();
     if (!json.success || !json.payments) {
-      throw new Error(json.error || 'Worker did not return payment data.');
+      const err: any = new Error(json.error || 'Worker did not return payment data.');
+      err.statusCode = 502;
+      err.code = 'WORKER_EXTRACTION_FAILED';
+      throw err;
     }
 
     await this.ingestPayments(accountId, json.payments);

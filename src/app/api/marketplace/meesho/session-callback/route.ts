@@ -11,6 +11,14 @@ const TICKET_EXPIRY_MS = 15 * 60 * 1000; // 15 minutes
 
 export async function POST(request: Request) {
   try {
+    if (process.env.NODE_ENV === 'production' && !process.env.MEESHO_WORKER_SECRET) {
+      console.error('[API /api/marketplace/meesho/session-callback] MEESHO_WORKER_SECRET is required in production.');
+      return NextResponse.json(
+        { success: false, error: 'Server configuration error: Worker secret required in production.' },
+        { status: 500 }
+      );
+    }
+
     const workerSecret = process.env.MEESHO_WORKER_SECRET || 'dev_meesho_worker_secret';
     const headerSecret =
       request.headers.get('x-worker-secret') ||

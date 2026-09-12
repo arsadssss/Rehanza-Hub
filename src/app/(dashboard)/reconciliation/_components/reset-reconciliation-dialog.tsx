@@ -32,6 +32,7 @@ interface ResetReconciliationDialogProps {
   accountName: string;
   onResetComplete: () => void;
   className?: string;
+  compact?: boolean;
 }
 
 export function ResetReconciliationDialog({
@@ -39,6 +40,7 @@ export function ResetReconciliationDialog({
   accountName,
   onResetComplete,
   className,
+  compact = false,
 }: ResetReconciliationDialogProps) {
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -109,13 +111,17 @@ export function ResetReconciliationDialog({
           type="button"
           variant="outline"
           size="sm"
+          title="Reset Data"
+          aria-label="Reset Data"
           className={cn(
-            'glass-button h-9 px-3.5 rounded-xl border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 hover:text-rose-200 transition-all font-medium text-xs shadow-sm',
+            compact
+              ? 'glass-button h-9 w-9 p-0 rounded-xl border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 hover:text-rose-200 transition-all shadow-sm flex items-center justify-center'
+              : 'glass-button h-9 px-3.5 rounded-xl border-rose-500/30 bg-rose-500/10 text-rose-300 hover:bg-rose-500/20 hover:text-rose-200 transition-all font-medium text-xs shadow-sm',
             className
           )}
         >
-          <Trash2 className="h-3.5 w-3.5 mr-1.5 text-rose-400" />
-          <span>Reset Data</span>
+          <Trash2 className={cn('text-rose-400', compact ? 'h-4 w-4' : 'h-3.5 w-3.5 mr-1.5')} />
+          {!compact && <span>Reset Data</span>}
         </Button>
       </AlertDialogTrigger>
 

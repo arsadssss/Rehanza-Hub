@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import React, { useRef, useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -21,6 +21,7 @@ import {
   Package,
   Check,
   Circle,
+  ChevronDown,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import Papa from 'papaparse';
@@ -29,6 +30,8 @@ import { detectCsvFileTypeFromRows } from '@/lib/reconciliation/csv-parser';
 interface UploadSectionProps {
   onUploadComplete?: (result: any) => void;
   accountId: string | null;
+  embedded?: boolean;
+  onCloseDialog?: () => void;
 }
 
 interface UploadProgressState {
@@ -73,7 +76,12 @@ const PIPELINE_STAGES = [
   { key: 'Finalizing', label: 'Finalizing' },
 ];
 
-export function UploadSection({ onUploadComplete, accountId }: UploadSectionProps) {
+export function UploadSection({
+  onUploadComplete,
+  accountId,
+  embedded = false,
+  onCloseDialog,
+}: UploadSectionProps) {
   const { toast } = useToast();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -286,45 +294,40 @@ export function UploadSection({ onUploadComplete, accountId }: UploadSectionProp
     );
   };
 
-  return (
-    <Card className="glass-panel bg-slate-950/60 border border-white/15 rounded-2xl overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.25)]">
-      <CardHeader className="border-b border-white/15 pb-4">
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <div className="flex items-center gap-3">
-            <div className="h-9 w-9 rounded-xl bg-indigo-500/15 border border-indigo-400/25 flex items-center justify-center text-indigo-400">
-              <FileSpreadsheet className="h-4 w-4" />
-            </div>
-            <div>
-              <CardTitle className="text-base sm:text-lg font-black text-white">
-                Meesho Reconciliation Import Center
-              </CardTitle>
-              <p className="text-xs text-slate-300 mt-0.5 font-medium">
-                Automatic file-type recognition, row-level deduplication, and fast bulk ingestion
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-semibold text-slate-400">Supported:</span>
-            <Badge variant="outline" className="text-[10px] font-bold border-white/15 text-slate-300">
-              Orders
-            </Badge>
-            <Badge variant="outline" className="text-[10px] font-bold border-white/15 text-slate-300">
-              Payments
-            </Badge>
-            <Badge variant="outline" className="text-[10px] font-bold border-white/15 text-slate-300">
-              RM Ads
-            </Badge>
-          </div>
-        </div>
-      </CardHeader>
+  const STORAGE_KEY = 'rehanza_reconciliation_import_center_expanded';
+  const [isExpanded, setIsExpanded] = useState<boolean>(true);
 
-      <CardContent className="p-4 sm:p-6 space-y-5">
-        {/* State 1: Upload Result Card (Success, All Duplicates Skipped, or Error) */}
-        {uploadResult && (
-          <div className="space-y-4">
-            {uploadResult.success ? (
-              <div
-                className={cn(
+  useEffect(() => {
+    try {
+      const saved = sessionStorage.getItem(STORAGE_KEY);
+      if (saved !== null) {
+        setIsExpanded(saved === 'true');
+      }
+    } catch {
+      // ignore
+    }
+  }, []);
+
+  const toggleExpanded = () => {
+    setIsExpanded((prev) => {
+      const next = !prev;
+      try {
+        sessionStorage.setItem(STORAGE_KEY, String(next));
+      } catch {
+        // ignore
+      }
+      return next;
+    });
+  };
+
+  const renderContent = () => (
+    <div className="space-y-5">
+      {/* State 1: Upload Result Card (Success, All Duplicates Skipped, or Error) */}
+      {uploadResult && (
+        <div className="space-y-4">
+          {uploadResult.success ? (
+            <div
+              className={cn(
                   'p-4 sm:p-5 rounded-2xl border flex flex-col gap-3.5 transition-all',
                   uploadResult.allDuplicates
                     ? 'border-indigo-500/30 bg-indigo-500/10'
@@ -429,6 +432,7 @@ export function UploadSection({ onUploadComplete, accountId }: UploadSectionProp
                           size="sm"
                           variant="outline"
                           onClick={() => {
+                            onCloseDialog?.();
                             const el = document.getElementById('sku-cost-master-section');
                             el?.scrollIntoView({ behavior: 'smooth' });
                           }}
@@ -662,7 +666,85 @@ export function UploadSection({ onUploadComplete, accountId }: UploadSectionProp
             )}
           </div>
         )}
-      </CardContent>
+      </div>
+    );
+
+  if (embedded) {
+    return renderContent();
+  }
+
+  return (
+    <Card className="glass-panel bg-slate-950/60 border border-white/15 rounded-2xl overflow-hidden shadow-[0_8px_30px_rgba(0,0,0,0.25)] transition-all">
+      <CardHeader
+        className={cn(
+          'pb-4 transition-colors cursor-pointer select-none',
+          isExpanded ? 'border-b border-white/15' : ''
+        )}
+        onClick={toggleExpanded}
+      >
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-xl bg-indigo-500/15 border border-indigo-400/25 flex items-center justify-center text-indigo-400">
+              <FileSpreadsheet className="h-4 w-4" />
+            </div>
+            <div>
+              <CardTitle className="text-base sm:text-lg font-black text-white">
+                Meesho Reconciliation Import Center
+              </CardTitle>
+              <p className="text-xs text-slate-300 mt-0.5 font-medium">
+                Automatic file-type recognition, row-level deduplication, and fast bulk ingestion
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-semibold text-slate-400">Supported:</span>
+            <Badge variant="outline" className="text-[10px] font-bold border-white/15 text-slate-300">
+              Orders
+            </Badge>
+            <Badge variant="outline" className="text-[10px] font-bold border-white/15 text-slate-300">
+              Payments
+            </Badge>
+            <Badge variant="outline" className="text-[10px] font-bold border-white/15 text-slate-300">
+              RM Ads
+            </Badge>
+
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              onClick={(e) => {
+                e.stopPropagation();
+                toggleExpanded();
+              }}
+              className="glass-button bg-slate-900/80 border border-white/15 text-slate-300 hover:text-white hover:bg-white/10 h-8 px-2.5 rounded-xl flex items-center gap-1.5 transition-colors ml-1"
+              aria-label={isExpanded ? 'Collapse Import Center' : 'Expand Import Center'}
+            >
+              <span className="text-[11px] text-slate-400 hidden sm:inline font-semibold">
+                {isExpanded ? 'Collapse' : 'Expand'}
+              </span>
+              <ChevronDown
+                className={cn(
+                  'h-3.5 w-3.5 transition-transform duration-200 text-slate-300',
+                  isExpanded && 'rotate-180'
+                )}
+              />
+            </Button>
+          </div>
+        </div>
+      </CardHeader>
+
+      <div
+        className={cn(
+          'grid transition-[grid-template-rows,opacity] duration-300 ease-in-out',
+          isExpanded ? 'grid-rows-[1fr] opacity-100' : 'grid-rows-[0fr] opacity-0 pointer-events-none'
+        )}
+      >
+        <div className="overflow-hidden">
+          <CardContent className="p-4 sm:p-6">
+            {renderContent()}
+          </CardContent>
+        </div>
+      </div>
     </Card>
   );
 }

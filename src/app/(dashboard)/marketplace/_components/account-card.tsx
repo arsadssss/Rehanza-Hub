@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -56,14 +56,44 @@ export function AccountCard({
   const { toast } = useToast();
   const [refreshing, setRefreshing] = useState(false);
   const [actionLoading, setActionLoading] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
   const [isCredentialsOpen, setIsCredentialsOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
 
+  const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const pollStartTimeRef = useRef<number>(0);
+
   const isConnected = account.connectionStatus === "connected";
   const isExpired = account.connectionStatus === "expired";
 
+  // Clean up polling timer on unmount
+  useEffect(() => {
+    return () => {
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+    };
+  }, []);
+
+  // If external status updates to connected, stop any pending polling
+  useEffect(() => {
+    if (isConnected && isConnecting) {
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+        pollTimerRef.current = null;
+      }
+      setIsConnecting(false);
+    }
+  }, [isConnected, isConnecting]);
+
   const handleDelete = async () => {
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+    setIsConnecting(false);
     setIsDeleting(true);
     try {
       const res = await apiFetch(`/api/marketplace/meesho/accounts?accountId=${encodeURIComponent(account.accountId)}`, {
@@ -151,13 +181,58 @@ export function AccountCard({
         title: "Reconnection Window Launched",
         description: "Please complete login in the opened window. Session will update automatically.",
       });
-      onStatusChanged();
+
+      // Start real-time status polling
+      setIsConnecting(true);
+      if (pollTimerRef.current) {
+        clearInterval(pollTimerRef.current);
+      }
+      pollStartTimeRef.current = Date.now();
+      const MAX_POLL_DURATION_MS = 5 * 60 * 1000; // 5 minutes safety timeout
+
+      pollTimerRef.current = setInterval(async () => {
+        try {
+          if (Date.now() - pollStartTimeRef.current > MAX_POLL_DURATION_MS) {
+            if (pollTimerRef.current) {
+              clearInterval(pollTimerRef.current);
+              pollTimerRef.current = null;
+            }
+            setIsConnecting(false);
+            return;
+          }
+
+          const statusRes = await apiFetch(
+            `/api/marketplace/meesho/status?accountId=${encodeURIComponent(account.accountId)}`,
+            {
+              headers: { "x-account-id": account.accountId },
+            }
+          );
+          const statusData = await statusRes.json();
+
+          if (statusRes.ok && statusData.success && statusData.data?.status === "connected") {
+            if (pollTimerRef.current) {
+              clearInterval(pollTimerRef.current);
+              pollTimerRef.current = null;
+            }
+            setIsConnecting(false);
+            toast({
+              title: "Meesho Account Connected!",
+              description: `Successfully connected ${account.displayName || account.accountName} to Meesho Supplier Hub.`,
+            });
+            onStatusChanged();
+            await onRefresh();
+          }
+        } catch {
+          // Polling continues on transient network glitches
+        }
+      }, 2500);
     } catch (err: any) {
       toast({
         variant: "destructive",
         title: "Reconnection Failed",
         description: err.message,
       });
+      setIsConnecting(false);
     } finally {
       setActionLoading(false);
     }
@@ -167,6 +242,12 @@ export function AccountCard({
     if (!confirm(`Are you sure you want to disconnect ${account.accountName}? Live sync will be halted.`)) {
       return;
     }
+
+    if (pollTimerRef.current) {
+      clearInterval(pollTimerRef.current);
+      pollTimerRef.current = null;
+    }
+    setIsConnecting(false);
 
     setActionLoading(true);
     try {
@@ -243,9 +324,26 @@ export function AccountCard({
                   </Badge>
                 )}
                 {!isConnected && !isExpired && (
-                  <Badge variant="outline" className="bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/30 gap-1 text-[11px] font-medium">
-                    <XCircle className="w-3 h-3" />
-                    Disconnected
+                  <Badge
+                    variant="outline"
+                    className={cn(
+                      "gap-1 text-[11px] font-medium",
+                      isConnecting
+                        ? "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30"
+                        : "bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/30"
+                    )}
+                  >
+                    {isConnecting ? (
+                      <>
+                        <RefreshCw className="w-3 h-3 animate-spin text-amber-500" />
+                        Waiting For Login
+                      </>
+                    ) : (
+                      <>
+                        <XCircle className="w-3 h-3" />
+                        Disconnected
+                      </>
+                    )}
                   </Badge>
                 )}
               </div>
@@ -302,11 +400,20 @@ export function AccountCard({
                   variant="outline"
                   size="sm"
                   onClick={handleReconnect}
-                  disabled={actionLoading || refreshing}
+                  disabled={actionLoading || refreshing || isConnecting}
                   className="gap-1.5 text-xs h-9 text-muted-foreground hover:text-foreground"
                 >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  Reconnect
+                  {isConnecting ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin text-pink-500" />
+                      Connecting...
+                    </>
+                  ) : (
+                    <>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Reconnect
+                    </>
+                  )}
                 </Button>
                 <Button
                   variant="ghost"
@@ -334,11 +441,20 @@ export function AccountCard({
                 <Button
                   size="sm"
                   onClick={handleReconnect}
-                  disabled={actionLoading || isDeleting}
+                  disabled={actionLoading || isDeleting || isConnecting}
                   className="gap-1.5 text-xs h-9 bg-pink-600 hover:bg-pink-700 text-white"
                 >
-                  <ExternalLink className="w-3.5 h-3.5" />
-                  Connect Meesho Account
+                  {isConnecting ? (
+                    <>
+                      <RefreshCw className="w-3.5 h-3.5 animate-spin" />
+                      Waiting For Login...
+                    </>
+                  ) : (
+                    <>
+                      <ExternalLink className="w-3.5 h-3.5" />
+                      Connect Meesho Account
+                    </>
+                  )}
                 </Button>
                 <Button
                   variant="outline"

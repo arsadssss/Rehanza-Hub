@@ -75,11 +75,10 @@ export class MeeshoSessionManager {
       ON CONFLICT (account_id, marketplace)
       DO UPDATE SET
         connection_status = 'pending',
-        connected_at = NULL,
-        disconnected_at = NULL,
         last_error = NULL,
         session_metadata = ${JSON.stringify(metadata)}::jsonb,
-        encrypted_session_data = NULL,
+        encrypted_session_data = COALESCE(marketplace_connections.encrypted_session_data, NULL),
+        connected_at = COALESCE(marketplace_connections.connected_at, NULL),
         updated_at = ${now}
       RETURNING *;
     `;

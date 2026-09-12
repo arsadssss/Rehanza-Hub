@@ -322,7 +322,10 @@ export class MeeshoOrderSyncService {
     `;
 
     if (!connRows || connRows.length === 0 || connRows[0].connection_status !== 'connected') {
-      throw new Error('Meesho is not connected for this account. Please connect first.');
+      const err: any = new Error('Meesho is not connected for this account. Please connect first.');
+      err.statusCode = 400;
+      err.code = 'NOT_CONNECTED';
+      throw err;
     }
 
     const syncId = 'sync_' + crypto.randomUUID();
@@ -346,28 +349,45 @@ export class MeeshoOrderSyncService {
       const workerExtractUrl = `${WORKER_URL.replace(/\/+$/, '')}/sessions/${encodeURIComponent(accountId)}/orders/extract`;
       console.log(`[Order Sync Service] Requesting order extraction from worker: ${workerExtractUrl}`);
 
-      const res = await fetch(workerExtractUrl, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'x-worker-secret': WORKER_SECRET,
-        },
-        body: JSON.stringify({
-          limit: options.limit || 500,
-          maxOrdersPerTab: options.maxOrdersPerTab,
-          tabs: options.tabs,
-          cutoffIso: options.cutoffIso,
-        }),
-      });
+      let res: Response;
+      try {
+        res = await fetch(workerExtractUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'x-worker-secret': WORKER_SECRET,
+          },
+          body: JSON.stringify({
+            limit: options.limit || 500,
+            maxOrdersPerTab: options.maxOrdersPerTab,
+            tabs: options.tabs,
+            cutoffIso: options.cutoffIso,
+          }),
+        });
+      } catch (fetchErr: any) {
+        const err: any = new Error(`Meesho sync worker is unreachable at ${WORKER_URL}. Please ensure the worker daemon is running.`);
+        err.statusCode = 503;
+        err.code = 'WORKER_UNAVAILABLE';
+        throw err;
+      }
 
       if (!res.ok) {
         const errText = await res.text().catch(() => '');
-        throw new Error(`Worker order extraction failed (HTTP ${res.status}): ${errText}`);
+        let errJson: any = null;
+        try { errJson = JSON.parse(errText); } catch {}
+        const msg = errJson?.error || errText || `Worker order extraction failed (HTTP ${res.status})`;
+        const err: any = new Error(msg);
+        err.statusCode = res.status >= 400 && res.status < 500 ? res.status : 502;
+        err.code = errJson?.code || 'WORKER_EXTRACTION_FAILED';
+        throw err;
       }
 
       const workerJson = await res.json();
       if (!workerJson.success) {
-        throw new Error(workerJson.error || 'Worker failed to extract orders.');
+        const err: any = new Error(workerJson.error || 'Worker failed to extract orders.');
+        err.statusCode = 502;
+        err.code = 'WORKER_EXTRACTION_FAILED';
+        throw err;
       }
 
       const extractedOrders: Array<{

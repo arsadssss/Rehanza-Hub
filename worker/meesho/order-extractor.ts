@@ -156,6 +156,13 @@ export async function extractMeeshoOrders(
       if (h['client-package-version']) {
         capturedHeaders['client-package-version'] = h['client-package-version'];
       }
+      try {
+        const postData = req.postDataJSON ? req.postDataJSON() : JSON.parse(req.postData() || '{}');
+        if (postData?.supplier_details?.id && (!supplier.id || supplier.id === 0)) {
+          supplier.id = Number(postData.supplier_details.id);
+          console.log(`[Order Extractor] Captured dynamic supplier numeric ID: ${supplier.id}`);
+        }
+      } catch {}
     }
   };
 
