@@ -14,7 +14,7 @@ export function MobileHeader() {
             alt="Rehanza Hub"
             width={36}
             height={36}
-            className="h-full w-full object-contain p-1.2"
+            className="h-full w-full object-contain p-1"
           />
         </div>
         <h1 className="text-lg font-black text-foreground font-headline tracking-tighter">

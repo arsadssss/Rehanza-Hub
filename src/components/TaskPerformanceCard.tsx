@@ -236,7 +236,7 @@ export function TaskPerformanceCard({ data, loading, title = "Task Performance" 
                                         <div className="relative h-2 w-full bg-muted/50 rounded-full overflow-hidden">
                                             <div 
                                                 className={cn(
-                                                    "h-full transition-all duration-[1.5s] ease-out rounded-full",
+                                                    "h-full transition-all duration-1000 ease-out rounded-full",
                                                     completionRate >= 80 ? "bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.4)]" : 
                                                     completionRate >= 50 ? "bg-amber-500 shadow-[0_0_10px_rgba(245,158,11,0.4)]" : 
                                                     "bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.4)]"

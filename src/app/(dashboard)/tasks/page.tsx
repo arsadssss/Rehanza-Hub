@@ -97,7 +97,7 @@ const CircularIndicator = ({ value, colorClass }: { value: number; colorClass: s
                     cy="24"
                 />
                 <circle
-                    className={cn("transition-all duration-[1500ms] ease-out", colorClass.replace('bg-', 'text-'))}
+                    className={cn("transition-all duration-1000 ease-out", colorClass.replace('bg-', 'text-'))}
                     strokeWidth="3"
                     strokeDasharray={circumference}
                     style={{ strokeDashoffset: isNaN(offset) ? circumference : offset }}
@@ -185,7 +185,7 @@ const ProgressCard = ({ title, stats, gradient, loading, icon: Icon }: { title: 
                                 <div className="relative h-3 w-full bg-black/20 rounded-full overflow-hidden border border-white/5 shadow-inner">
                                     <div 
                                         className={cn(
-                                            "h-full transition-all duration-[1200ms] ease-out relative rounded-full shadow-lg",
+                                            "h-full transition-all duration-1000 ease-out relative rounded-full shadow-lg",
                                             getStatusColor(stats.percentage)
                                         )}
                                         style={{ width: `${animatedValue}%` }}
@@ -651,7 +651,7 @@ export default function TasksPage() {
             </Dialog>
 
             <div className="grid grid-cols-1 md:grid-cols-1 gap-6 w-full relative z-20">
-                <ProgressCard title="Fashion Workflow" stats={progressStats.fashion} gradient="from-blue-600 to-cyan-700" icon={ShoppingBag} loading={loadingProgress} />
+                <ProgressCard title="Rehanza Workflow" stats={progressStats.fashion} gradient="from-blue-600 to-cyan-700" icon={ShoppingBag} loading={loadingProgress} />
             </div>
 
             <Card className="relative z-10 border border-white/10 shadow-[0_18px_55px_rgba(2,6,23,0.22)] rounded-[2.5rem] overflow-hidden glass-panel">
@@ -674,9 +674,9 @@ export default function TasksPage() {
                 <CardContent className="pt-8 px-8">
                     <div className="flex flex-col md:flex-row gap-4 mb-8">
                         <Select value={groupFilter} onValueChange={setGroupFilter}>
-                            <SelectTrigger className="w-full md:w-[220px] h-11 bg-background rounded-xl border-border/50 font-bold text-xs uppercase tracking-tight"><SelectValue placeholder="Fashion" /></SelectTrigger>
+                            <SelectTrigger className="w-full md:w-[220px] h-11 bg-background rounded-xl border-border/50 font-bold text-xs uppercase tracking-tight"><SelectValue placeholder="Rehanza" /></SelectTrigger>
                             <SelectContent className="rounded-xl">
-                                <SelectItem value="Fashion" className="text-xs font-bold">FASHION</SelectItem>
+                                <SelectItem value="Fashion" className="text-xs font-bold">REHANZA</SelectItem>
                             </SelectContent>
                         </Select>
                         <Select value={statusFilter} onValueChange={setStatusFilter}>

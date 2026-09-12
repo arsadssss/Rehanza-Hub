@@ -61,6 +61,7 @@ export function AddTaskModal({ isOpen, onClose, onSuccess, task }: AddTaskModalP
       is_today: true,
       is_listing_task: false,
       status: "Pending",
+      task_group: "Fashion",
       created_by: session?.user?.id || "",
       listing_steps: {
         imageGeneration: false,
@@ -119,7 +120,7 @@ export function AddTaskModal({ isOpen, onClose, onSuccess, task }: AddTaskModalP
       form.reset({
         task_name: "",
         task_date: format(new Date(), "yyyy-MM-dd"),
-        task_group: undefined,
+        task_group: "Fashion",
         status: "Pending",
         notes: "",
         is_today: true,
@@ -201,7 +202,7 @@ export function AddTaskModal({ isOpen, onClose, onSuccess, task }: AddTaskModalP
                             <Select onValueChange={field.onChange} value={field.value}>
                             <FormControl><SelectTrigger className="bg-muted/30 border-0 rounded-xl h-11"><SelectValue placeholder="Select Group" /></SelectTrigger></FormControl>
                             <SelectContent className="rounded-xl">
-                                <SelectItem value="Fashion" className="text-xs font-bold uppercase">Fashion</SelectItem>
+                                <SelectItem value="Fashion" className="text-xs font-bold uppercase">Rehanza</SelectItem>
                             </SelectContent>
                             </Select>
                             <FormMessage className="text-[10px] font-bold" />
