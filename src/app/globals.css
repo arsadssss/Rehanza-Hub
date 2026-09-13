@@ -233,6 +233,7 @@ body > * {
     backdrop-filter: blur(10px) saturate(1.15);
     -webkit-backdrop-filter: blur(10px) saturate(1.15);
   }
+}
 
   /* Scoped Classic Theme Dark Overrides */
   :root:not(.theme-blue) .bg-white\/80,
@@ -280,12 +281,15 @@ body > * {
   }
 
   /* Solid & Action Buttons in Classic Theme */
-  :root:not(.theme-blue) button[class*="bg-primary"],
-  :root:not(.theme-blue) button[class*="bg-indigo"],
-  :root:not(.theme-blue) button[class*="bg-blue"],
-  :root:not(.theme-blue) button[class*="bg-emerald"],
-  :root:not(.theme-blue) button[class*="bg-rose"],
-  :root:not(.theme-blue) button[class*="bg-red"],
+  :root:not(.theme-blue) button.bg-primary,
+  :root:not(.theme-blue) button.bg-primary\/20,
+  :root:not(.theme-blue) button.bg-primary\/30,
+  :root:not(.theme-blue) button.bg-indigo-600,
+  :root:not(.theme-blue) button.bg-blue-600,
+  :root:not(.theme-blue) button.bg-emerald-600,
+  :root:not(.theme-blue) button.bg-rose-600,
+  :root:not(.theme-blue) button.bg-rose-500\/20,
+  :root:not(.theme-blue) button.bg-red-600,
   :root:not(.theme-blue) button[type="submit"],
   :root:not(.theme-blue) .btn-primary {
     color: #ffffff !important;
@@ -386,17 +390,17 @@ body > * {
 
   /* 1. Primary Action & Submit Buttons */
   .theme-blue button.bg-primary,
-  .theme-blue button[class*="bg-primary"],
   .theme-blue button.bg-primary\/20,
-  .theme-blue button[class*="bg-blue-600"],
-  .theme-blue button[class*="bg-blue-700"],
-  .theme-blue button[class*="bg-indigo-600"],
-  .theme-blue button[class*="bg-indigo-700"],
+  .theme-blue button.bg-primary\/30,
+  .theme-blue button.bg-blue-600,
+  .theme-blue button.bg-blue-700,
+  .theme-blue button.bg-indigo-600,
+  .theme-blue button.bg-indigo-700,
   .theme-blue button[type="submit"],
   .theme-blue a.bg-primary,
-  .theme-blue a[class*="bg-primary"],
-  .theme-blue a[class*="bg-blue-600"],
-  .theme-blue a[class*="bg-indigo-600"],
+  .theme-blue a.bg-primary\/20,
+  .theme-blue a.bg-blue-600,
+  .theme-blue a.bg-indigo-600,
   .theme-blue .btn-primary {
     background-color: #1a56db !important;
     border-color: #1a56db !important;
@@ -405,14 +409,17 @@ body > * {
   }
 
   .theme-blue button.bg-primary:hover,
-  .theme-blue button[class*="bg-primary"]:hover,
   .theme-blue button.bg-primary\/20:hover,
-  .theme-blue button[class*="bg-blue-600"]:hover,
-  .theme-blue button[class*="bg-indigo-600"]:hover,
+  .theme-blue button.bg-primary\/30:hover,
+  .theme-blue button.bg-blue-600:hover,
+  .theme-blue button.bg-blue-700:hover,
+  .theme-blue button.bg-indigo-600:hover,
+  .theme-blue button.bg-indigo-700:hover,
   .theme-blue button[type="submit"]:hover,
   .theme-blue a.bg-primary:hover,
-  .theme-blue a[class*="bg-primary"]:hover,
-  .theme-blue a[class*="bg-blue-600"]:hover,
+  .theme-blue a.bg-primary\/20:hover,
+  .theme-blue a.bg-blue-600:hover,
+  .theme-blue a.bg-indigo-600:hover,
   .theme-blue .btn-primary:hover {
     background-color: #1545b2 !important;
     border-color: #1545b2 !important;
@@ -420,54 +427,70 @@ body > * {
   }
 
   /* 2. Success Action Buttons (Ingest, Save, Sync, Add) */
-  .theme-blue button[class*="bg-emerald"],
-  .theme-blue button[class*="bg-green"],
-  .theme-blue a[class*="bg-emerald"],
-  .theme-blue a[class*="bg-green"] {
+  .theme-blue button.bg-emerald-600,
+  .theme-blue button.bg-emerald-500,
+  .theme-blue button.bg-emerald-700,
+  .theme-blue button.bg-green-600,
+  .theme-blue button.bg-green-500,
+  .theme-blue a.bg-emerald-600,
+  .theme-blue a.bg-green-600 {
     background-color: #059669 !important;
     border-color: #059669 !important;
     color: #ffffff !important;
     box-shadow: 0 2px 8px -1px rgba(5, 150, 105, 0.35) !important;
   }
-  .theme-blue button[class*="bg-emerald"]:hover,
-  .theme-blue button[class*="bg-green"]:hover {
+  .theme-blue button.bg-emerald-600:hover,
+  .theme-blue button.bg-emerald-500:hover,
+  .theme-blue button.bg-emerald-700:hover,
+  .theme-blue button.bg-green-600:hover,
+  .theme-blue a.bg-emerald-600:hover,
+  .theme-blue a.bg-green-600:hover {
     background-color: #047857 !important;
     border-color: #047857 !important;
     color: #ffffff !important;
   }
 
   /* 3. Destructive Action Buttons (Delete, Remove, Cancel) */
-  .theme-blue button[class*="bg-rose"],
-  .theme-blue button[class*="bg-red"],
-  .theme-blue button[class*="destructive"],
-  .theme-blue a[class*="bg-rose"],
-  .theme-blue a[class*="bg-red"] {
+  .theme-blue button.bg-rose-600,
+  .theme-blue button.bg-rose-500,
+  .theme-blue button.bg-rose-500\/20,
+  .theme-blue button.bg-red-600,
+  .theme-blue button.bg-red-500,
+  .theme-blue button.bg-destructive,
+  .theme-blue button.bg-destructive\/20,
+  .theme-blue a.bg-rose-600,
+  .theme-blue a.bg-red-600 {
     background-color: #dc2626 !important;
     border-color: #dc2626 !important;
     color: #ffffff !important;
     box-shadow: 0 2px 8px -1px rgba(220, 38, 38, 0.35) !important;
   }
-  .theme-blue button[class*="bg-rose"]:hover,
-  .theme-blue button[class*="bg-red"]:hover,
-  .theme-blue button[class*="destructive"]:hover {
+  .theme-blue button.bg-rose-600:hover,
+  .theme-blue button.bg-rose-500:hover,
+  .theme-blue button.bg-rose-500\/20:hover,
+  .theme-blue button.bg-red-600:hover,
+  .theme-blue button.bg-destructive:hover,
+  .theme-blue a.bg-rose-600:hover,
+  .theme-blue a.bg-red-600:hover {
     background-color: #b91c1c !important;
     border-color: #b91c1c !important;
     color: #ffffff !important;
   }
 
   /* 4. Secondary & Outline Action Buttons */
-  .theme-blue button.glass-button:not([class*="bg-primary"]):not([class*="bg-blue"]):not([class*="bg-indigo"]):not([class*="bg-emerald"]):not([class*="bg-green"]):not([class*="bg-rose"]):not([class*="bg-red"]):not([class*="destructive"]):not([type="submit"]):not([class*="bg-gradient"]),
-  .theme-blue button[class*="bg-slate-900\/20"],
-  .theme-blue button[class*="variant-outline"],
-  .theme-blue a.glass-button:not([class*="bg-primary"]):not([class*="bg-blue"]):not([class*="bg-indigo"]):not([class*="bg-emerald"]):not([class*="bg-green"]):not([class*="bg-rose"]):not([class*="bg-red"]) {
+  .theme-blue button.bg-slate-900\/20,
+  .theme-blue a.bg-slate-900\/20,
+  .theme-blue button.btn-secondary,
+  .theme-blue button.btn-outline {
     background-color: #ffffff !important;
     border: 1px solid #cbd5e1 !important;
     color: #1e293b !important;
     box-shadow: 0 1px 2px 0 rgba(0, 0, 0, 0.05) !important;
   }
-  .theme-blue button.glass-button:not([class*="bg-primary"]):not([class*="bg-blue"]):not([class*="bg-indigo"]):not([class*="bg-emerald"]):not([class*="bg-green"]):not([class*="bg-rose"]):not([class*="bg-red"]):not([class*="destructive"]):not([type="submit"]):not([class*="bg-gradient"]):hover,
-  .theme-blue button[class*="bg-slate-900\/20"]:hover,
-  .theme-blue a.glass-button:hover {
+  .theme-blue button.bg-slate-900\/20:hover,
+  .theme-blue a.bg-slate-900\/20:hover,
+  .theme-blue button.btn-secondary:hover,
+  .theme-blue button.btn-outline:hover {
     background-color: #f8fafc !important;
     border-color: #94a3b8 !important;
     color: #0f172a !important;
@@ -483,34 +506,29 @@ body > * {
   }
 
   /* 5. ALL Elements Inside Solid/Colored CTA Buttons ALWAYS have Pure White Text */
-  .theme-blue button[class*="bg-primary"] span,
-  .theme-blue button[class*="bg-primary"] svg,
-  .theme-blue button[class*="bg-primary"] p,
-  .theme-blue button[class*="bg-blue"] span,
-  .theme-blue button[class*="bg-blue"] svg,
-  .theme-blue button[class*="bg-indigo"] span,
-  .theme-blue button[class*="bg-indigo"] svg,
-  .theme-blue button[class*="bg-emerald"] span,
-  .theme-blue button[class*="bg-emerald"] svg,
-  .theme-blue button[class*="bg-green"] span,
-  .theme-blue button[class*="bg-green"] svg,
-  .theme-blue button[class*="bg-rose"] span,
-  .theme-blue button[class*="bg-rose"] svg,
-  .theme-blue button[class*="bg-red"] span,
-  .theme-blue button[class*="bg-red"] svg,
-  .theme-blue button[class*="destructive"] span,
-  .theme-blue button[class*="destructive"] svg,
-  .theme-blue button[type="submit"] span,
-  .theme-blue button[type="submit"] svg,
-  .theme-blue a[class*="bg-primary"] span,
-  .theme-blue a[class*="bg-primary"] svg,
-  .theme-blue a[class*="bg-blue"] span,
-  .theme-blue a[class*="bg-blue"] svg,
-  .theme-blue a[class*="bg-emerald"] span,
-  .theme-blue a[class*="bg-emerald"] svg,
-  .theme-blue a[class*="bg-rose"] span,
-  .theme-blue a[class*="bg-rose"] svg {
+  .theme-blue button.bg-primary *,
+  .theme-blue button.bg-primary\/20 *,
+  .theme-blue button.bg-primary\/30 *,
+  .theme-blue button.bg-blue-600 *,
+  .theme-blue button.bg-blue-700 *,
+  .theme-blue button.bg-indigo-600 *,
+  .theme-blue button.bg-indigo-700 *,
+  .theme-blue button[type="submit"] *,
+  .theme-blue button.bg-emerald-600 *,
+  .theme-blue button.bg-emerald-500 *,
+  .theme-blue button.bg-green-600 *,
+  .theme-blue button.bg-rose-600 *,
+  .theme-blue button.bg-rose-500\/20 *,
+  .theme-blue button.bg-red-600 *,
+  .theme-blue button.bg-destructive *,
+  .theme-blue button.btn-primary *,
+  .theme-blue a.bg-primary *,
+  .theme-blue a.bg-blue-600 *,
+  .theme-blue a.bg-emerald-600 *,
+  .theme-blue a.bg-rose-600 *,
+  .theme-blue a.btn-primary * {
     color: #ffffff !important;
+    fill: #ffffff !important;
   }
 
   /* 6. Typography: Dark High-Contrast on White Surfaces */
@@ -542,14 +560,17 @@ body > * {
     color: #64748b !important;
   }
 
-  /* Text-white on white cards should be slate-900, EXCEPT inside buttons/badges */
+  /* Text-white on white cards should be slate-900, EXCEPT inside buttons/badges or sidebar */
   .theme-blue main p.text-white,
   .theme-blue main h1.text-white,
   .theme-blue main h2.text-white,
   .theme-blue main h3.text-white,
-  .theme-blue main h4.text-white,
-  .theme-blue main span.text-white:not(button *):not(a[class*="bg-"] *):not([class*="badge"] *):not([class*="bg-primary"] *):not([class*="bg-blue"] *):not([class*="bg-indigo"] *):not([class*="bg-emerald"] *):not([class*="bg-rose"] *):not([class*="bg-red"] *),
-  .theme-blue main div.text-white:not(button *):not(a[class*="bg-"] *):not([class*="badge"] *):not([class*="bg-primary"] *):not([class*="bg-blue"] *):not([class*="bg-indigo"] *):not([class*="bg-emerald"] *):not([class*="bg-rose"] *):not([class*="bg-red"] *) {
+  .theme-blue main h4.text-white {
+    color: #0f172a !important;
+  }
+
+  .theme-blue main span.text-white:not(button *):not(a *):not([data-sidebar="sidebar"] *),
+  .theme-blue main div.text-white:not(button *):not(a *):not([data-sidebar="sidebar"] *) {
     color: #0f172a !important;
   }
 
@@ -634,7 +655,6 @@ body > * {
   .theme-blue header.glass-panel button {
     color: #0f172a !important;
   }
-}
 
 /* Smooth theme transition */
 * {
