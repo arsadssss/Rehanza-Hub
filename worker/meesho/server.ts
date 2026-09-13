@@ -15,7 +15,7 @@ if (process.env.NODE_ENV === 'production' && !process.env.MEESHO_WORKER_SECRET) 
   throw new Error('FATAL: MEESHO_WORKER_SECRET environment variable is required in production.');
 }
 
-const PORT = parseInt(process.env.MEESHO_WORKER_PORT || '9005', 10);
+const PORT = parseInt(process.env.PORT || process.env.MEESHO_WORKER_PORT || '9005', 10);
 const HUB_URL = process.env.MEESHO_HUB_URL || 'http://localhost:9002';
 const WORKER_SECRET = process.env.MEESHO_WORKER_SECRET || 'dev_meesho_worker_secret';
 // In local dev, default to headed (false) so user can see and interact with Meesho login
@@ -257,7 +257,7 @@ const isMainScript = process.argv[1] && (
 );
 
 if (isMainScript && process.env.NODE_ENV !== 'test' && !process.env.IS_WORKER_TEST) {
-  server.listen(PORT, async () => {
+  server.listen(PORT, '0.0.0.0', async () => {
     console.log(`====================================================`);
     console.log(`🚀 MEESHO BROWSER WORKER STARTED`);
     console.log(`📡 Port: ${PORT}`);
