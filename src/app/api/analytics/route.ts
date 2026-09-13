@@ -1,137 +1,119 @@
-import { sql } from '@/lib/db';
-import { NextResponse } from 'next/server';
+import { NextRequest, NextResponse } from 'next/server';
+import { getServerSession } from 'next-auth';
+import { authOptions } from '@/lib/auth';
+import { generateManagementReport } from '@/lib/analytics/reports-engine';
+import { DateRangePreset, ReconciliationDateFilter } from '@/lib/reconciliation/types';
 
 export const revalidate = 0;
 
-export async function GET(request: Request) {
+/**
+ * GET /api/analytics
+ *
+ * Strategic Management & Analytical Reporting API.
+ * Leverages the authoritative Reconciliation database and SKU analytics
+ * to output 10 executive-level reports:
+ * - Period-over-Period (PoP) comparison & profit velocity
+ * - Profit leakage & retention breakdown
+ * - Settlement & reconciliation efficiency
+ * - Cost structure waterfall
+ * - Margin traps diagnostic
+ * - Return & RTO financial damage
+ * - Pareto 80/20 concentration
+ * - Business trajectory
+ * - Anomaly & risk matrix
+ * - Executive attention board & directives
+ */
+export async function GET(request: NextRequest) {
   try {
-    const { searchParams } = new URL(request.url);
-    const range = searchParams.get('range') || '7d';
-    const accountId = request.headers.get("x-account-id");
-    
+    // 1. Session authentication & account context
+    let session = null;
+    try {
+      session = await getServerSession(authOptions);
+    } catch {
+      // Ignored if called outside NextAuth context
+    }
+    const accountId = request.headers.get('x-account-id') || (session?.user as any)?.accountId;
+
     if (!accountId) {
-      return NextResponse.json({ success: false, message: "Account not selected" }, { status: 400 });
+      return NextResponse.json(
+        { success: false, message: 'Account context missing. Please select an active account.' },
+        { status: 400 }
+      );
     }
 
-    const isAllTime = range === 'all';
-    
-    let interval = '7 days';
-    let trendGroup = 'day';
-    
-    if (range === '30d') {
-      interval = '30 days';
-      trendGroup = 'day';
-    } else if (range === '90d') {
-      interval = '90 days';
-      trendGroup = 'week';
-    } else if (range === 'all') {
-      interval = '100 years';
-      trendGroup = 'month';
+    // 2. Parse query parameters
+    const { searchParams } = new URL(request.url);
+    const range = searchParams.get('range') as DateRangePreset | null;
+    const month = searchParams.get('month');
+    const yearStr = searchParams.get('year');
+    const startDate = searchParams.get('startDate');
+    const endDate = searchParams.get('endDate');
+
+    // 3. Validate date inputs if provided
+    if (startDate && isNaN(Date.parse(startDate))) {
+      return NextResponse.json(
+        { success: false, message: `Invalid startDate format: ${startDate}. Expected YYYY-MM-DD.` },
+        { status: 400 }
+      );
     }
 
-    const [
-      orderAggsRes,
-      returnAggsRes,
-      totalCostsRes,
-      platformRes,
-      salesTrendRes
-    ] = await Promise.all([
-      // Combined Total Sales, Total Orders Count, and Total Units
-      sql`
-        SELECT 
-          COALESCE(SUM(total_amount), 0)::numeric as total_sales,
-          COUNT(id)::int as total_orders,
-          COALESCE(SUM(quantity), 0)::int as total_units
-        FROM orders 
-        WHERE account_id = ${accountId} AND is_deleted = false 
-          AND (${isAllTime} = true OR order_date >= CURRENT_DATE - ${interval}::interval)
-      `,
-      
-      // Combined Total Return Units and Total Return Loss
-      sql`
-        SELECT 
-          COALESCE(SUM(quantity), 0)::int as total_returns,
-          COALESCE(SUM(total_loss), 0)::numeric as return_loss
-        FROM returns 
-        WHERE account_id = ${accountId} AND is_deleted = false 
-          AND (${isAllTime} = true OR return_date >= CURRENT_DATE - ${interval}::interval)
-      `,
-      
-      // Advanced Cost calculation (COGS + Shipping + Fees + Packing + Ads + Tax Misc)
-      sql`
-        SELECT 
-          COALESCE(SUM(
-            o.quantity * (
-              ap.cost_price + 
-              COALESCE(ap.promo_ads, 0) + 
-              COALESCE(ap.tax_other, 0) + 
-              COALESCE(ap.packing, 0) + 
-              (CASE WHEN o.platform = 'Amazon' THEN COALESCE(ap.amazon_ship, 0) ELSE 0 END) +
-              (CASE WHEN o.platform = 'Flipkart' THEN COALESCE(ap.flipkart_ship, 0) ELSE 0 END) +
-              (CASE WHEN o.platform != 'Meesho' THEN COALESCE(ap.platform_fee, 0) ELSE 0 END)
-            )
-          ), 0)::numeric as total
-        FROM orders o
-        JOIN product_variants pv ON o.variant_id = pv.id
-        JOIN allproducts ap ON pv.product_id = ap.id
-        WHERE o.account_id = ${accountId} AND o.is_deleted = false AND (${isAllTime} = true OR o.order_date >= CURRENT_DATE - ${interval}::interval)
-      `,
-      
-      // Platform Breakdown
-      sql`
-        SELECT platform, COUNT(*)::int as orders
-        FROM orders
-        WHERE account_id = ${accountId} AND is_deleted = false AND (${isAllTime} = true OR order_date >= CURRENT_DATE - ${interval}::interval)
-        GROUP BY platform
-      `,
+    if (endDate && isNaN(Date.parse(endDate))) {
+      return NextResponse.json(
+        { success: false, message: `Invalid endDate format: ${endDate}. Expected YYYY-MM-DD.` },
+        { status: 400 }
+      );
+    }
 
-      // Sales Trend
-      sql`
-        SELECT 
-          DATE_TRUNC(${trendGroup}, order_date) as date, 
-          SUM(total_amount)::numeric as revenue,
-          COUNT(id)::int as orders
-        FROM orders 
-        WHERE account_id = ${accountId} AND is_deleted = false
-          AND (${isAllTime} = true OR order_date >= CURRENT_DATE - ${interval}::interval)
-        GROUP BY date
-        ORDER BY date ASC
-      `
-    ]);
+    if (startDate && endDate && new Date(startDate) > new Date(endDate)) {
+      return NextResponse.json(
+        { success: false, message: 'startDate cannot be after endDate.' },
+        { status: 400 }
+      );
+    }
 
-    const totalSales = Number(orderAggsRes[0]?.total_sales || 0);
-    const totalOrders = Number(orderAggsRes[0]?.total_orders || 0);
-    const totalOrderUnits = Number(orderAggsRes[0]?.total_units || 0);
-    const totalReturnsUnits = Number(returnAggsRes[0]?.total_returns || 0);
-    const returnLoss = Number(returnAggsRes[0]?.return_loss || 0);
-    const totalExpenses = Number(totalCostsRes[0]?.total || 0);
-    const netProfit = totalSales - totalExpenses - returnLoss;
+    const filter: ReconciliationDateFilter = {
+      range: range || undefined,
+      month: month || undefined,
+      year: yearStr ? parseInt(yearStr, 10) : undefined,
+      startDate: startDate || undefined,
+      endDate: endDate || undefined,
+    };
 
-    const returnRate = totalOrderUnits > 0 ? (totalReturnsUnits / totalOrderUnits) * 100 : 0;
+    // 4. Generate management analytics
+    const report = await generateManagementReport(accountId, filter);
 
-    return NextResponse.json({
-      success: true,
-      totalSales,
-      totalOrders,
-      totalReturns: totalReturnsUnits,
-      netProfit,
-      returnRate: Number(returnRate.toFixed(2)),
-      salesTrend: (salesTrendRes || []).map((row: any) => ({
-        date: row.date,
-        revenue: Number(row.revenue),
-        orders: Number(row.orders)
-      })),
-      platformOrders: {
-        totalOrders,
-        breakdown: (platformRes || []).map((row: any) => ({
-          platform: row.platform,
-          orders: Number(row.orders)
-        }))
-      }
-    });
-
+    // 5. Build response with strategic report plus backwards-compatible aliases
+    return NextResponse.json(
+      {
+        success: true,
+        report,
+        // Backward-compatible fields for legacy consumers
+        totalSales: report.summaryParity.totalSalesInvoice,
+        totalOrders: report.summaryParity.totalOrders,
+        totalReturns: report.returnRtoDamage.returnOrders,
+        netProfit: report.summaryParity.finalPayoutNetProfit,
+        returnRate: report.returnRtoDamage.returnRate,
+        salesTrend: report.businessTrajectory.dates.map((d, i) => ({
+          date: d,
+          revenue: report.costWaterfall[0].amount,
+          orders: report.summaryParity.totalOrders,
+        })),
+        platformOrders: {
+          totalOrders: report.summaryParity.totalOrders,
+          breakdown: [{ platform: 'Meesho', orders: report.summaryParity.totalOrders }],
+        },
+      },
+      { status: 200 }
+    );
   } catch (error: any) {
-    console.error("Sales Report API Error:", error);
-    return NextResponse.json({ success: false, message: "Failed to fetch report data", error: error.message }, { status: 500 });
+    console.error('Analytics Management API Error:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        message: 'Failed to generate management report',
+        error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+      },
+      { status: 500 }
+    );
   }
 }

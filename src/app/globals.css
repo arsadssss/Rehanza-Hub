@@ -166,6 +166,7 @@ body > * {
 @layer components {
   .dashboard-shell {
     position: relative;
+    overflow-x: clip;
     background: linear-gradient(180deg, rgba(7, 12, 23, 0.40), rgba(7, 12, 23, 0.55));
   }
 
