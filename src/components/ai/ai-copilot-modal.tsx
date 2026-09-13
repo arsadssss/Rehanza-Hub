@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useEffect } from "react";
+import { createPortal } from "react-dom";
 import {
   Sparkles,
   Send,
@@ -21,6 +22,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { AiMarkdownMessage } from "./ai-markdown-message";
+import { useAiChat } from "./ai-chat-context";
 import { getStoredAccountId } from "@/lib/account";
 import { cn } from "@/lib/utils";
 
@@ -54,8 +56,8 @@ function cleanFrontendMessage(text: string): string {
 }
 
 interface AiCopilotModalProps {
-  isOpen: boolean;
-  onClose: () => void;
+  isOpen?: boolean;
+  onClose?: () => void;
   activeAccountId?: string | null;
 }
 
@@ -136,15 +138,30 @@ const TOOL_DISPLAY_NAMES: Record<string, string> = {
   get_daily_financial_trends: "Daily Trends",
 };
 
-export function AiCopilotModal({ isOpen, onClose, activeAccountId }: AiCopilotModalProps) {
+export function AiCopilotModal({
+  isOpen: propIsOpen,
+  onClose: propOnClose,
+  activeAccountId,
+}: AiCopilotModalProps) {
+  const context = useAiChat();
+  const isOpen = propIsOpen !== undefined ? propIsOpen : context.isOpen;
+  const onClose = propOnClose !== undefined ? propOnClose : context.closeChat;
+
+  const [isMounted, setIsMounted] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [inputValue, setInputValue] = useState("");
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
-  const [viewportHeight, setViewportHeight] = useState<number | null>(null);
+
+  // Keyboard offset state for mobile Safari/Chrome virtual keyboard
+  const [keyboardOffset, setKeyboardOffset] = useState<{ bottom: number; height: number } | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    setIsMounted(true);
+  }, []);
 
   // Auto-scroll to bottom of conversation
   useEffect(() => {
@@ -153,35 +170,45 @@ export function AiCopilotModal({ isOpen, onClose, activeAccountId }: AiCopilotMo
     }
   }, [messages, loading, isOpen]);
 
-  // Mobile keyboard and visualViewport tracking
+  // Mobile virtual keyboard detection via visualViewport API
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || typeof window === "undefined") return;
 
-    const updateViewport = () => {
-      if (typeof window !== "undefined" && window.visualViewport && window.innerWidth < 768) {
-        setViewportHeight(window.visualViewport.height);
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const handleViewportChange = () => {
+      if (window.innerWidth >= 768) {
+        setKeyboardOffset(null);
+        return;
+      }
+
+      const diff = window.innerHeight - vv.height;
+      // If window height shrunk by more than 120px, virtual keyboard is active
+      if (diff > 120) {
+        const bottomOffset = Math.max(8, window.innerHeight - (vv.offsetTop + vv.height) + 8);
+        const availableHeight = Math.max(280, vv.height - 16);
+        setKeyboardOffset({ bottom: bottomOffset, height: availableHeight });
       } else {
-        setViewportHeight(null);
+        setKeyboardOffset(null);
       }
     };
 
-    updateViewport();
-    const vv = typeof window !== "undefined" ? window.visualViewport : null;
-    vv?.addEventListener("resize", updateViewport);
-    vv?.addEventListener("scroll", updateViewport);
-    window.addEventListener("resize", updateViewport);
+    handleViewportChange();
+    vv.addEventListener("resize", handleViewportChange);
+    vv.addEventListener("scroll", handleViewportChange);
+    window.addEventListener("resize", handleViewportChange);
 
     return () => {
-      vv?.removeEventListener("resize", updateViewport);
-      vv?.removeEventListener("scroll", updateViewport);
-      window.removeEventListener("resize", updateViewport);
+      vv.removeEventListener("resize", handleViewportChange);
+      vv.removeEventListener("scroll", handleViewportChange);
+      window.removeEventListener("resize", handleViewportChange);
     };
   }, [isOpen]);
 
   // Lock body scroll on mobile when modal is open
   useEffect(() => {
-    if (!isOpen) return;
-    if (typeof window === "undefined" || window.innerWidth >= 768) return;
+    if (!isOpen || typeof window === "undefined" || window.innerWidth >= 768) return;
 
     const originalOverflow = document.body.style.overflow;
     const originalTouchAction = document.body.style.touchAction;
@@ -194,23 +221,12 @@ export function AiCopilotModal({ isOpen, onClose, activeAccountId }: AiCopilotMo
     };
   }, [isOpen]);
 
-  // Focus input when opened (Desktop only to avoid mobile keyboard layout jumps)
+  // Focus input when opened on desktop
   useEffect(() => {
     if (isOpen && typeof window !== "undefined" && window.innerWidth >= 768) {
       setTimeout(() => inputRef.current?.focus(), 150);
     }
   }, [isOpen]);
-
-  // Close on Escape key
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && isOpen) {
-        onClose();
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [isOpen, onClose]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     setInputValue(e.target.value);
@@ -244,7 +260,6 @@ export function AiCopilotModal({ isOpen, onClose, activeAccountId }: AiCopilotMo
     try {
       const accountId = activeAccountId || getStoredAccountId() || "1323beea-04db-4d44-a1ca-3ab7a1556f09";
 
-      // Prepare conversation history for context
       const historyPayload = updatedMessages.slice(-6).map((m) => ({
         role: m.role,
         content: m.content,
@@ -306,33 +321,43 @@ export function AiCopilotModal({ isOpen, onClose, activeAccountId }: AiCopilotMo
     }
   };
 
-  if (!isOpen) return null;
+  if (!isMounted || !isOpen) return null;
 
-  return (
+  // Compute inline style override ONLY when mobile keyboard is actively open
+  const dynamicKeyboardStyle: React.CSSProperties | undefined = keyboardOffset
+    ? {
+        bottom: `${keyboardOffset.bottom}px`,
+        maxHeight: `${keyboardOffset.height}px`,
+        height: `${keyboardOffset.height}px`,
+        top: "auto",
+      }
+    : undefined;
+
+  const modalContent = (
     <>
-      {/* Backdrop for mobile */}
+      {/* Semi-transparent backdrop for mobile viewports */}
       <div
-        className="fixed inset-0 bg-black/70 backdrop-blur-sm z-[99] md:hidden animate-in fade-in duration-200"
+        className="fixed inset-0 bg-black/60 backdrop-blur-sm z-[55] md:hidden animate-in fade-in duration-200"
         onClick={onClose}
+        aria-hidden="true"
       />
 
       {/* Floating Assistant Window */}
       <div
-        style={
-          viewportHeight
-            ? { height: `${viewportHeight}px`, top: 0, bottom: "auto" }
-            : undefined
-        }
+        role="dialog"
+        aria-modal="true"
+        aria-label="Rehanza AI Business Copilot"
+        style={dynamicKeyboardStyle}
         className={cn(
-          "fixed z-[100] flex flex-col font-body border border-indigo-500/30 bg-slate-950/95 backdrop-blur-2xl shadow-2xl shadow-indigo-950/70 overflow-hidden transition-all duration-200",
-          // Desktop positioning: aligned right near the AI Assist button
-          "md:top-20 md:right-8 md:w-[480px] md:h-[80vh] md:max-h-[740px] md:rounded-3xl md:inset-auto",
-          // Mobile positioning: full screen bottom-sheet style with safe-area support
-          "inset-0 h-[100dvh] w-full rounded-none md:rounded-3xl"
+          "fixed z-[60] flex flex-col font-body border border-indigo-500/30 bg-slate-950/95 backdrop-blur-2xl shadow-2xl shadow-indigo-950/70 overflow-hidden transition-all duration-200",
+          // Mobile: floating cleanly between MobileHeader and MobileBottomNav with safe side margins
+          "top-[calc(4rem+env(safe-area-inset-top,0px)+0.5rem)] bottom-[calc(4rem+env(safe-area-inset-bottom,0px)+0.5rem)] left-3 right-3 w-auto rounded-2xl",
+          // Desktop (md: >= 768px): fixed right side, below top header, sensible fixed width and max height
+          "md:top-20 md:right-8 md:bottom-auto md:left-auto md:w-[480px] md:h-[calc(100dvh-7rem)] md:max-h-[740px] md:rounded-3xl"
         )}
       >
         {/* Top Header */}
-        <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-white/10 bg-slate-900/80 shrink-0 pt-[max(0.75rem,env(safe-area-inset-top,0px))]">
+        <div className="flex items-center justify-between px-4 sm:px-5 py-3 border-b border-white/10 bg-slate-900/80 shrink-0 pt-3">
           <div className="flex items-center gap-2.5 sm:gap-3">
             <div className="h-8 w-8 sm:h-9 sm:w-9 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 flex items-center justify-center shadow-md shadow-indigo-500/20 border border-white/20 shrink-0">
               <Sparkles className="h-4 w-4 text-white" />
@@ -357,6 +382,7 @@ export function AiCopilotModal({ isOpen, onClose, activeAccountId }: AiCopilotMo
             {messages.length > 0 && (
               <button
                 onClick={handleResetChat}
+                type="button"
                 title="Start new conversation"
                 aria-label="Start new conversation"
                 className="h-9 w-9 flex items-center justify-center rounded-xl text-slate-400 hover:text-white hover:bg-white/10 active:bg-white/15 transition-colors"
@@ -366,6 +392,7 @@ export function AiCopilotModal({ isOpen, onClose, activeAccountId }: AiCopilotMo
             )}
             <button
               onClick={onClose}
+              type="button"
               title="Close Rehanza AI"
               aria-label="Close Rehanza AI"
               className="h-9 w-9 flex items-center justify-center rounded-xl text-slate-400 hover:text-white hover:bg-white/10 active:bg-white/15 transition-colors"
@@ -403,6 +430,7 @@ export function AiCopilotModal({ isOpen, onClose, activeAccountId }: AiCopilotMo
                     return (
                       <button
                         key={idx}
+                        type="button"
                         onClick={() => handleSendMessage(action.prompt)}
                         className={cn(
                           "flex items-center gap-2.5 p-2.5 rounded-xl border text-left transition-all duration-200 group bg-slate-900/40 hover:bg-slate-900/80 hover:border-indigo-400/50 active:scale-[0.98]",
@@ -511,7 +539,7 @@ export function AiCopilotModal({ isOpen, onClose, activeAccountId }: AiCopilotMo
         </div>
 
         {/* Message Composer Footer */}
-        <div className="p-2.5 sm:p-3 pb-[max(0.75rem,env(safe-area-inset-bottom,0px))] border-t border-white/10 bg-slate-900/80 backdrop-blur-md shrink-0">
+        <div className="p-2.5 sm:p-3 pb-3 border-t border-white/10 bg-slate-900/80 backdrop-blur-md shrink-0">
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -556,5 +584,6 @@ export function AiCopilotModal({ isOpen, onClose, activeAccountId }: AiCopilotMo
       </div>
     </>
   );
-}
 
+  return createPortal(modalContent, document.body);
+}

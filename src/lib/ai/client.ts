@@ -22,7 +22,7 @@ export function getAiBaseUrl(): string {
  * Checks process.env.AI_MODEL first, with fallback to XKIRO_MODEL or default.
  */
 export function getAiModel(): string {
-  return process.env.AI_MODEL || process.env.XKIRO_MODEL || "deepseek/deepseek-v4-pro";
+  return process.env.AI_MODEL || process.env.XKIRO_MODEL || "openai/gpt-5.3-codex-spark";
 }
 
 /**
@@ -48,6 +48,6 @@ export function getAiClient(): OpenAI {
   });
 }
 
-export const AI_MODEL = process.env.AI_MODEL || process.env.XKIRO_MODEL || "deepseek/deepseek-v4-pro";
+export const AI_MODEL = process.env.AI_MODEL || process.env.XKIRO_MODEL || "openai/gpt-5.3-codex-spark";
 
 

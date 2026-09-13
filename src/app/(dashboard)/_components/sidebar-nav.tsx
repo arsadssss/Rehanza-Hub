@@ -33,6 +33,7 @@ import {
   Zap,
   Database,
   Store,
+  Sparkles,
 } from 'lucide-react';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -40,6 +41,7 @@ import { LogoutButton } from '@/components/logout-button';
 import { apiFetch } from '@/lib/apiFetch';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { useAiChat } from '@/components/ai/ai-chat-context';
 
 export const navItems = [
   { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard', group: 'MAIN' },
@@ -62,6 +64,7 @@ export function SidebarNav() {
   const { data: session } = useSession();
   const { state, isMobile, toggleSidebar } = useSidebar();
   const isCollapsed = state === 'collapsed';
+  const { isOpen: isAiOpen, toggleChat: toggleAiChat } = useAiChat();
   
   const [sidebarConfig, setSidebarConfig] = useState<Record<string, boolean>>({});
 
@@ -211,7 +214,28 @@ export function SidebarNav() {
         </div>
       </SidebarContent>
 
-      <SidebarFooter className="p-4 mt-auto space-y-4">
+      <SidebarFooter className="p-4 mt-auto space-y-3">
+        {/* AI Copilot Sidebar Action */}
+        <button
+          type="button"
+          onClick={toggleAiChat}
+          title="Open Rehanza AI Business Copilot"
+          aria-label="Open Rehanza AI Business Copilot"
+          aria-expanded={isAiOpen}
+          className={cn(
+            "w-full h-10 px-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center gap-2.5 transition-all duration-200 border group active:scale-95",
+            isCollapsed ? "justify-center px-0" : "justify-start",
+            isAiOpen
+              ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white border-indigo-400 shadow-md shadow-indigo-500/30"
+              : "bg-indigo-950/40 hover:bg-indigo-900/50 text-indigo-200 hover:text-white border-indigo-500/30"
+          )}
+        >
+          <Sparkles className={cn("h-4 w-4 shrink-0", isAiOpen ? "text-white rotate-12" : "text-indigo-400 group-hover:rotate-12 transition-transform")} />
+          {!isCollapsed && (
+            <span className="font-headline font-extrabold tracking-wider text-[11px]">AI COPILOT</span>
+          )}
+        </button>
+
         <Separator className="bg-black/5 dark:bg-white/5 mx-2" />
         
         <div className={cn(

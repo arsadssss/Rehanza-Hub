@@ -625,6 +625,23 @@ body > * {
   .theme-blue [role="dialog"] .border-white\/20 {
     border-color: #e2e8f0 !important;
   }
+  .theme-blue [role="dialog"] .bg-slate-900\/80,
+  .theme-blue [role="dialog"] .bg-slate-900\/75,
+  .theme-blue [role="dialog"] .bg-slate-900\/60,
+  .theme-blue [role="dialog"] .bg-slate-900\/40,
+  .theme-blue [role="dialog"] .bg-slate-950\/60 {
+    background-color: #f8fafc !important;
+    border-color: #e2e8f0 !important;
+  }
+  .theme-blue [role="dialog"] .text-slate-100,
+  .theme-blue [role="dialog"] .text-slate-200 {
+    color: #0f172a !important;
+  }
+  .theme-blue [role="dialog"] textarea {
+    background-color: #ffffff !important;
+    border-color: #cbd5e1 !important;
+    color: #0f172a !important;
+  }
 
   /* Tables */
   .theme-blue table thead tr {

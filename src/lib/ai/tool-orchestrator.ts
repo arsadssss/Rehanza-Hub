@@ -210,17 +210,18 @@ export async function runToolOrchestrator(
 ): Promise<OrchestratorResult> {
   let turn = 0;
   let finalAnswer = "";
+  let activeModel = model;
   const toolsExecuted: Array<{ name: string; args: any }> = [];
   const sourcesSet = new Set<string>();
 
   while (turn < maxTurns) {
     turn++;
 
-    console.log("[AI_CHAT] Calling AI provider");
+    console.log(`[AI_CHAT] Calling AI provider (${activeModel})`);
     let completion: any;
     try {
       completion = await client.chat.completions.create({
-        model,
+        model: activeModel,
         messages,
         tools,
         tool_choice: "auto",
@@ -228,14 +229,41 @@ export async function runToolOrchestrator(
       });
       console.log("[AI_CHAT] AI provider response received");
     } catch (apiErr: any) {
-      console.error(
-        "[AI_CHAT_ERROR]",
-        JSON.stringify({
-          stage: "ai_provider",
-          message: apiErr?.message || "AI provider request failed",
-        })
-      );
-      throw apiErr;
+      const isModelError = apiErr?.status === 404 || apiErr?.status === 403;
+      if (isModelError && activeModel !== "mistralai/mistral-large-2512") {
+        console.warn(
+          `[AI_CHAT] Model "${activeModel}" failed with status ${apiErr.status} (${apiErr.message}). Engaging resilient fallback to "mistralai/mistral-large-2512"...`
+        );
+        activeModel = "mistralai/mistral-large-2512";
+        try {
+          completion = await client.chat.completions.create({
+            model: activeModel,
+            messages,
+            tools,
+            tool_choice: "auto",
+            temperature: 0.2,
+          });
+          console.log("[AI_CHAT] Fallback AI provider response received successfully");
+        } catch (fallbackErr: any) {
+          console.error(
+            "[AI_CHAT_ERROR]",
+            JSON.stringify({
+              stage: "ai_provider",
+              message: fallbackErr?.message || "Fallback AI provider request failed",
+            })
+          );
+          throw fallbackErr;
+        }
+      } else {
+        console.error(
+          "[AI_CHAT_ERROR]",
+          JSON.stringify({
+            stage: "ai_provider",
+            message: apiErr?.message || "AI provider request failed",
+          })
+        );
+        throw apiErr;
+      }
     }
 
     const assistantMessage = completion.choices[0]?.message;
@@ -295,20 +323,19 @@ export async function runToolOrchestrator(
         })),
       });
 
-      for (const call of detectedCalls) {
+      const toolPromises = detectedCalls.map(async (call) => {
         toolsExecuted.push({ name: call.name, args: call.args });
 
         // Security check: validate against allowlist
         if (!ALLOWED_CRM_TOOLS.has(call.name)) {
           console.warn(`[AI Security] Rejected disallowed tool: ${call.name}`);
-          messages.push({
-            role: "tool",
+          return {
+            role: "tool" as const,
             tool_call_id: call.id,
             content: JSON.stringify({
               error: `Tool "${call.name}" is not permitted or unknown.`,
             }),
-          });
-          continue;
+          };
         }
 
         const sourceLabel = TOOL_HUMAN_SOURCES[call.name] || "CRM Live Data";
@@ -316,11 +343,11 @@ export async function runToolOrchestrator(
 
         try {
           const result = await executeCrmTool(call.name, call.args, accountId);
-          messages.push({
-            role: "tool",
+          return {
+            role: "tool" as const,
             tool_call_id: call.id,
             content: JSON.stringify(result),
-          });
+          };
         } catch (toolErr: any) {
           console.error(
             "[AI_CHAT_ERROR]",
@@ -329,15 +356,18 @@ export async function runToolOrchestrator(
               message: `Failed executing ${call.name}: ${toolErr?.message || "unknown error"}`,
             })
           );
-          messages.push({
-            role: "tool",
+          return {
+            role: "tool" as const,
             tool_call_id: call.id,
             content: JSON.stringify({
               error: `Failed to retrieve data for ${call.name}. Please proceed with available context.`,
             }),
-          });
+          };
         }
-      }
+      });
+
+      const toolResults = await Promise.all(toolPromises);
+      messages.push(...toolResults);
     } else {
       // No tool calls requested: assistant has provided the natural language response
       finalAnswer = sanitizeAssistantResponse(assistantMessage.content || "");
@@ -347,10 +377,10 @@ export async function runToolOrchestrator(
 
   // Fallback: If loop reached max turns without a final textual answer, force synthesis
   if (!finalAnswer && turn >= maxTurns) {
-    console.log("[AI_CHAT] Calling AI provider");
+    console.log(`[AI_CHAT] Calling AI provider for final synthesis (${activeModel})`);
     try {
       const finalCompletion = await client.chat.completions.create({
-        model,
+        model: activeModel,
         messages,
         temperature: 0.2,
       });

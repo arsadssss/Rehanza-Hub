@@ -6,6 +6,8 @@ import { TopNavbar } from "./_components/top-navbar";
 import { MobileBottomNav } from "./_components/mobile-bottom-nav";
 import { AccountInitializer } from "@/components/account-initializer";
 import { OrderNotificationListener } from "@/components/meesho/order-notification-listener";
+import { AiChatProvider } from "@/components/ai/ai-chat-context";
+import { AiCopilotModal } from "@/components/ai/ai-copilot-modal";
 import { cookies } from "next/headers";
 
 export default async function DashboardLayout({
@@ -22,17 +24,20 @@ export default async function DashboardLayout({
     <SidebarProvider defaultOpen={defaultOpen}>
       <AccountInitializer />
       <OrderNotificationListener />
-      <div className="dashboard-shell flex min-h-screen w-full">
-        <SidebarNav />
-        <main className="relative flex min-w-0 flex-1 flex-col bg-transparent">
-          <TopNavbar />
-          <MobileHeader />
-          <div className="relative z-10 flex-1 w-full pb-20 md:pb-0">
-            {children}
-          </div>
-          <MobileBottomNav />
-        </main>
-      </div>
+      <AiChatProvider>
+        <div className="dashboard-shell flex min-h-screen w-full">
+          <SidebarNav />
+          <main className="relative flex min-w-0 flex-1 flex-col bg-transparent">
+            <TopNavbar />
+            <MobileHeader />
+            <div className="flex-1 w-full pb-20 md:pb-0">
+              {children}
+            </div>
+            <MobileBottomNav />
+          </main>
+        </div>
+        <AiCopilotModal />
+      </AiChatProvider>
     </SidebarProvider>
   );
 }

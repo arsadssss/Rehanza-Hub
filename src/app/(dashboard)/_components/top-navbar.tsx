@@ -34,12 +34,14 @@ import {
   Account,
 } from '@/lib/account';
 import { useTheme } from '@/components/theme-provider';
+import { useAiChat } from '@/components/ai/ai-chat-context';
 import { cn } from '@/lib/utils';
 
 export function TopNavbar() {
   const router = useRouter();
   const { data: session } = useSession();
   const { isBlueTheme } = useTheme();
+  const { isOpen: isAiOpen, toggleChat: toggleAiChat } = useAiChat();
 
   const [searchQuery, setSearchQuery] = useState('');
   const [activeAccount, setActiveAccount] = useState<{ id: string; name: string }>({
@@ -147,6 +149,24 @@ export function TopNavbar() {
 
       {/* 3. Right: Quick Actions & Account/Profile Controls */}
       <div className="flex items-center gap-3 shrink-0">
+        {/* AI Assist Button */}
+        <button
+          type="button"
+          onClick={toggleAiChat}
+          title="Open Rehanza AI Business Copilot"
+          aria-label="Open Rehanza AI Business Copilot"
+          aria-expanded={isAiOpen}
+          className={cn(
+            "h-9 px-3 rounded-xl font-bold text-xs uppercase tracking-wider flex items-center gap-2 transition-all duration-200 border shadow-sm",
+            isAiOpen
+              ? "bg-blue-600 text-white border-blue-600 shadow-blue-500/25"
+              : "bg-blue-50 hover:bg-blue-100 text-blue-700 border-blue-200"
+          )}
+        >
+          <Sparkles className={cn("h-3.5 w-3.5", isAiOpen ? "text-white" : "text-blue-600")} />
+          <span className="font-headline font-extrabold tracking-tight">AI ASSIST</span>
+        </button>
+
         {/* Notifications */}
         <button
           type="button"
