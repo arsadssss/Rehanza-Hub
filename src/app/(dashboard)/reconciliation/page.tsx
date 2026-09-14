@@ -281,16 +281,11 @@ export default function ReconciliationPage() {
         <>
           {/* 1. SKU COST MASTER (Persistent unit economics & packaging setup) */}
           <section id="sku-cost-master-section" className="space-y-4 scroll-mt-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-black uppercase tracking-wider text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
-                  Step 1
-                </span>
-                <h3 className="text-base sm:text-lg font-black text-white">SKU Cost Master</h3>
-              </div>
-              <span className="text-xs text-slate-400 font-medium hidden sm:inline">
-                Configure unit purchase cost and packaging once to automate profit reconciliation
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black uppercase tracking-wider text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+                Step 1
               </span>
+              <h3 className="text-base sm:text-lg font-black text-white">Cost Master</h3>
             </div>
             <SkuCostMaster
               accountId={activeAccountId}
@@ -301,16 +296,11 @@ export default function ReconciliationPage() {
 
           {/* 2. IMPORT HISTORY & ROW ERROR AUDIT */}
           <section className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-black uppercase tracking-wider text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/20">
-                  Step 2
-                </span>
-                <h3 className="text-base sm:text-lg font-black text-white">Ingestion Audit & Validation Log</h3>
-              </div>
-              <span className="text-xs text-slate-400 font-medium hidden sm:inline">
-                Inspect processed files, successful rows, and row-level error reports
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black uppercase tracking-wider text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-md border border-indigo-500/20">
+                Step 2
               </span>
+              <h3 className="text-base sm:text-lg font-black text-white">Ingestion Log</h3>
             </div>
             <ImportHistory
               uploads={uploads}
@@ -322,16 +312,11 @@ export default function ReconciliationPage() {
 
           {/* 3. FINANCIAL OVERVIEW, PERFORMANCE, SKU & DECISION ENGINE */}
           <section id="settlement-profit" className="space-y-4 pt-2 scroll-mt-6">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="text-xs font-black uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
-                  Step 3
-                </span>
-                <h3 className="text-base sm:text-lg font-black text-white">Financial & SKU Intelligence</h3>
-              </div>
-              <span className="text-xs text-slate-400 font-medium hidden sm:inline">
-                Workbook-validated metrics, daily trends, SKU unit economics & decision engine
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-black uppercase tracking-wider text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded-md border border-emerald-500/20">
+                Step 3
               </span>
+              <h3 className="text-base sm:text-lg font-black text-white">Financials</h3>
             </div>
             <FinancialDashboard
               accountId={activeAccountId}

@@ -78,14 +78,9 @@ export function BusinessIntelligence({
           <div className="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400">
             <Sparkles className="h-4 w-4" />
           </div>
-          <div>
-            <h2 className="text-lg font-black tracking-tight text-white font-headline">
-              Business Intelligence
-            </h2>
-            <p className="text-xs text-slate-400 font-medium">
-              AI-assisted business logic • {periodLabel}
-            </p>
-          </div>
+          <h2 className="text-lg font-black tracking-tight text-white font-headline">
+            Insights
+          </h2>
         </div>
         <Badge
           variant="outline"

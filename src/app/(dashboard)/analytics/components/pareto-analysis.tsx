@@ -49,12 +49,9 @@ export function ParetoAnalysis({ pareto, loading }: ParetoAnalysisProps) {
                 Pareto 80/20
               </Badge>
               <CardTitle className="text-base sm:text-lg font-black tracking-tight text-white font-headline">
-                Catalog Concentration Matrix
+                Catalog Mix
               </CardTitle>
             </div>
-            <CardDescription className="text-xs text-slate-300">
-              Evaluates risk and dependency by measuring what fraction of output is driven by the top 20% of catalog items.
-            </CardDescription>
           </div>
           <Sparkles className="h-5 w-5 text-indigo-400" />
         </div>

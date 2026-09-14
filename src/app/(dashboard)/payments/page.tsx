@@ -180,22 +180,18 @@ export default function PaymentsPage() {
       </AlertDialog>
 
       {/* Hero Header Card */}
-      <div className="rounded-3xl p-12 bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-xl text-center">
+      <div className="rounded-3xl p-8 md:p-10 bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-xl text-center">
           <p className="tracking-widest uppercase text-xs opacity-80 font-bold">Total Payment Received</p>
           {loading ? (
             <Skeleton className="h-16 w-64 mx-auto mt-4 bg-white/20" />
           ) : (
-            <h1 className="text-6xl font-bold mt-4 font-headline">{formatINR(totalReceived)}</h1>
+            <h1 className="text-5xl md:text-6xl font-bold mt-2 font-headline">{formatINR(totalReceived)}</h1>
           )}
-          <div className="w-16 h-1 bg-white/40 mx-auto my-4 rounded-full"></div>
-          <p className="text-sm opacity-80">Total Platform Collections for this Account</p>
       </div>
 
       <Card>
         <CardHeader className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-          <div>
-            <CardTitle className="text-2xl font-headline">Platform Payouts</CardTitle>
-          </div>
+          <CardTitle className="text-2xl font-headline">Payouts</CardTitle>
           <Button onClick={() => setIsAddPayoutOpen(true)}><PlusCircle className="mr-2 h-4 w-4" /> Add Payout</Button>
         </CardHeader>
         <CardContent>

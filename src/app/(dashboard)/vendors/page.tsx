@@ -292,10 +292,7 @@ export default function VendorsPage() {
       <Card className="bg-background/80 backdrop-blur-sm">
         <CardHeader>
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
-            <div>
-              <CardTitle className="font-headline text-2xl">Vendor Management</CardTitle>
-              <CardDescription>Oversee vendor purchases, payments, and balances.</CardDescription>
-            </div>
+            <CardTitle className="font-headline text-2xl">Vendors</CardTitle>
             <div className="flex items-center gap-2">
               <Button variant="outline" onClick={() => setIsAddVendorOpen(true)}><PlusCircle className="mr-2 h-4 w-4" /> Add Vendor</Button>
               <Button variant="outline" onClick={() => setIsAddPurchaseOpen(true)}><PlusCircle className="mr-2 h-4 w-4" /> Add Purchase</Button>

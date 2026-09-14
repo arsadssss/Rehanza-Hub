@@ -339,7 +339,7 @@ export default function ProductsPage() {
   return (
     <div className="space-y-6 pb-12">
       {/* 1. Header & Primary Action Bar */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-border/40 pb-5">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-border/40 pb-4">
         <div>
           <div className="flex items-center gap-2.5">
             <h1 className="text-2xl sm:text-3xl font-bold tracking-tight bg-gradient-to-r from-foreground via-foreground/90 to-foreground/70 bg-clip-text text-transparent">
@@ -349,9 +349,6 @@ export default function ProductsPage() {
               {activeAccountName}
             </Badge>
           </div>
-          <p className="text-sm text-muted-foreground mt-1">
-            Two-tier product management layer built directly on authoritative Reconciliation data.
-          </p>
         </div>
 
         <div className="flex flex-wrap items-center gap-2.5">
@@ -509,18 +506,12 @@ export default function ProductsPage() {
                 <div className="p-2 rounded-lg bg-purple-500/15 text-purple-600 dark:text-purple-400 border border-purple-500/30">
                   <Sparkles className="w-5 h-5" />
                 </div>
-                <div>
-                  <CardTitle className="text-lg font-bold tracking-tight flex items-center gap-2">
-                    AI Grouping Proposals Available
-                    <Badge variant="outline" className="text-purple-600 dark:text-purple-400 border-purple-500/30 bg-purple-500/10">
-                      {pendingSuggestions.length} Pending
-                    </Badge>
-                  </CardTitle>
-                  <CardDescription className="text-xs text-muted-foreground mt-0.5">
-                    Clustering detected based on SKU code tokens, product title similarities, and purchase/packaging cost matching.
-                    No grouping is applied without explicit human approval.
-                  </CardDescription>
-                </div>
+                <CardTitle className="text-lg font-bold tracking-tight flex items-center gap-2">
+                  Grouping Proposals
+                  <Badge variant="outline" className="text-purple-600 dark:text-purple-400 border-purple-500/30 bg-purple-500/10">
+                    {pendingSuggestions.length} Pending
+                  </Badge>
+                </CardTitle>
               </div>
             </div>
           </CardHeader>

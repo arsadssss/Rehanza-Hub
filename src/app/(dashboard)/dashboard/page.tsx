@@ -470,23 +470,18 @@ export default function DashboardPage() {
   return (
     <div className="relative min-h-screen space-y-10 p-6 md:p-10 font-body">
       {/* 1. Page Header & Global Controls */}
-      <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 pb-2 border-b border-white/10">
-        <div>
-          <div className="mb-1 flex items-center gap-3">
-            <Image
-              src="/images/rehanza2.png"
-              alt="Rehanza Hub"
-              width={220}
-              height={56}
-              className="h-10 w-auto object-contain md:h-12"
-            />
-            <h1 className="text-3xl font-black tracking-tighter font-headline text-white md:text-4xl leading-none">
-              Dashboard
-            </h1>
-          </div>
-          <p className="text-slate-300 font-medium ml-1 text-sm">
-            Unified executive overview: operational execution, reconciliation financials & SKU unit economics.
-          </p>
+      <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 pb-4 border-b border-white/10">
+        <div className="flex items-center gap-3">
+          <Image
+            src="/images/rehanza2.png"
+            alt="Rehanza Hub"
+            width={220}
+            height={56}
+            className="h-10 w-auto object-contain md:h-12"
+          />
+          <h1 className="text-3xl font-black tracking-tighter font-headline text-white md:text-4xl leading-none">
+            Dashboard
+          </h1>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">
@@ -535,7 +530,7 @@ export default function DashboardPage() {
             Overview
           </Badge>
           <h2 className="text-lg font-black tracking-tight text-white font-headline">
-            Executive Key Performance Indicators
+            Key Metrics
           </h2>
         </div>
 
@@ -611,7 +606,7 @@ export default function DashboardPage() {
         />
       </section>
 
-      {/* 4. Analytics Layer: Daily Financial Trends & Order Distribution */}
+      {/* 4. Analytics & Operational Deep Dive */}
       <section className="space-y-3">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
@@ -622,7 +617,7 @@ export default function DashboardPage() {
               Analytics
             </Badge>
             <h2 className="text-lg font-black tracking-tight text-white font-headline">
-              Reconciliation Analytics & Distribution
+              Analytics
             </h2>
           </div>
           <Link
@@ -679,7 +674,7 @@ export default function DashboardPage() {
               Operations
             </Badge>
             <h2 className="text-lg font-black tracking-tight text-white font-headline">
-              Team Task Performance & Tracking
+              Task Performance
             </h2>
           </div>
           <Link

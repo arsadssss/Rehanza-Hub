@@ -372,9 +372,6 @@ export function AiCopilotModal({
                   Connected
                 </span>
               </div>
-              <p className="text-[11px] text-slate-400 font-medium line-clamp-1">
-                Your business intelligence assistant
-              </p>
             </div>
           </div>
 

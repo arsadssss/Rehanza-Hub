@@ -67,16 +67,13 @@ export function ProfitLeakageCard({ leakage, loading }: ProfitLeakageCardProps) 
                 Leakage Audit
               </Badge>
               <CardTitle className="text-base sm:text-lg font-black tracking-tight text-white font-headline">
-                Profit Leakage & Retention
+                Profit Leakage
               </CardTitle>
             </div>
             <div className="flex items-center gap-1.5">
               <Droplets className="h-4 w-4 text-rose-400" />
             </div>
           </div>
-          <CardDescription className="text-xs text-slate-300 mt-1">
-            Quantifies revenue shrinkage between customer invoice price and final bank settlement.
-          </CardDescription>
         </CardHeader>
 
         {/* Primary Retention Hero Card */}

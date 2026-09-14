@@ -662,16 +662,13 @@ export default function TasksPage() {
             </div>
 
             <Card className="relative z-10 border border-white/10 shadow-[0_18px_55px_rgba(2,6,23,0.22)] rounded-[2.5rem] overflow-hidden glass-panel">
-                <CardHeader className="bg-muted/20 pb-8 border-b border-border/50 px-8 pt-8">
+                <CardHeader className="bg-muted/20 pb-6 border-b border-border/50 px-8 pt-6">
                     <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
-                        <div>
-                            <div className="flex items-center gap-3 mb-1">
-                                <div className="p-2 bg-primary rounded-xl shadow-lg shadow-primary/20">
-                                    <Zap className="h-5 w-5 text-white" />
-                                </div>
-                                <CardTitle className="font-headline text-3xl font-black tracking-tight">Execution Engine</CardTitle>
+                        <div className="flex items-center gap-3">
+                            <div className="p-2 bg-primary rounded-xl shadow-lg shadow-primary/20">
+                                <Zap className="h-5 w-5 text-white" />
                             </div>
-                            <CardDescription className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground/60 ml-1">Command center for marketplace operations</CardDescription>
+                            <CardTitle className="font-headline text-3xl font-black tracking-tight">Tasks</CardTitle>
                         </div>
                         <Button onClick={() => handleOpenModal()} className="font-black h-12 px-8 rounded-xl shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all bg-primary text-primary-foreground">
                             <PlusCircle className="mr-2 h-5 w-5" /> CREATE TASK

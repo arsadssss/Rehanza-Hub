@@ -270,10 +270,7 @@ export default function ExpensesPage() {
               <div className="p-2 bg-primary/10 rounded-xl">
                 <BarChart3 className="h-5 w-5 text-primary" />
               </div>
-              <div>
-                <CardTitle className="font-headline text-xl">Daily Expense Trend</CardTitle>
-                <CardDescription>Visualizing business spend across the last 7 days.</CardDescription>
-              </div>
+              <CardTitle className="font-headline text-xl">Expense Trends</CardTitle>
             </div>
           </CardHeader>
           <CardContent>
@@ -321,10 +318,7 @@ export default function ExpensesPage() {
         {/* Listing and Filters */}
         <Card className="border-0 shadow-xl rounded-[2rem] overflow-hidden bg-white/80 dark:bg-slate-900/80 backdrop-blur-xl">
             <CardHeader className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 border-b bg-muted/30 pb-6 px-8">
-                <div>
-                    <CardTitle className="font-headline text-xl">Operational Log</CardTitle>
-                    <CardDescription>Comprehensive history of all business expenses.</CardDescription>
-                </div>
+                <CardTitle className="font-headline text-xl">Expenses</CardTitle>
                 <Button onClick={() => setIsAddExpenseOpen(true)} className="rounded-xl h-11 font-bold shadow-lg shadow-primary/20">
                   <PlusCircle className="mr-2 h-4 w-4" /> Add Expense
                 </Button>

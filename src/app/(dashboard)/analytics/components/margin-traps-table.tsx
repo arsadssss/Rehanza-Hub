@@ -41,12 +41,9 @@ export function MarginTrapsTable({ marginTraps, loading }: MarginTrapsTableProps
               Diagnostic
             </Badge>
             <CardTitle className="text-base sm:text-lg font-black tracking-tight text-white font-headline">
-              Margin Trap Analysis (High Sales, Negative Profit)
+              Margin Traps
             </CardTitle>
           </div>
-          <CardDescription className="text-xs text-slate-300">
-            Identifies deceptive products that generate large top-line revenue but destroy operating cash flow.
-          </CardDescription>
         </div>
         <AlertTriangle className="h-5 w-5 text-rose-400 shrink-0" />
       </CardHeader>

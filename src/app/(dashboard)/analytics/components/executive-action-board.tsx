@@ -54,12 +54,9 @@ export function ExecutiveActionBoard({ board, loading }: ExecutiveActionBoardPro
                   Action Directives
                 </Badge>
                 <CardTitle className="text-base sm:text-lg font-black tracking-tight text-white font-headline">
-                  Executive Management Directives
+                  Actions
                 </CardTitle>
               </div>
-              <CardDescription className="text-xs text-slate-300">
-                High-leverage operational interventions to stop profit leakage and capitalize on margin winners.
-              </CardDescription>
             </div>
             <Target className="h-5 w-5 text-amber-400" />
           </div>
@@ -125,12 +122,9 @@ export function ExecutiveActionBoard({ board, loading }: ExecutiveActionBoardPro
                   Bleeders
                 </Badge>
                 <CardTitle className="text-sm sm:text-base font-black tracking-tight text-white font-headline">
-                  Top Profit Bleeders (Loss Leaders)
+                  Profit Bleeders
                 </CardTitle>
               </div>
-              <CardDescription className="text-xs text-slate-300">
-                Products generating the highest negative net contribution.
-              </CardDescription>
             </div>
             <StopCircle className="h-5 w-5 text-rose-400" />
           </CardHeader>
@@ -183,12 +177,9 @@ export function ExecutiveActionBoard({ board, loading }: ExecutiveActionBoardPro
                   Expanders
                 </Badge>
                 <CardTitle className="text-sm sm:text-base font-black tracking-tight text-white font-headline">
-                  Top Margin Expanders (Scale Candidates)
+                  Margin Expanders
                 </CardTitle>
               </div>
-              <CardDescription className="text-xs text-slate-300">
-                High-margin, low-return products primed for marketing scale.
-              </CardDescription>
             </div>
             <TrendingUp className="h-5 w-5 text-emerald-400" />
           </CardHeader>

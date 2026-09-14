@@ -43,12 +43,9 @@ export function CostWaterfall({ steps, loading }: CostWaterfallProps) {
                 Cost Waterfall
               </Badge>
               <CardTitle className="text-base sm:text-lg font-black tracking-tight text-white font-headline">
-                Gross-to-Net Accounting Waterfall
+                Cost Breakdown
               </CardTitle>
             </div>
-            <CardDescription className="text-xs text-slate-300">
-              Auditable step-down bridge illustrating where customer invoice revenue is absorbed across the value chain.
-            </CardDescription>
           </div>
           <div className="text-right">
             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">

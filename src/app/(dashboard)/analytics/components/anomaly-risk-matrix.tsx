@@ -40,12 +40,9 @@ export function AnomalyRiskMatrix({ anomalies, loading }: AnomalyRiskMatrixProps
                 Anomaly Matrix
               </Badge>
               <CardTitle className="text-base sm:text-lg font-black tracking-tight text-white font-headline">
-                Algorithmic Risk & Anomaly Signals
+                Risk Alerts
               </CardTitle>
             </div>
-            <CardDescription className="text-xs text-slate-300">
-              Automated heuristics flagging operational anomalies, extreme returns, and margin deterioration.
-            </CardDescription>
           </div>
           <ShieldAlert className="h-5 w-5 text-rose-400" />
         </div>

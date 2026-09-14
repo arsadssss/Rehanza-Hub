@@ -323,18 +323,13 @@ export default function InventoryPage() {
     <div className="p-6 md:p-8 space-y-8 bg-slate-950 text-slate-100 min-h-screen">
       {/* 1. Header Section */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2.5">
-            <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white font-headline">
-              Inventory Management
-            </h1>
-            <Badge variant="outline" className="bg-indigo-500/10 text-indigo-400 border-indigo-500/20 text-xs font-bold">
-              {activeAccountName}
-            </Badge>
-          </div>
-          <p className="text-xs md:text-sm text-slate-400">
-            Centralized SKU-level stock control, atomic movements & accurate valuation
-          </p>
+        <div className="flex items-center gap-2.5">
+          <h1 className="text-2xl md:text-3xl font-black tracking-tight text-white font-headline">
+            Inventory Management
+          </h1>
+          <Badge variant="outline" className="bg-indigo-500/10 text-indigo-400 border-indigo-500/20 text-xs font-bold">
+            {activeAccountName}
+          </Badge>
         </div>
 
         <div className="flex flex-wrap items-center gap-3">

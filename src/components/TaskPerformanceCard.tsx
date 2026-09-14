@@ -125,10 +125,7 @@ export function TaskPerformanceCard({ data, loading, title = "Task Performance" 
                         <div className="p-3 bg-primary rounded-2xl shadow-lg shadow-primary/20 text-white">
                             <BarChart3 className="h-6 w-6" />
                         </div>
-                        <div>
-                            <CardTitle className="font-headline text-3xl font-black tracking-tight">{title}</CardTitle>
-                            <CardDescription className="text-xs font-bold uppercase tracking-[0.2em] text-muted-foreground/60">Real-time team execution analytics</CardDescription>
-                        </div>
+                        <CardTitle className="font-headline text-3xl font-black tracking-tight">{title}</CardTitle>
                     </div>
                     
                     <div className="flex flex-wrap items-center gap-3 w-full md:w-auto">

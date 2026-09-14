@@ -161,30 +161,25 @@ export default function AnalyticsReportsPage() {
     <div className="relative min-h-screen space-y-8 p-3 sm:p-6 lg:p-8 max-w-[1600px] mx-auto font-body w-full max-w-full overflow-x-hidden min-w-0">
       {/* 1. Header Toolbar */}
       <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4 pb-4 border-b border-white/10">
-        <div className="space-y-1">
-          <div className="flex flex-wrap items-center gap-3">
-            <h1 className="text-2xl sm:text-3xl font-black tracking-tight font-headline text-white flex items-center gap-2.5">
-              <BarChart3 className="h-7 w-7 text-indigo-400" />
-              <span>Management Reports & Analytical Intelligence</span>
-            </h1>
-            {activeAccountId && (
-              <Badge
-                variant="outline"
-                className="glass-pill h-7 px-2.5 rounded-lg border border-indigo-400/30 bg-indigo-500/10 font-bold text-xs text-indigo-300 shadow-sm"
-              >
-                Account: {activeAccountName}
-              </Badge>
-            )}
+        <div className="flex flex-wrap items-center gap-3">
+          <h1 className="text-2xl sm:text-3xl font-black tracking-tight font-headline text-white flex items-center gap-2.5">
+            <BarChart3 className="h-7 w-7 text-indigo-400" />
+            <span>Reports</span>
+          </h1>
+          {activeAccountId && (
             <Badge
               variant="outline"
-              className="glass-pill h-7 px-2.5 rounded-lg border border-emerald-400/30 bg-emerald-500/10 font-bold text-xs text-emerald-300 shadow-sm"
+              className="glass-pill h-7 px-2.5 rounded-lg border border-indigo-400/30 bg-indigo-500/10 font-bold text-xs text-indigo-300 shadow-sm"
             >
-              Marketplace: Meesho (Authoritative)
+              Account: {activeAccountName}
             </Badge>
-          </div>
-          <p className="text-xs sm:text-sm text-slate-300 font-medium">
-            Strategic decision layer: Period-over-period growth, profit leakage waterfalls, margin traps, and executive attention directives.
-          </p>
+          )}
+          <Badge
+            variant="outline"
+            className="glass-pill h-7 px-2.5 rounded-lg border border-emerald-400/30 bg-emerald-500/10 font-bold text-xs text-emerald-300 shadow-sm"
+          >
+            Marketplace: Meesho (Authoritative)
+          </Badge>
         </div>
 
         {/* Action Buttons & Period Pills */}

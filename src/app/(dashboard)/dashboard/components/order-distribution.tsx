@@ -104,14 +104,9 @@ export function OrderDistribution({
             <div className="p-2.5 bg-indigo-500/10 rounded-xl text-indigo-400">
               <PieChartIcon className="h-5 w-5" />
             </div>
-            <div>
-              <CardTitle className="font-headline text-xl font-bold text-white">
-                Order Distribution
-              </CardTitle>
-              <CardDescription className="text-[10px] uppercase font-bold tracking-widest text-slate-400">
-                Canonical Status Breakdown • {periodLabel}
-              </CardDescription>
-            </div>
+            <CardTitle className="font-headline text-xl font-bold text-white">
+              Distribution
+            </CardTitle>
           </div>
         </CardHeader>
         <div className="py-12 flex flex-col items-center justify-center text-center space-y-2">
@@ -185,14 +180,9 @@ export function OrderDistribution({
             <div className="p-2.5 bg-indigo-500/10 rounded-xl text-indigo-400">
               <PieChartIcon className="h-5 w-5" />
             </div>
-            <div>
-              <CardTitle className="font-headline text-xl font-bold text-white">
-                Order Distribution
-              </CardTitle>
-              <CardDescription className="text-[10px] uppercase font-bold tracking-widest text-slate-400">
-                Canonical Status Breakdown • {periodLabel}
-              </CardDescription>
-            </div>
+            <CardTitle className="font-headline text-xl font-bold text-white">
+              Distribution
+            </CardTitle>
           </div>
           <Badge
             variant="outline"

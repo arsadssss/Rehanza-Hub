@@ -58,12 +58,9 @@ export function ReturnRtoDamage({ report, loading }: ReturnRtoDamageProps) {
                 Logistics Damage
               </Badge>
               <CardTitle className="text-base sm:text-lg font-black tracking-tight text-white font-headline">
-                Return & RTO Financial Destruction Report
+                Returns & RTO
               </CardTitle>
             </div>
-            <CardDescription className="text-xs text-slate-300">
-              Audit of courier freight, packaging materials, and transit damage wasted on incomplete deliveries.
-            </CardDescription>
           </div>
           <div className="text-left sm:text-right">
             <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">

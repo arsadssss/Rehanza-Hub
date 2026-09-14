@@ -72,14 +72,9 @@ export function DailyFinancialTrends({
             <div className="p-2.5 bg-indigo-500/10 rounded-xl text-indigo-400">
               <BarChart2 className="h-5 w-5" />
             </div>
-            <div>
-              <CardTitle className="font-headline text-2xl font-black tracking-tight text-white">
-                Daily Financial Trends
-              </CardTitle>
-              <CardDescription className="text-xs font-bold uppercase tracking-widest text-slate-400">
-                Revenue, settlement & profit trajectory • {periodLabel}
-              </CardDescription>
-            </div>
+            <CardTitle className="font-headline text-2xl font-black tracking-tight text-white">
+              Financial Trends
+            </CardTitle>
           </div>
         </div>
 

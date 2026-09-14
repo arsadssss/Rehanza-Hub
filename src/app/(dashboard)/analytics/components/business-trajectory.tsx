@@ -68,12 +68,9 @@ export function BusinessTrajectory({
                 Trajectory
               </Badge>
               <CardTitle className="text-base sm:text-lg font-black tracking-tight text-white font-headline">
-                Operating Margin & Cost Efficiency Velocity
+                Business Trend
               </CardTitle>
             </div>
-            <CardDescription className="text-xs text-slate-300">
-              Moving trajectory of Net Realized Margin % vs Total Cost-to-Sales Burden across transaction days.
-            </CardDescription>
           </div>
           <Activity className="h-5 w-5 text-cyan-400" />
         </div>

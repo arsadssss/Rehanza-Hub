@@ -193,9 +193,8 @@ export default function SettingsPage() {
 
   return (
     <div className="p-6">
-      <div className="mb-6">
+      <div className="mb-5">
         <h1 className="text-3xl font-bold tracking-tight font-headline">App Settings</h1>
-        <p className="text-muted-foreground">Manage your entire e-commerce operation from one place.</p>
       </div>
       <Tabs defaultValue="business_config" className="w-full">
         <TabsList className="grid w-full grid-cols-2 sm:grid-cols-3 md:grid-cols-5 lg:grid-cols-9 mb-6 bg-muted/50 p-1 rounded-2xl h-auto gap-1">

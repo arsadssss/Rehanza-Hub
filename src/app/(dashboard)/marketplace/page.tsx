@@ -207,20 +207,15 @@ export default function MarketplacePage() {
   return (
     <div className="flex-1 space-y-6 p-4 sm:p-6 lg:p-8 max-w-7xl mx-auto">
       {/* Page Header with Multi-Account Selector */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-border/60 pb-5">
+      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 border-b border-border/60 pb-4">
         <div>
           <div className="flex items-center gap-2.5">
             <div className="p-2 rounded-xl bg-pink-500/10 text-pink-600 dark:text-pink-400">
               <Store className="w-6 h-6" />
             </div>
-            <div>
-              <h1 className="text-2xl font-bold tracking-tight text-foreground">
-                Marketplace
-              </h1>
-              <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
-                Meesho Supplier Hub & Payout Control Center
-              </p>
-            </div>
+            <h1 className="text-2xl font-bold tracking-tight text-foreground">
+              Marketplace
+            </h1>
           </div>
         </div>
 
@@ -321,15 +316,10 @@ export default function MarketplacePage() {
       {/* Payments Section mirroring official Meesho Supplier Hub */}
       <div className="space-y-4 pt-2">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-          <div>
-            <h2 className="text-lg font-bold text-foreground tracking-tight flex items-center gap-2">
-              <CreditCard className="w-5 h-5 text-primary" />
-              Meesho Supplier Payments
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              Direct synchronization of settlements, unbilled orders, and completed payouts
-            </p>
-          </div>
+          <h2 className="text-lg font-bold text-foreground tracking-tight flex items-center gap-2">
+            <CreditCard className="w-5 h-5 text-primary" />
+            Supplier Payments
+          </h2>
           {payments?.lastSyncedAt && (
             <Badge variant="outline" className="text-[11px] font-normal text-muted-foreground self-start sm:self-center">
               Synced: {new Date(payments.lastSyncedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}

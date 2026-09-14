@@ -52,7 +52,7 @@ export function PeriodComparisonCards({ comparison, loading }: PeriodComparisonC
             PoP Variance
           </Badge>
           <h3 className="text-sm sm:text-base font-black tracking-tight text-white font-headline">
-            Period-over-Period Performance Bridge
+            Performance
           </h3>
         </div>
         <span className="text-[11px] font-semibold text-slate-400">

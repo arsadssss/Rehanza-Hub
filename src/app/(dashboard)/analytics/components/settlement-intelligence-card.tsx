@@ -51,14 +51,11 @@ export function SettlementIntelligenceCard({ intelligence, loading }: Settlement
                 Settlement IQ
               </Badge>
               <CardTitle className="text-base sm:text-lg font-black tracking-tight text-white font-headline">
-                Settlement Realization & Spread
+                Settlement
               </CardTitle>
             </div>
             <Landmark className="h-4 w-4 text-emerald-400" />
           </div>
-          <CardDescription className="text-xs text-slate-300 mt-1">
-            Reconciliation gap audit between customer billing and realized marketplace bank disbursements.
-          </CardDescription>
         </CardHeader>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-1">

@@ -221,7 +221,6 @@ export function WholesalePricingClient() {
     <div className="p-6 space-y-8 bg-gray-50/50 dark:bg-black/50 min-h-full font-body">
       <div className="flex flex-col gap-1">
         <h1 className="text-3xl font-bold tracking-tight font-headline text-foreground">Wholesale Pricing</h1>
-        <p className="text-muted-foreground text-sm font-medium">Manage volume-based discount tiers independently from your main catalog.</p>
       </div>
 
       <div className="flex flex-col gap-8">
@@ -232,10 +231,7 @@ export function WholesalePricingClient() {
               <div className="p-2 bg-primary/10 rounded-xl">
                 <PlusCircle className="h-5 w-5 text-primary" />
               </div>
-              <div>
-                <CardTitle className="text-xl font-headline font-bold">Add New Item</CardTitle>
-                <CardDescription className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Manual Configuration</CardDescription>
-              </div>
+              <CardTitle className="text-xl font-headline font-bold">Add Item</CardTitle>
             </div>
           </CardHeader>
           <CardContent className="px-8 pb-10 mt-2">
@@ -318,10 +314,7 @@ export function WholesalePricingClient() {
               <div className="p-2 bg-primary/10 rounded-xl">
                 <Tag className="h-5 w-5 text-primary" />
               </div>
-              <div>
-                <CardTitle className="text-xl font-headline font-bold">Price Registry</CardTitle>
-                <CardDescription className="text-[10px] uppercase font-bold tracking-widest text-muted-foreground/60">Active Wholesale Tiers</CardDescription>
-              </div>
+              <CardTitle className="text-xl font-headline font-bold">Pricing Tiers</CardTitle>
             </div>
 
             {/* Filter Bar */}
